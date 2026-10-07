@@ -1,6 +1,9 @@
 import Phaser from 'phaser';
 import { PAL } from './palette';
 import * as A from './art';
+import * as S from './sprites';
+import { biomes, enemies, items, skills } from '../content/registry';
+import type { Gear } from '../content/types';
 
 function pad(rows: string[]): string[] {
   const w = Math.max(...rows.map((r) => r.length));
@@ -20,11 +23,11 @@ function drawMap(ctx: CanvasRenderingContext2D, rows: string[], ox = 0, oy = 0, 
   });
 }
 
-export function mapTexture(scene: Phaser.Scene, key: string, rows: string[]) {
+export function mapTexture(scene: Phaser.Scene, key: string, rows: string[], override?: string) {
   if (scene.textures.exists(key)) return;
   const p = pad(rows);
   const tex = scene.textures.createCanvas(key, p[0].length, p.length)!;
-  drawMap(tex.getContext(), p);
+  drawMap(tex.getContext(), p, 0, 0, override);
   tex.refresh();
 }
 
@@ -33,6 +36,18 @@ function canvasTexture(scene: Phaser.Scene, key: string, w: number, h: number, d
   const tex = scene.textures.createCanvas(key, w, h)!;
   draw(tex.getContext());
   tex.refresh();
+}
+
+// Flatten an item's gear pieces into one icon.
+function gearIcon(gear: Gear[]): string[] {
+  const minX = Math.min(...gear.map((g) => g.x));
+  const minY = Math.min(...gear.map((g) => g.y));
+  const maxX = Math.max(...gear.map((g) => g.x + Math.max(...g.rows.map((r) => r.length))));
+  const maxY = Math.max(...gear.map((g) => g.y + g.rows.length));
+  const grid = Array.from({ length: maxY - minY }, () => Array(maxX - minX).fill('.'));
+  for (const g of gear)
+    g.rows.forEach((row, y) => [...row].forEach((ch, x) => ch !== '.' && (grid[g.y - minY + y][g.x - minX + x] = ch)));
+  return grid.map((r) => r.join(''));
 }
 
 export const FONT_CHARS = Object.keys(A.GLYPHS).join('');
@@ -45,7 +60,6 @@ function buildFont(scene: Phaser.Scene) {
     [...chars].forEach((ch, i) => {
       const g = A.GLYPHS[ch];
       const ox = i * CELL_W + 1;
-      // Outline first, then the glyph on top.
       ctx.fillStyle = PAL.k;
       g.forEach((row, y) => {
         for (let x = 0; x < 3; x++) {
@@ -74,165 +88,67 @@ function buildFont(scene: Phaser.Scene) {
   scene.cache.bitmapFont.add('px', data);
 }
 
-// Deterministic noise so backgrounds look the same each run.
-function rng(seed: number) {
+// Deterministic noise so scenery looks the same each run.
+export function rng(seed: number) {
   return () => {
     seed = (seed * 1664525 + 1013904223) >>> 0;
     return seed / 4294967296;
   };
 }
 
-export const BG_W = 180;
-export const BG_H = 128;
+export const LAYER_W = 512;
+export const GROUND_Y = 124;
 
-function buildBackgrounds(scene: Phaser.Scene) {
-  // Alley: brick walls, sidewalk curbs, cracked asphalt.
-  canvasTexture(scene, 'bg_alley', BG_W, BG_H, (ctx) => {
-    const r = rng(7);
-    ctx.fillStyle = PAL.a;
-    ctx.fillRect(0, 0, BG_W, BG_H);
-    for (let i = 0; i < 260; i++) {
-      ctx.fillStyle = r() < 0.6 ? PAL.d : PAL.g;
-      ctx.fillRect(Math.floor(r() * BG_W), Math.floor(r() * BG_H), 1, 1);
-    }
-    // cracks
-    for (let c = 0; c < 4; c++) {
-      let x = 30 + Math.floor(r() * 120);
-      let y = Math.floor(r() * BG_H);
-      ctx.fillStyle = PAL.d;
-      for (let s = 0; s < 10; s++) {
-        ctx.fillRect(x, y, 1, 1);
-        x += Math.floor(r() * 3) - 1;
-        y += 1;
-      }
-    }
-    // centre drain line
-    ctx.fillStyle = PAL.g;
-    for (let y = 0; y < BG_H; y += 16) ctx.fillRect(89, y, 2, 8);
-    const wall = (x0: number) => {
-      ctx.fillStyle = PAL.k;
-      ctx.fillRect(x0, 0, 16, BG_H);
-      for (let row = 0; row < BG_H / 4; row++) {
-        const off = row % 2 ? 0 : 3;
-        for (let bx = -6; bx < 16; bx += 6) {
-          const x = x0 + bx + off;
-          ctx.fillStyle = (row * 7 + bx) % 3 === 0 ? PAL.N : PAL.n;
-          const xs = Math.max(x, x0);
-          const xe = Math.min(x + 5, x0 + 16);
-          if (xe > xs) ctx.fillRect(xs, row * 4, xe - xs, 3);
-        }
-      }
-    };
-    wall(0);
-    wall(BG_W - 16);
-    ctx.fillStyle = PAL.g;
-    ctx.fillRect(16, 0, 3, BG_H);
-    ctx.fillRect(BG_W - 19, 0, 3, BG_H);
-    ctx.fillStyle = PAL.l;
-    ctx.fillRect(16, 0, 1, BG_H);
-    ctx.fillRect(BG_W - 17, 0, 1, BG_H);
+function buildBiomes(scene: Phaser.Scene, h: number) {
+  biomes.forEach((b, i) => {
+    canvasTexture(scene, `sky_${b.id}`, 4, h, (ctx) => {
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, b.sky[0]);
+      g.addColorStop(1, b.sky[1]);
+      ctx.fillStyle = g;
+      ctx.fillRect(0, 0, 4, h);
+    });
+    canvasTexture(scene, `far_${b.id}`, LAYER_W, GROUND_Y + 4, (ctx) => b.paintFar(ctx, LAYER_W, GROUND_Y + 4, rng(11 + i), PAL));
+    canvasTexture(scene, `near_${b.id}`, LAYER_W, GROUND_Y + 2, (ctx) => b.paintNear(ctx, LAYER_W, GROUND_Y + 2, rng(37 + i), PAL));
+    canvasTexture(scene, `ground_${b.id}`, LAYER_W, h - GROUND_Y, (ctx) => b.paintGround(ctx, LAYER_W, h - GROUND_Y, rng(71 + i), PAL));
   });
-
-  // Park: grass verges with a dirt path.
-  canvasTexture(scene, 'bg_park', BG_W, BG_H, (ctx) => {
-    const r = rng(11);
-    ctx.fillStyle = PAL.G;
-    ctx.fillRect(0, 0, BG_W, BG_H);
-    ctx.fillStyle = PAL.n;
-    ctx.fillRect(40, 0, 100, BG_H);
-    for (let i = 0; i < 500; i++) {
-      const x = Math.floor(r() * BG_W);
-      const y = Math.floor(r() * BG_H);
-      const onPath = x >= 40 && x < 140;
-      ctx.fillStyle = onPath ? (r() < 0.5 ? PAL.N : PAL.o) : r() < 0.5 ? PAL.D : PAL.L;
-      if (!onPath || r() < 0.4) ctx.fillRect(x, y, 1, 1);
-    }
-    // grass tufts
-    for (let i = 0; i < 30; i++) {
-      const x = r() < 0.5 ? Math.floor(r() * 34) : 144 + Math.floor(r() * 34);
-      const y = Math.floor(r() * (BG_H - 3));
-      ctx.fillStyle = PAL.D;
-      ctx.fillRect(x, y + 1, 1, 2);
-      ctx.fillRect(x + 2, y + 1, 1, 2);
-      ctx.fillStyle = PAL.L;
-      ctx.fillRect(x + 1, y, 1, 3);
-    }
-    ctx.fillStyle = PAL.N;
-    ctx.fillRect(40, 0, 1, BG_H);
-    ctx.fillRect(139, 0, 1, BG_H);
-  });
-
-  // Sewer: stone ledges and a murky channel.
-  canvasTexture(scene, 'bg_sewer', BG_W, BG_H, (ctx) => {
-    const r = rng(23);
-    ctx.fillStyle = PAL.B;
-    ctx.fillRect(0, 0, BG_W, BG_H);
-    const stones = (x0: number, w: number) => {
-      for (let row = 0; row < BG_H / 6; row++) {
-        for (let bx = 0; bx < w; bx += 8) {
-          ctx.fillStyle = (row + bx) % 3 === 0 ? PAL.g : PAL.d;
-          ctx.fillRect(x0 + bx + (row % 2 ? 4 : 0) - 4, row * 6, 7, 5);
-        }
-      }
-    };
-    stones(0, 32);
-    stones(156, 32);
-    ctx.fillStyle = PAL.D;
-    ctx.fillRect(24, 0, 132, BG_H);
-    for (let i = 0; i < 160; i++) {
-      ctx.fillStyle = r() < 0.5 ? PAL.G : PAL.B;
-      ctx.fillRect(24 + Math.floor(r() * 132), Math.floor(r() * BG_H), 2, 1);
-    }
-    for (let i = 0; i < 18; i++) {
-      ctx.fillStyle = PAL.C;
-      ctx.fillRect(30 + Math.floor(r() * 120), Math.floor(r() * BG_H), 3, 1);
-    }
-    ctx.fillStyle = PAL.k;
-    ctx.fillRect(23, 0, 1, BG_H);
-    ctx.fillRect(156, 0, 1, BG_H);
-    ctx.fillStyle = PAL.l;
-    ctx.fillRect(22, 0, 1, BG_H);
-    ctx.fillRect(157, 0, 1, BG_H);
-  });
-
-  // Decals that scroll past on top of the base tile.
-  mapTexture(scene, 'decal_manhole', [
-    '..kkkkk..',
-    '.kgdgdgk.',
-    'kgdgdgdgk',
-    'kdgdgdgdk',
-    'kgdgdgdgk',
-    '.kgdgdgk.',
-    '..kkkkk..',
-  ]);
-  mapTexture(scene, 'decal_puddle', [
-    '...BBBBB....',
-    '.BBbbbbbBB..',
-    'BbbcbbbbbbB.',
-    '.BBbbbbCbbbB',
-    '...BBBBBBB..',
-  ]);
-  mapTexture(scene, 'decal_bush', [
-    '..kkkk...',
-    '.kGGLGk..',
-    'kGLGGGGk.',
-    'kGGGDGLGk',
-    'kDGGGGGGk',
-    '.kDGDGDk.',
-    '..kkkkk..',
-  ]);
-  mapTexture(scene, 'decal_flower', ['.y.', 'yry', '.y.', '.G.']);
-  mapTexture(scene, 'decal_grate', [
-    'kkkkkkkkk',
-    'kgkgkgkgk',
-    'kgkgkgkgk',
-    'kgkgkgkgk',
-    'kkkkkkkkk',
-  ]);
-  mapTexture(scene, 'decal_slime', ['..LL..', '.LGGL.', 'LGGGGL', '.LLGL.']);
 }
 
-function buildMisc(scene: Phaser.Scene) {
+export function buildTextures(scene: Phaser.Scene) {
+  const maps: Record<string, string[]> = {
+    coon_idle_0: S.COON_IDLE_0,
+    coon_idle_1: S.COON_IDLE_1,
+    coon_walk_1: S.COON_WALK_1,
+    coon_attack: S.COON_ATTACK,
+    coon_hurt: S.COON_HURT,
+    chest: S.CHEST,
+    sign: S.SIGN,
+    shopkeep: S.SHOPKEEP,
+    lid: S.LID,
+    can: A.CAN,
+    coin: A.COIN_0,
+    pizza: A.PIZZA,
+    heart: A.HEART,
+    cap: A.CAP,
+  };
+  for (const [k, rows] of Object.entries(maps)) mapTexture(scene, k, rows);
+  mapTexture(scene, 'coon_ghost', S.COON_IDLE_0, PAL.w);
+  for (const [k, rows] of Object.entries(A.STATUS_ICONS)) mapTexture(scene, 'st_' + k, rows);
+  for (const [k, rows] of Object.entries(A.INTENT_ICONS)) mapTexture(scene, 'in_' + k, rows);
+
+  for (const e of enemies.values()) e.frames.forEach((f, i) => mapTexture(scene, `${e.id}_${i}`, f));
+  for (const it of items.values()) {
+    it.gear?.forEach((g, i) => {
+      mapTexture(scene, `gear_${it.id}_${i}`, g.rows);
+      if (g.alt) mapTexture(scene, `gear_${it.id}_${i}_alt`, g.alt);
+    });
+    mapTexture(scene, `item_${it.id}`, it.icon ?? (it.gear ? gearIcon(it.gear) : ['k']));
+  }
+  for (const s of skills.values()) mapTexture(scene, `skill_${s.id}`, s.icon);
+
+  buildFont(scene);
+  buildBiomes(scene, scene.scale.height);
+
   canvasTexture(scene, 'px', 2, 2, (ctx) => {
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, 2, 2);
@@ -244,60 +160,20 @@ function buildMisc(scene: Phaser.Scene) {
     ctx.arc(16, 16, 14, 0, Math.PI * 2);
     ctx.stroke();
   });
-  // Raccoon silhouette for dash afterimages.
-  const sil = pad(A.RACCOON_0);
-  canvasTexture(scene, 'raccoon_ghost', sil[0].length, sil.length, (ctx) => drawMap(ctx, sil, 0, 0, PAL.c));
-  canvasTexture(scene, 'shadow', 12, 4, (ctx) => {
-    ctx.fillStyle = 'rgba(26,28,44,0.45)';
-    ctx.fillRect(2, 0, 8, 4);
-    ctx.fillRect(0, 1, 12, 2);
+  canvasTexture(scene, 'shadow', 16, 4, (ctx) => {
+    ctx.fillStyle = 'rgba(26,28,44,0.5)';
+    ctx.fillRect(2, 0, 12, 4);
+    ctx.fillRect(0, 1, 16, 2);
   });
-}
-
-export function buildTextures(scene: Phaser.Scene) {
-  const maps: Record<string, string[]> = {
-    raccoon_0: A.RACCOON_0,
-    raccoon_1: A.RACCOON_1,
-    rat_0: A.RAT_0,
-    rat_1: A.RAT_1,
-    pigeon_0: A.PIGEON_0,
-    pigeon_1: A.PIGEON_1,
-    cat_0: A.CAT_0,
-    cat_1: A.CAT_1,
-    crow_0: A.CROW_0,
-    crow_1: A.CROW_1,
-    dog_0: A.DOG_0,
-    dog_1: A.DOG_1,
-    van_0: A.VAN_0,
-    van_1: A.VAN_1,
-    ratking_0: A.RATKING_0,
-    ratking_1: A.RATKING_1,
-    pebble: A.PEBBLE,
-    orb: A.ORB,
-    feather: A.FEATHER,
-    net: A.NET,
-    can: A.CAN,
-    pizza: A.PIZZA,
-    heart: A.HEART,
-    heart_empty: A.HEART_EMPTY,
-    cap: A.CAP,
-  };
-  for (const [k, rows] of Object.entries(maps)) mapTexture(scene, k, rows);
-  for (const [k, rows] of Object.entries(A.ICONS)) mapTexture(scene, 'icon_' + k, rows);
-  buildFont(scene);
-  buildBackgrounds(scene);
-  buildMisc(scene);
-
-  const anim = (key: string, frames: string[], rate: number) => {
-    if (scene.anims.exists(key)) return;
-    scene.anims.create({ key, frames: frames.map((f) => ({ key: f })), frameRate: rate, repeat: -1 });
-  };
-  anim('raccoon_run', ['raccoon_0', 'raccoon_1'], 8);
-  anim('rat_run', ['rat_0', 'rat_1'], 8);
-  anim('pigeon_fly', ['pigeon_0', 'pigeon_1'], 10);
-  anim('cat_walk', ['cat_0', 'cat_1'], 6);
-  anim('crow_fly', ['crow_0', 'crow_1'], 8);
-  anim('dog_walk', ['dog_0', 'dog_1'], 5);
-  anim('van_siren', ['van_0', 'van_1'], 6);
-  anim('ratking_walk', ['ratking_0', 'ratking_1'], 5);
+  canvasTexture(scene, 'arrow', 7, 5, (ctx) => {
+    ctx.fillStyle = PAL.k;
+    ctx.fillRect(0, 0, 7, 2);
+    ctx.fillRect(1, 2, 5, 1);
+    ctx.fillRect(2, 3, 3, 1);
+    ctx.fillRect(3, 4, 1, 1);
+    ctx.fillStyle = PAL.y;
+    ctx.fillRect(1, 0, 5, 1);
+    ctx.fillRect(2, 1, 3, 1);
+    ctx.fillRect(3, 2, 1, 1);
+  });
 }

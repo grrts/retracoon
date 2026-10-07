@@ -1,11 +1,9 @@
 import Phaser from 'phaser';
 import { W, H } from './config';
-import { BootScene } from './scenes/BootScene';
-import { TitleScene } from './scenes/TitleScene';
-import { GameScene } from './scenes/GameScene';
-import { UpgradeScene } from './scenes/UpgradeScene';
-import { PauseScene } from './scenes/PauseScene';
-import { GameOverScene } from './scenes/GameOverScene';
+import { BootScene, TitleScene, PauseScene, GameOverScene } from './scenes/MetaScenes';
+import { RunScene } from './scenes/RunScene';
+import { LevelUpScene } from './scenes/LevelUpScene';
+import { RewardScene, ForkScene, ShopScene, CampScene, EventScene } from './scenes/StopScenes';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -19,7 +17,7 @@ const game = new Phaser.Game({
   input: { activePointers: 3 },
   disableContextMenu: true,
   banner: false,
-  scene: [BootScene, TitleScene, GameScene, UpgradeScene, PauseScene, GameOverScene],
+  scene: [BootScene, TitleScene, RunScene, LevelUpScene, RewardScene, ForkScene, ShopScene, CampScene, EventScene, PauseScene, GameOverScene],
 });
 
 // Handy for debugging from the console.

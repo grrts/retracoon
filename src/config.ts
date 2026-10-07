@@ -1,4 +1,6 @@
-// Logical resolution. Width is fixed; height stretches a little to fill tall phones.
-export const W = 180;
-export const H = Math.round(Math.min(390, Math.max(320, (W * window.innerHeight) / Math.max(1, window.innerWidth))));
+// Logical resolution for a landscape screen. Height is fixed; width stretches to fit
+// wide phones without letterboxing.
+const ratio = window.innerWidth > window.innerHeight ? window.innerWidth / Math.max(1, window.innerHeight) : 16 / 9;
+export const H = 180;
+export const W = Math.round(Math.min(400, Math.max(300, H * ratio)));
 export const IS_TOUCH = 'ontouchstart' in window || navigator.maxTouchPoints > 0;

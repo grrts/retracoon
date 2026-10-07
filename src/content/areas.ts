@@ -81,7 +81,7 @@ export const alleyPack: PackDef = {
       name: 'ANIMAL CONTROL',
       frames: [S.VAN_0, S.VAN_1],
       fps: 4,
-      hp: 110,
+      hp: 75,
       boss: true,
       opener: 'net',
       moves: [
@@ -190,7 +190,7 @@ export const parkPack: PackDef = {
       name: 'THE GOOSE',
       frames: [S.GOOSE_0, S.GOOSE_1],
       fps: 3,
-      hp: 150,
+      hp: 100,
       boss: true,
       opener: 'honk',
       moves: [
@@ -315,7 +315,7 @@ export const sewerPack: PackDef = {
       name: 'THE RAT KING',
       frames: [S.RATKING_0, S.RATKING_1],
       fps: 3,
-      hp: 170,
+      hp: 120,
       boss: true,
       opener: 'summon',
       moves: [
