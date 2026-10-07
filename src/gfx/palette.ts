@@ -20,6 +20,9 @@ export const PAL: Record<string, string> = {
   N: '#5c3a2e', // dark brown
   P: '#f5a5b8', // pink
   a: '#434b68', // asphalt
+  v: '#b05ccf', // violet
+  O: '#ffa300', // gold
+  e: '#7a4a8f', // dark violet
 };
 
 export const hex = (key: string): number => parseInt(PAL[key].slice(1), 16);
