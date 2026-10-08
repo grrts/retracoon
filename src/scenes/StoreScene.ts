@@ -80,8 +80,8 @@ export class StoreScene extends Phaser.Scene {
     // Preview column.
     const g = this.add.graphics();
     panel(g, 4, BODY, LEFT_W, H - BODY - 4, 0x29366f, 0x1a1c2c, 0x3b5dc9);
-    this.add.image(4 + LEFT_W / 2, BODY + 74, 'shadow').setScale(2.5);
-    this.preview = new RaccoonView(this, 4 + LEFT_W / 2, BODY + 74, null, this.sel).setScale(3);
+    this.add.image(4 + LEFT_W / 2, BODY + 86, 'shadow').setScale(2);
+    this.preview = new RaccoonView(this, 4 + LEFT_W / 2, BODY + 86, null, this.sel).setScale(2);
     this.preview.setGear(null, store.lastRunGear);
     this.input.keyboard?.on('keydown-ESC', () => this.leave());
     this.draw();
@@ -201,7 +201,7 @@ export class StoreScene extends Phaser.Scene {
     const add = (o: Phaser.GameObjects.GameObject) => this.previewParts.push(o);
     add(text(this, cx, BODY + 10, s.name, { color: COL.white, maxWidth: LEFT_W - 8, maxLines: 1 }));
     add(text(this, cx, BODY + 20, `${r.name} ${s.group === 'outfit' ? 'OUTFIT' : s.group === 'holiday' ? 'HOLIDAY' : 'FUR'}`, { color: r.color }));
-    const y = BODY + 88;
+    const y = BODY + 98;
     if (owns(s.id)) {
       const on = store.skin === s.id;
       const b = button(this, cx, y + 12, LEFT_W - 16, 22, on ? 'EQUIPPED' : 'EQUIP', () => {
@@ -246,11 +246,11 @@ export class StoreScene extends Phaser.Scene {
   private drawGems() {
     const x0 = LEFT_W + 10;
     const areaW = W - x0 - 4;
-    const rowH = 24;
+    const rowH = Math.min(30, Math.floor((H - BODY - 18) / PRODUCTS.length));
     const add = (o: Phaser.GameObjects.GameObject) => this.layer.push(o);
     add(text(this, x0, BODY + 5, testMode() ? 'TEST MODE: NO MONEY IS CHARGED' : 'PAYMENTS GO THROUGH YOUR APP STORE', { origin: 0, color: testMode() ? COL.orange : COL.light, maxWidth: areaW, maxLines: 1 }));
     PRODUCTS.forEach((p, i) => {
-      const y = BODY + 22 + i * rowH;
+      const y = BODY + 14 + i * rowH + rowH / 2;
       const owned = p.noAds && store.noAds && !p.gems;
       const b = button(this, x0 + areaW / 2, y, areaW, rowH - 3, '', () => this.purchase(p.id, p.title, priceLabel(p)), p.noAds ? BTN.gold : BTN.violet);
       b.c.add(text(this, -areaW / 2 + 8, -4, p.title, { origin: 0, color: COL.white, maxWidth: areaW - 70, maxLines: 1 }));
@@ -259,8 +259,8 @@ export class StoreScene extends Phaser.Scene {
       b.setEnabled(!owned);
       add(b.c);
     });
-    const ry = BODY + 22 + PRODUCTS.length * rowH + 2;
-    const rb = button(this, x0 + areaW / 2, Math.min(ry, H - 14), 140, 18, 'RESTORE PURCHASES', async () => {
+    // Restore sits in the preview column, which has nothing to preview on this tab.
+    const rb = button(this, 4 + LEFT_W / 2, H - 22, LEFT_W - 16, 22, 'RESTORE PURCHASES', async () => {
       if (this.busy) return;
       this.busy = true;
       const ok = await restore();

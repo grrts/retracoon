@@ -77,7 +77,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 for (const [w, h] of SIZES) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
-  page.on('pageerror', (e) => problems.push(`${w}x${h}: page error ${e.message}`));
+  page.on('pageerror', (e) => problems.push(`${w}x${h}: page error ${e.message} ${(e.stack ?? '').split('\n').slice(1, 4).join(' | ')}`));
   await page.goto(url);
   await page.waitForFunction(() => window.__game?.scene?.isActive('Ad') || window.__game?.scene?.isActive('Title'), null, { timeout: 15000 });
   const shot = async (name) => {
@@ -103,13 +103,12 @@ for (const [w, h] of SIZES) {
   await start('Run');
   await sleep(600);
   await shot('run-walk');
-  await page.evaluate(() => {
+  // Let the run walk to its first fight on its own, then look at the prompt.
+  await page.waitForFunction(() => {
     const r = window.__game.scene.getScene('Run');
-    r.tweens.killAll();
-    r.time.removeAllEvents();
-    r.approach('fight');
-  });
-  await sleep(1600);
+    const has = (l) => l.some((o) => (o.type === 'BitmapText' && o.text === 'FIGHT') || (o.list && has(o.list)));
+    return has(r.children.list);
+  }, null, { timeout: 20000 });
   await shot('run-prompt');
   await page.evaluate(() => window.__game.scene.getScene('Run').beginFight());
   await sleep(900);
@@ -120,7 +119,7 @@ for (const [w, h] of SIZES) {
       for (const s of g.scene.getScenes(true)) if (s.scene.key !== 'Run') s.scene.stop();
       const run = g.scene.getScene('Run').run;
       run.statPoints = Math.max(run.statPoints, 3);
-      g.scene.launch(k, { ...d, run, done: () => {} });
+      g.scene.getScene('Run').scene.launch(k, { ...d, run, done: () => {} });
     }, [key, data]);
   for (const [key, data] of [['Reward', { title: 'BOSS LOOT', min: 2 }], ['Fork', {}], ['Shop', {}], ['Camp', {}], ['LevelUp', {}], ['Pause', {}]]) {
     await overlay(key, data);
@@ -145,7 +144,7 @@ for (const [w, h] of SIZES) {
     await page.evaluate((why) => {
       const g = window.__game;
       for (const s of g.scene.getScenes(true)) if (s.scene.key !== 'Run') s.scene.stop();
-      g.scene.launch('GameOver', { run: g.scene.getScene('Run').run, reason: why, newBest: true, caps: 123 });
+      g.scene.getScene('Run').scene.launch('GameOver', { run: g.scene.getScene('Run').run, reason: why, newBest: true, caps: 123 });
     }, reason);
     await shot(`gameover-${reason}`);
   }

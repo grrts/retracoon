@@ -384,6 +384,7 @@ export class RunScene extends Phaser.Scene {
     const elite = this.pendingElite;
     const names = c.foes.map((f) => [f.tier ? TIERS[f.tier].name : '', f.elite ? ELITE_INFO[f.elite].name : '', f.def.name].filter(Boolean).join(' '));
     const title = boss ? 'BOSS FIGHT!' : elite ? 'ELITE FIGHT!' : 'CRITTERS AHEAD!';
+    this.foeLabels(false); // the prompt panel covers the space under the foes
     const g = this.add.graphics().setDepth(50);
     const pw = Math.min(W - 16, 300);
     const px = W / 2 - pw / 2;
@@ -597,8 +598,14 @@ export class RunScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- combat
 
+  // HP numbers and statuses under the foes share the bottom band with the prompt panel.
+  private foeLabels(on: boolean) {
+    this.views.forEach((v) => (v.hpText.setVisible(on), v.status.setVisible(on)));
+  }
+
   private beginFight() {
     this.clearCombatUi();
+    this.foeLabels(true);
     this.run.fights++;
     const c = this.combat!;
     this.layoutFoes(false);

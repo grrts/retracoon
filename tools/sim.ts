@@ -1,6 +1,7 @@
 // Headless balance check: bots play the real combat engine and stage flow.
 //   npx tsx tools/sim.ts [runs]      full report
 //   npx tsx tools/sim.ts --quick     a fast smoke test for CI (fails on crashes)
+//   npx tsx tools/sim.ts --all-str   the skilled bot dumps every point into STR, for comparison
 //
 // Two bots:
 //   casual   dumps every point into STR, takes the first skill offered, never retreats.
@@ -46,7 +47,7 @@ function fight(c: Combat, bot: Bot) {
 function spendPoints(r: RunState, bot: Bot) {
   while (r.statPoints > 0) {
     let k: StatKey = 'str';
-    if (bot === 'skilled') {
+    if (bot === 'skilled' && !process.argv.includes('--all-str')) {
       // keep the lowest of STR/VIT/DEF/AGI moving, with a little LCK
       const order: StatKey[] = ['str', 'vit', 'def', 'agi', 'str', 'vit', 'lck'];
       k = order[(r.level * 3 + r.statPoints) % order.length];

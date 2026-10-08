@@ -330,6 +330,7 @@ const FONT: Record<string, string> = {
   X: '101101010101101',
   Y: '101101010010010',
   Z: '111001010100111',
+  '0': '111101101101111',
   '1': '010110010010111',
   '2': '110001010100111',
   '3': '110001010001110',
@@ -510,7 +511,8 @@ export function aurora(o: AuroraOpts): Painter {
       if (s < -0.45) continue;
       const top = Math.round(o.y + f(x) * (o.amp ?? 14));
       const hh = Math.round(o.h * (0.55 + 0.45 * g(x)));
-      rect(ctx, x, top, 1, 2, o.colors[0]);
+      if (s > 0.1) rect(ctx, x, top, 1, 2, o.colors[0]);
+      else if (dmask(x, top, 0.5)) px(ctx, x, top + 1, o.colors[0]);
       for (let j = 2; j < hh; j++) {
         const t = j / hh;
         const d = (1 - t) * (s > 0.2 ? 0.8 : 0.55);
@@ -570,12 +572,13 @@ export interface PlanetDef {
   colors: [string, string, string?]; // body, shadow, highlight
   ring?: string;
   bands?: string;
+  spots?: string; // continents / craters
 }
 export function planets(list: PlanetDef[]): Painter {
   return (ctx) => {
     for (const p of list) {
-      const back = (dx: number, dy: number) => dy < 0;
-      const front = (dx: number, dy: number) => dy >= 0;
+      const back = (_dx: number, dy: number) => dy < 0;
+      const front = (_dx: number, dy: number) => dy >= 0;
       const ringAt = (keep: (dx: number, dy: number) => boolean) => {
         if (!p.ring) return;
         const R = p.r * 1.8;
@@ -595,6 +598,23 @@ export function planets(list: PlanetDef[]): Painter {
         for (let dy = -p.r; dy <= p.r; dy += 4) {
           const hw = Math.floor(Math.sqrt(Math.max(0, p.r * p.r - dy * dy)));
           ditherRect(ctx, p.x - hw, p.y + dy, hw * 2 + 1, 1, p.bands, 0.7);
+        }
+      }
+      if (p.spots) {
+        const sr = seeded(p.x * 31 + p.y);
+        ctx.fillStyle = p.spots;
+        for (let k = 0; k < 6; k++) {
+          const a = sr() * TAU;
+          const d = sr() * p.r * 0.7;
+          const cx = p.x + Math.cos(a) * d;
+          const cy = p.y + Math.sin(a) * d;
+          const cr = Math.max(2, p.r * rr(sr, 0.15, 0.35));
+          for (let dy = -cr; dy <= cr; dy++)
+            for (let dx = -cr * 1.4; dx <= cr * 1.4; dx++) {
+              const X = Math.round(cx + dx);
+              const Y = Math.round(cy + dy);
+              if ((dx * dx) / 1.96 + dy * dy <= cr * cr && (X - p.x) ** 2 + (Y - p.y) ** 2 <= (p.r - 1) ** 2) ctx.fillRect(X, Y, 1, 1);
+            }
         }
       }
       // terminator
@@ -1028,13 +1048,14 @@ export function dunes(o: DuneOpts): Painter {
       rect(ctx, x, t, 1, h - t, o.colors[0]);
       if (slope < 0) {
         rect(ctx, x, t, 1, 2, o.colors[1]);
-        ditherRect(ctx, x, t + 2, 1, 6, o.colors[1], 0.5);
+        ditherRect(ctx, x, t + 2, 1, 4, o.colors[1], 0.5);
       } else if (slope > 0) {
-        rect(ctx, x, t + 1, 1, 10, o.colors[2]);
-        ditherRect(ctx, x, t + 11, 1, 6, o.colors[2], 0.5);
+        const d = Math.min(14, 4 + slope * 3);
+        rect(ctx, x, t + 1, 1, d, o.colors[2]);
+        ditherRect(ctx, x, t + 1 + d, 1, 5, o.colors[2], 0.5);
         px(ctx, x, t, o.colors[1]);
       } else px(ctx, x, t, o.colors[1]);
-      if (o.ripple) for (let y = t + 9; y < h; y += 5) if ((x + y * 3) % 11 < 6) px(ctx, x, y, o.ripple);
+      if (o.ripple) for (let k = 1; t + k * 6 < h; k++) if ((x + k * 4) % 13 < 7) px(ctx, x, t + k * 6 + Math.round(Math.sin(x * 0.11 + k) * 1.2), o.ripple);
     }
   };
 }
@@ -1155,9 +1176,9 @@ export function floatingIslands(o: IslandOpts): Painter {
           if (o.trees?.[2]) disc(ctx, q, y - 13, 3, o.trees[2], y - 13);
         }
         if (hasFall && o.waterfall) {
-          rect(ctx, a + fx, y - 1, 3, 70, o.waterfall);
-          ditherRect(ctx, a + fx, y + 70, 3, 20, o.waterfall, 0.5);
-          rect(ctx, a + fx, y - 1, 1, 70, mix(o.waterfall, PAL.w, 0.5));
+          rect(ctx, a + fx, y - 1, 3, 16, o.waterfall);
+          ditherFade(ctx, a + fx - 1, y + 15, 5, 22, o.waterfall, 0.8, 0);
+          rect(ctx, a + fx, y - 1, 1, 16, mix(o.waterfall, PAL.w, 0.5));
         }
       });
     }
@@ -1936,7 +1957,7 @@ export function fence(o: FenceOpts): Painter {
       }
     } else if (o.style === 'chain') {
       for (let y = top + 2; y < base; y++)
-        for (let x = 0; x < w; x++) if ((x + y) % 6 === 0 || (x - y + 1200) % 6 === 0) px(ctx, x, y, D);
+        for (let x = 0; x < w; x++) if ((x + y) % 8 === 0 || (x - y + 1200) % 8 === 0) px(ctx, x, y, D);
       rect(ctx, 0, top, w, 2, M);
       rect(ctx, 0, top, w, 1, L);
       for (let i = 0; i < n; i++) {
@@ -1957,11 +1978,11 @@ export function fence(o: FenceOpts): Painter {
       const rails = o.style === 'rail' ? [top + 3, top + Math.round(o.h * 0.55)] : [];
       if (o.style === 'wood') {
         for (let x = 0; x < w; x++) {
-          const bi = Math.floor(x / 6);
+          const bi = Math.floor(x / 8);
           const bh = o.h - ((bi * 7) % 3);
-          const c = x % 6 === 0 ? D : x % 6 === 1 ? L : M;
+          const c = x % 8 === 0 ? D : x % 8 === 1 ? L : M;
           rect(ctx, x, base - bh, 1, bh, c);
-          if (x % 6 === 2 && (bi * 13) % 5 === 0) px(ctx, x + 1, base - bh + 6, D);
+          if (x % 8 === 3 && (bi * 13) % 5 === 0) px(ctx, x + 1, base - bh + 6, D);
         }
         rect(ctx, 0, top + 4, w, 2, D);
         rect(ctx, 0, base - 8, w, 2, D);
@@ -2504,23 +2525,23 @@ export function wall(o: WallOpts): Painter {
     if (o.style === 'brick') {
       for (let y = top; y < bottom; y += 5) {
         rect(ctx, 0, y + 4, w, 1, D);
-        const off = (Math.floor((y - top) / 5) % 2) * 6;
-        for (let x = off; x < w; x += 12) {
-          px(ctx, x, y, D);
-          rect(ctx, x, y, 1, 4, D);
+        const off = (Math.floor((y - top) / 5) % 2) * 8;
+        for (let x = off; x < w + off; x += 16) {
+          const xx = x % w;
+          rect(ctx, xx, y, 1, 4, D);
           const r = rnd();
-          if (r < 0.15) rect(ctx, x + 1, y, 11, 4, mix(B, D, 0.3));
-          else if (r < 0.25) rect(ctx, x + 1, y, 11, 4, mix(B, L, 0.25));
-          px(ctx, x + 1, y, L);
+          if (r < 0.15) rect(ctx, xx + 1, y, 15, 4, mix(B, D, 0.3));
+          else if (r < 0.25) rect(ctx, xx + 1, y, 15, 4, mix(B, L, 0.25));
+          px(ctx, xx + 1, y, L);
         }
       }
     } else if (o.style === 'tile') {
-      for (let y = top; y < bottom; y += 6)
-        for (let x = 0; x < w; x += 6) {
-          rect(ctx, x, y + 5, 6, 1, D);
-          rect(ctx, x + 5, y, 1, 6, D);
+      for (let y = top; y < bottom; y += 8)
+        for (let x = 0; x < w; x += 8) {
+          rect(ctx, x, y + 7, 8, 1, D);
+          rect(ctx, x + 7, y, 1, 8, D);
           px(ctx, x + 1, y + 1, L);
-          if (rnd() < 0.06) rect(ctx, x, y, 5, 5, mix(B, D, 0.25));
+          if (rnd() < 0.06) rect(ctx, x, y, 7, 7, mix(B, D, 0.25));
         }
     } else if (o.style === 'panel') {
       for (let y = top; y < bottom; y += 24)
@@ -2540,13 +2561,18 @@ export function wall(o: WallOpts): Painter {
         }
     } else if (o.style === 'stone') {
       for (let y = top; y < bottom; y += 9) {
-        let x = -((Math.floor((y - top) / 9) % 2) * 7);
-        while (x < w) {
-          const bw = ri(rnd, 10, 18);
-          rect(ctx, x, y + 8, bw, 1, D);
-          rect(ctx, x + bw - 1, y, 1, 9, D);
-          rect(ctx, x, y, bw - 1, 1, L);
-          if (rnd() < 0.3) rect(ctx, x + 1, y + 1, bw - 3, 7, mix(B, rnd() < 0.5 ? L : D, 0.2));
+        const off = (Math.floor((y - top) / 9) % 2) * 7;
+        let x = off;
+        while (x < off + w) {
+          let bw = ri(rnd, 10, 18);
+          if (x + bw > off + w - 6) bw = off + w - x;
+          const tone = rnd() < 0.3 ? mix(B, rnd() < 0.5 ? L : D, 0.2) : '';
+          wrap(w, x, (xx) => {
+            rect(ctx, xx, y + 8, bw, 1, D);
+            rect(ctx, xx + bw - 1, y, 1, 9, D);
+            rect(ctx, xx, y, bw - 1, 1, L);
+            if (tone) rect(ctx, xx + 1, y + 1, bw - 3, 7, tone);
+          });
           x += bw;
         }
       }
@@ -3829,15 +3855,15 @@ export function soil(o: SoilOpts): Painter {
         let x = Math.floor(rnd() * w);
         let y = o.top.length + ri(rnd, 2, 10);
         const pts: Array<[number, number]> = [[x, y]];
-        for (let k = 0; k < 6; k++) {
-          x += ri(rnd, -8, 8);
-          y += ri(rnd, 3, 8);
+        for (let k = 0; k < 4; k++) {
+          x += ri(rnd, -5, 5);
+          y += ri(rnd, 2, 5);
           pts.push([x, y]);
         }
         wrap(w, 0, (dx) => {
           const pp = pts.map(([a, b]) => [a + dx, b] as [number, number]);
           if (o.cracks![1]) {
-            for (const [a, b] of pp) ditherDisc(ctx, a, b, 3, o.cracks![1], 0.4);
+            for (const [a, b] of pp) ditherDisc(ctx, a, b, 2, o.cracks![1], 0.3);
           }
           path(ctx, pp, o.cracks![0], 1);
         });
@@ -4147,7 +4173,7 @@ export function gridFloor(o: GridFloorOpts): Painter {
     for (let x = 0; x < w; x += s) {
       rect(ctx, x, 0, 1, h, o.line);
       if (o.glow) {
-        ditherRect(ctx, x - 1, 0, 1, h, o.glow, 0.5);
+        ditherRect(ctx, (x - 1 + w) % w, 0, 1, h, o.glow, 0.5);
         ditherRect(ctx, x + 1, 0, 1, h, o.glow, 0.5);
       }
     }
@@ -4436,24 +4462,33 @@ export interface MangroveOpts {
 }
 // Trees standing on arching stilt roots.
 export function mangroves(o: MangroveOpts): Painter {
-  const canopy = trees({ leaves: o.leaves, trunk: o.trunk, count: 1, h: o.h, r: o.r, baseY: o.baseY });
   return (ctx, w, _h, rnd) => {
     const base = o.baseY ?? 166;
     for (const x0 of spread(rnd, w, o.count, 0.9)) {
       const rootH = ri(rnd, 14, 24);
-      const roots = Array.from({ length: ri(rnd, 4, 7) }, () => rr(rnd, -26, 26));
-      const s = newSeed(rnd);
+      const H = irange(rnd, o.h);
+      const R = irange(rnd, o.r);
+      const roots = Array.from({ length: ri(rnd, 4, 7) }, () => rr(rnd, -R * 1.1, R * 1.1));
+      const lobes = Array.from({ length: 7 }, (_, i) => {
+        const a = (i / 7) * TAU + rr(rnd, -0.3, 0.3);
+        return { dx: Math.round(Math.cos(a) * R * 0.6), dy: Math.round(Math.sin(a) * R * 0.35), r: Math.round(R * rr(rnd, 0.45, 0.6)) };
+      });
       wrap(w, x0, (x) => {
+        const hub = base - rootH;
         for (const dx of roots) {
           const pts: Array<[number, number]> = [];
-          for (let t = 0; t <= 1.001; t += 0.1) pts.push([x + dx * t, base - rootH - 2 + Math.sin(t * Math.PI) * -6 + t * (rootH + 2)]);
+          for (let t = 0; t <= 1.001; t += 0.1) pts.push([x + dx * t, hub - Math.sin(t * Math.PI) * 6 * (Math.abs(dx) / R) + t * rootH]);
           path(ctx, pts, o.trunk[1], 2);
           path(ctx, pts.map(([a, b]) => [a, b - 1] as [number, number]), o.trunk[0], 1);
         }
-        ctx.save();
-        ctx.translate(x - 256, -rootH);
-        canopy(ctx, 512, 216, seeded(s));
-        ctx.restore();
+        const cy = hub - H;
+        rect(ctx, x - 2, cy, 4, H + 2, o.trunk[1]);
+        rect(ctx, x - 2, cy, 2, H + 2, o.trunk[0]);
+        line(ctx, x, cy + H * 0.4, x - R * 0.5, cy + 4, o.trunk[1], 2);
+        line(ctx, x, cy + H * 0.5, x + R * 0.5, cy + 2, o.trunk[1], 2);
+        for (const l of lobes) disc(ctx, x + l.dx, cy + l.dy, l.r, o.leaves[0]);
+        for (const l of lobes) disc(ctx, x + l.dx - 1, cy + l.dy - 2, l.r - 1, o.leaves[1]);
+        for (const l of lobes) if (l.dy <= 0) disc(ctx, x + l.dx - 2, cy + l.dy - 3, Math.max(1, l.r - 3), o.leaves[2], cy + l.dy);
       });
     }
   };
@@ -4593,6 +4628,126 @@ export function waterfalls(o: FallOpts): Painter {
         const foam = o.water[2] ?? o.water[0];
         ellipse(ctx, x + fx + fw / 2, base - 2, fw + 4, 4, foam, base);
         ditherDisc(ctx, x + fx + fw / 2, base - 6, fw + 6, foam, 0.3);
+      });
+    }
+  };
+}
+
+// ================================================================ ODDITIES
+
+function scratch(w: number, h: number): CanvasRenderingContext2D | null {
+  const c: HTMLCanvasElement | OffscreenCanvas | null =
+    typeof OffscreenCanvas !== 'undefined' ? new OffscreenCanvas(w, h) : typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  if (!c) return null;
+  c.width = w;
+  c.height = h;
+  return c.getContext('2d') as CanvasRenderingContext2D | null;
+}
+
+export interface BigOpts {
+  items: Array<[Sprite, number]>;
+  count: number;
+  scale: number; // integer zoom
+  baseY?: number;
+  tint?: [string, number];
+  float?: [number, number]; // raise some of them off the ground (floating)
+}
+// Sprites blown up by an integer factor: giant trash cans and the like.
+export function bigProps(o: BigOpts): Painter {
+  return (ctx, w, _h, rnd) => {
+    const base = o.baseY ?? 166;
+    const total = o.items.reduce((s, i) => s + i[1], 0);
+    for (const x0 of spread(rnd, w, o.count, 0.8)) {
+      let t = rnd() * total;
+      let spr = o.items[0][0];
+      for (const [s, wt] of o.items) {
+        t -= wt;
+        if (t <= 0) {
+          spr = s;
+          break;
+        }
+      }
+      const sc = scratch(64, 64);
+      if (!sc) return;
+      sc.imageSmoothingEnabled = false;
+      spr(sc, 8, 64, seeded(newSeed(rnd)));
+      if (o.tint) {
+        sc.globalCompositeOperation = 'source-atop';
+        sc.globalAlpha = o.tint[1];
+        sc.fillStyle = o.tint[0];
+        sc.fillRect(0, 0, 64, 64);
+      }
+      const lift = o.float ? ri(rnd, o.float[0], o.float[1]) : 0;
+      const tilt = o.float ? rr(rnd, -0.3, 0.3) : 0;
+      wrap(w, x0, (x) => {
+        ctx.save();
+        ctx.imageSmoothingEnabled = false;
+        if (tilt) {
+          ctx.translate(Math.round(x + 24 * o.scale), Math.round(base - lift - 32 * o.scale));
+          ctx.rotate(Math.round(tilt * 4) * (Math.PI / 16));
+          ctx.drawImage(sc.canvas as CanvasImageSource, -32 * o.scale, -32 * o.scale, 64 * o.scale, 64 * o.scale);
+        } else ctx.drawImage(sc.canvas as CanvasImageSource, x - 8 * o.scale, base - lift - 64 * o.scale, 64 * o.scale, 64 * o.scale);
+        ctx.restore();
+      });
+    }
+  };
+}
+
+export interface BoltOpts {
+  color: string;
+  glow?: string;
+  count: number;
+  y: [number, number]; // from, to
+}
+// Frozen lightning bolts (storm backdrops).
+export function bolts(o: BoltOpts): Painter {
+  return (ctx, w, _h, rnd) => {
+    for (const x0 of spread(rnd, w, o.count, 0.9)) {
+      const pts: Array<[number, number]> = [[0, o.y[0]]];
+      let x = 0;
+      let y = o.y[0];
+      while (y < o.y[1]) {
+        x += ri(rnd, -7, 7);
+        y += ri(rnd, 5, 11);
+        pts.push([x, Math.min(y, o.y[1])]);
+      }
+      const fork = ri(rnd, 1, pts.length - 2);
+      const fpts: Array<[number, number]> = [pts[fork]];
+      for (let k = 0; k < 3; k++) fpts.push([fpts[k][0] + ri(rnd, 3, 8), fpts[k][1] + ri(rnd, 5, 9)]);
+      wrap(w, x0, (xx) => {
+        const P1 = pts.map(([a, b]) => [a + xx, b] as [number, number]);
+        const P2 = fpts.map(([a, b]) => [a + xx, b] as [number, number]);
+        if (o.glow) for (const [a, b] of P1) ditherDisc(ctx, a, b, 4, o.glow, 0.25);
+        path(ctx, P1, o.color, 2);
+        path(ctx, P2, o.color, 1);
+        path(ctx, P1, PAL.w, 1);
+      });
+    }
+  };
+}
+
+export interface GlyphOpts {
+  chars: string;
+  colors: [string, string]; // fill, shadow
+  count: number;
+  scale: [number, number];
+  y: [number, number];
+}
+// Big floating letters (the Zzz of dream world, runes, glitch text).
+export function bigLetters(o: GlyphOpts): Painter {
+  return (ctx, w, _h, rnd) => {
+    for (const x0 of spread(rnd, w, o.count, 1)) {
+      const ch = o.chars[ri(rnd, 0, o.chars.length - 1)];
+      const s = irange(rnd, o.scale);
+      const y = irange(rnd, o.y);
+      const g = FONT[ch];
+      if (!g) continue;
+      wrap(w, x0, (x) => {
+        for (let i = 0; i < 15; i++)
+          if (g[i] === '1') {
+            rect(ctx, x + (i % 3) * s + 1, y + Math.floor(i / 3) * s + 1, s, s, o.colors[1]);
+          }
+        for (let i = 0; i < 15; i++) if (g[i] === '1') rect(ctx, x + (i % 3) * s, y + Math.floor(i / 3) * s, s, s, o.colors[0]);
       });
     }
   };

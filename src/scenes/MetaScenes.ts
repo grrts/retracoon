@@ -146,7 +146,9 @@ export class GameOverScene extends Phaser.Scene {
     // The final raccoon, gear and all.
     const cx = Math.min(70, W * 0.16);
     const coon = new RaccoonView(this, cx, 128, r, store.skin).setScale(3);
-    this.events.on('update', (_t: number, d: number) => coon.update(d / 1000));
+    const tick = (_t: number, d: number) => coon.update(d / 1000);
+    this.events.on('update', tick);
+    this.events.once('shutdown', () => this.events.off('update', tick));
     if (dead) coon.setAlpha(0.85);
     text(this, cx, 140, `LV ${r.level}`, { color: COL.yellow });
 
@@ -248,7 +250,7 @@ export class TitleScene extends Phaser.Scene {
       : store.bestStage > 0
         ? `BEST STAGE ${store.bestStage}   LEVEL ${store.bestLevel}   BOSSES ${store.bossKills}`
         : 'FIGHT, LOOT, LEVEL UP. RETREAT IN TIME TO KEEP YOUR RACCOON.';
-    text(this, mx, 140, sub, { color: store.kept ? COL.lime : COL.light, maxWidth: W - mx + (W - mx) - 8, maxLines: 1 });
+    text(this, W / 2, H - 24, sub, { color: store.kept ? COL.lime : COL.light, maxWidth: W - 16, maxLines: 1 });
 
     wallet(this);
     const mute = text(this, W - 6, 10, sfx.muted ? 'SOUND OFF' : 'SOUND ON', { origin: 1, color: COL.light });

@@ -194,12 +194,78 @@ function show(c: HTMLCanvasElement, label: string) {
   document.getElementById('out')!.append(d);
 }
 
+function colDiff(d: Uint8ClampedArray, w: number, h: number, a: number, b: number) {
+  let s = 0;
+  for (let y = 0; y < h; y++) {
+    const i = (y * w + a) * 4;
+    const j = (y * w + b) * 4;
+    for (let k = 0; k < 4; k++) s += Math.abs(d[i + k] - d[j + k]);
+  }
+  return s / h;
+}
+function seamScore(c: HTMLCanvasElement) {
+  const ctx = c.getContext('2d')!;
+  const d = ctx.getImageData(0, 0, c.width, c.height).data;
+  let tot = 0;
+  for (let x = 0; x + 1 < c.width; x++) tot += colDiff(d, c.width, c.height, x, x + 1);
+  const avg = tot / (c.width - 1);
+  const wrap = colDiff(d, c.width, c.height, c.width - 1, 0);
+  return { avg, wrap };
+}
+function seamcheck() {
+  const out: string[] = [];
+  for (const t of THEMES) {
+    const seed = hash(t.id);
+    const ls: Array<[string, LayerDef, number]> = t.layers.map((L, i) => [String(i), L, H] as [string, LayerDef, number]);
+    ls.push(['g', { paint: t.ground, speed: 1 }, GH]);
+    if (t.front) ls.push(['f', t.front, H]);
+    for (const [name, L, hh] of ls) {
+      const c = paint(L.paint, L.tile ?? 512, hh, seed);
+      const { avg, wrap } = seamScore(c);
+      if (wrap > avg * 2.5 + 6) out.push(`${t.id} layer ${name}: wrap ${wrap.toFixed(1)} avg ${avg.toFixed(1)}`);
+    }
+  }
+  for (const s of SEASONS)
+    for (const [name, L] of [['props', s.props], ['front', s.front]] as Array<[string, LayerDef | undefined]>) {
+      if (!L) continue;
+      const c = paint(L.paint, L.tile ?? 512, H, 99);
+      const { avg, wrap } = seamScore(c);
+      if (wrap > avg * 2.5 + 6) out.push(`season ${s.id} ${name}: wrap ${wrap.toFixed(1)} avg ${avg.toFixed(1)}`);
+    }
+  if (q.get('crops')) {
+    for (const line of out) {
+      const m = /^(\S+) layer (\S+):/.exec(line);
+      if (!m) continue;
+      const t = THEMES.find((x) => x.id === m[1])!;
+      const which = m[2];
+      const L: LayerDef | undefined = which === 'f' ? t.front : which === 'g' ? { paint: t.ground, speed: 1 } : t.layers[Number(which)];
+      if (!L) continue;
+      const hh = which === 'g' ? GH : H;
+      const c = paint(L.paint, 512, hh, hash(t.id));
+      const crop = document.createElement('canvas');
+      crop.width = 120;
+      crop.height = hh;
+      const cx = crop.getContext('2d')!;
+      cx.fillStyle = '#7f7f7f';
+      cx.fillRect(0, 0, 120, hh);
+      cx.drawImage(c, -452, 0);
+      cx.drawImage(c, 60, 0);
+      show(crop, `${t.id}:${which}`);
+    }
+  }
+  const pre = document.createElement('pre');
+  pre.id = 'seams';
+  pre.textContent = out.join('\n') || 'no seams';
+  document.getElementById('out')!.append(pre);
+}
 const one = q.get('theme');
 const seamId = q.get('seam');
 const t0 = performance.now();
 if (seamId) {
   const t = THEMES.find((x) => x.id === seamId)!;
   show(seam(t, q.get('layer') ?? '0'), `${t.id} layer ${q.get('layer')}`);
+} else if (q.get('seamcheck')) {
+  seamcheck();
 } else if (one) {
   const t = THEMES.find((x) => x.id === one)!;
   const s = SEASONS.find((x) => x.id === q.get('season'));

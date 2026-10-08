@@ -427,7 +427,7 @@ export const ITEMS_BACK: ItemDef[] = [
       wing({ a: 'C', b: 'c' }, ['', '.y', '..Cw', '...bCC', '..b.y.CC', '...b..bCc', '..b..b..bC', '...b..y..b', '....b..b..b', '.........b.b', '..........b']),
       { anchor: 'back', x: -13, y: -17, behind: true, rows: ['y.....', '......', '..w...', '......', 'O....y'], alt: ['......', '..y...', '.....w', 'w...O.', '......'] },
     ],
-    bonus: (b, l) => {
+    bonus: (b) => {
       b.ap += 1;
       b.dodge += 0.1;
     },
