@@ -1,0 +1,412 @@
+// Head slot: hats and helmets, anchored on the top of the head (23,3).
+// Hats sit with their bottom row on y=4 (relative y +1), centred on x 22-23.
+import type { ItemDef } from '../types';
+
+export const ITEMS_HEAD: ItemDef[] = [
+  {
+    id: 'paper_hat',
+    name: 'PAPER HAT',
+    rarity: 0,
+    slot: 'head',
+    tags: ['trash'],
+    desc: '+1 STR',
+    gear: [
+      {
+        anchor: 'head',
+        x: -6,
+        y: -5,
+        rows: [
+          '.....kk.....',
+          '....kwwk....',
+          '...kwlwlk...',
+          '..kwwwwwlk..',
+          '.kwlwlwwwlk.',
+          'klllllllllgk',
+          'kkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.str += l),
+  },
+  {
+    id: 'beanie',
+    name: 'BEANIE',
+    rarity: 0,
+    slot: 'head',
+    tags: ['tank'],
+    desc: '+1 DEF, +1 VIT',
+    gear: [
+      {
+        anchor: 'head',
+        x: -6,
+        y: -6,
+        rows: [
+          '....kkk.....',
+          '...kwwwk....',
+          '...kwwlk....',
+          '..kkkkkkkk..',
+          '.krPrrrrrrk.',
+          'krPrrrrrrrRk',
+          'kRrRrRrRrRRk',
+          'kkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.def += l;
+      b.vit += l;
+    },
+  },
+  {
+    id: 'baseball_cap',
+    name: 'BACKWARDS CAP',
+    rarity: 0,
+    slot: 'head',
+    tags: ['speed'],
+    desc: '+2 AGI',
+    gear: [
+      {
+        anchor: 'head',
+        x: -8,
+        y: -3,
+        rows: [
+          '.....kkkkkk..',
+          '...kkbbbbbbk.',
+          '.kkbbcbbbwbbk',
+          'kBBkbbbbbbbBk',
+          'kkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.agi += 2 * l),
+  },
+  {
+    id: 'bucket_hat',
+    name: 'BUCKET HAT',
+    rarity: 0,
+    slot: 'head',
+    tags: ['scav'],
+    desc: '+1 LCK, +10% SHINIES',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -4,
+        rows: [
+          '...kkkkkkk...',
+          '..kssYsssSk..',
+          '..ksssssSSk..',
+          '..kNNNNNNNk..',
+          '.ksssssssSSk.',
+          'kkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.lck += l;
+      b.shinyMult += 0.1 * l;
+    },
+  },
+  {
+    id: 'tinfoil_hat',
+    name: 'TINFOIL HAT',
+    rarity: 0,
+    slot: 'head',
+    tags: ['trash'],
+    desc: '+1 DEF, +1 LCK',
+    gear: [
+      {
+        anchor: 'head',
+        x: -5,
+        y: -7,
+        rows: [
+          '....k....',
+          '...kwk...',
+          '...kwlk..',
+          '..kwllgk.',
+          '..klwlgk.',
+          '.kwllwlgk',
+          'klwllglgk',
+          'kkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.def += l;
+      b.lck += l;
+    },
+  },
+  {
+    id: 'bike_helmet',
+    name: 'BIKE HELMET',
+    rarity: 1,
+    slot: 'head',
+    tags: ['tank'],
+    desc: '+2 DEF, +1 VIT',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -4,
+        rows: [
+          '....kkkkkk...',
+          '..kkrrwrrrkk.',
+          '.krrrwrkrrrrk',
+          'krrrwrkrrrrRk',
+          'kRRRRRRRRRRRk',
+          'kkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.def += 2 * l;
+      b.vit += l;
+    },
+  },
+  {
+    id: 'traffic_cone',
+    name: 'TRAFFIC CONE',
+    rarity: 1,
+    slot: 'head',
+    tags: ['tank', 'trash'],
+    desc: '+3 DEF',
+    gear: [
+      {
+        anchor: 'head',
+        x: -5,
+        y: -7,
+        rows: [
+          '.....k.....',
+          '....kok....',
+          '....kwk....',
+          '...kwwlk...',
+          '...kooOk...',
+          '..kwwwwlk..',
+          '.koooooOOk.',
+          'kooooooooOk',
+          'kkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.def += 3 * l),
+  },
+  {
+    id: 'viking_helm',
+    name: 'VIKING HELM',
+    rarity: 1,
+    slot: 'head',
+    tags: ['tank', 'crit'],
+    desc: '+1 STR, ATTACKERS TAKE 2',
+    gear: [
+      {
+        anchor: 'head',
+        x: -8,
+        y: -6,
+        rows: [
+          'k..............k',
+          'kQk..........kQk',
+          'kQk..kkkkkk..kQk',
+          '.kTkkllwlllkkTk.',
+          '..kklwllllllkk..',
+          '..klllllllllgk..',
+          '.kSSOSSOSSOSSSk.',
+          '.kkkkkkkkkkkkkk.',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.str += l),
+    fx: (l) => ({ thorns: 2 * l }),
+  },
+  {
+    id: 'miner_helmet',
+    name: 'MINER HELMET',
+    rarity: 1,
+    slot: 'head',
+    tags: ['scav', 'tank'],
+    desc: '+1 DEF, +20% SHINIES',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -4,
+        rows: [
+          '....kkkkk.....',
+          '..kkyyyyykk...',
+          '.kyYyyyyyyOkkk',
+          '.kyyyyyyyyOkwk',
+          'kOOOOOOOOOOkkk',
+          'kkkkkkkkkkkk..',
+        ],
+        alt: [
+          '....kkkkk.....',
+          '..kkyyyyykk...',
+          '.kyYyyyyyyOkkk',
+          '.kyyyyyyyyOkYk',
+          'kOOOOOOOOOOkkk',
+          'kkkkkkkkkkkk..',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.def += l;
+      b.shinyMult += 0.2 * l;
+    },
+  },
+  {
+    id: 'propeller_cap',
+    name: 'PROPELLER CAP',
+    rarity: 2,
+    slot: 'head',
+    tags: ['speed'],
+    desc: '+4 AGI, +5% DODGE',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -5,
+        rows: [
+          '.yyyyykyyyyy.',
+          '......k......',
+          '....kkOkk....',
+          '..kkrryccbk..',
+          '.krPrrybcbbk.',
+          'krrrrrybbbbBk',
+          'kkkkkkkkkkkkk',
+        ],
+        alt: [
+          '...yyykyyy...',
+          '......k......',
+          '....kkOkk....',
+          '..kkrryccbk..',
+          '.krPrrybcbbk.',
+          'krrrrrybbbbBk',
+          'kkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => {
+      b.agi += 4 * l;
+      b.dodge += 0.05;
+    },
+  },
+  {
+    id: 'wizard_hat',
+    name: 'WIZARD HAT',
+    rarity: 2,
+    slot: 'head',
+    tags: ['crit'],
+    desc: '+2 LCK, FIGHTS START: 5 DMG TO ALL',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -9,
+        rows: [
+          '.........kk...',
+          '........kvek..',
+          '.......kvvk...',
+          '......kvvvk...',
+          '.....kvvyvek..',
+          '....kvvvvvvek.',
+          '...kvyvvvvyvek',
+          '..kvvvvvvvvvek',
+          'kkOOOOOOOOOOOk',
+          'kvvvvvvvvvvvek',
+          'kkkkkkkkkkkkkk',
+        ],
+        alt: [
+          '.........kk...',
+          '........kvek..',
+          '.......kvvk...',
+          '......kvvvk...',
+          '.....kvvwvek..',
+          '....kvvvvvvek.',
+          '...kvwvvvvyvek',
+          '..kvvvvvvvvvek',
+          'kkOOOOOOOOOOOk',
+          'kvvvvvvvvvvvek',
+          'kkkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.lck += 2 * l),
+    fx: (l) => ({ firstStrike: 5 * l }),
+  },
+  {
+    id: 'samurai_helm',
+    name: 'SAMURAI HELM',
+    rarity: 3,
+    slot: 'head',
+    tags: ['crit', 'trash'],
+    desc: '+2 STR, KILLS DEAL 6 TO OTHER FOES',
+    gear: [
+      {
+        anchor: 'head',
+        x: -7,
+        y: -8,
+        rows: [
+          'kO..........Ok',
+          'kyO........Oyk',
+          '.kyO..kk..Oyk.',
+          '..kyOkrrkOyk..',
+          '..kkrrwrrrkk..',
+          '.krrwrrrrrrRk.',
+          'kOOOOOrOOOOOOk',
+          'kRkRkRkRkRkRRk',
+          'kkkkkkkkkkkkkk',
+        ],
+        alt: [
+          'kw..........Ok',
+          'kyO........Oyk',
+          '.kyO..kk..Oyk.',
+          '..kyOkrrkOyk..',
+          '..kkrrwrrrkk..',
+          '.krrwrrrrrrRk.',
+          'kOOOOOhOOOOOOk',
+          'kRkRkRkRkRkRRk',
+          'kkkkkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.str += 2 * l),
+    fx: (l) => ({ killBurst: 6 * l }),
+  },
+  {
+    id: 'lid_crown',
+    name: 'CROWN OF LIDS',
+    rarity: 4,
+    slot: 'head',
+    tags: ['scav'],
+    desc: '+25% SHINIES, 1 BLOCK PER 10 SHINIES HELD',
+    needsBoss: true,
+    gear: [
+      {
+        anchor: 'head',
+        x: -6,
+        y: -6,
+        rows: [
+          '.k...k...k.',
+          'kYk.kCk.kYk',
+          'kykkkykkkyk',
+          'kyyOyyyOyyk',
+          'kyyyyyyyyOk',
+          'kOrOOCOOrOk',
+          'kOOOOOOOOSk',
+          'kkkkkkkkkkk',
+        ],
+        alt: [
+          '.k...w...k.',
+          'kYk.kCk.kYk',
+          'kykkkykkkyk',
+          'kyyOyyyOyyk',
+          'kyyyyyyyyOk',
+          'kOhOOCOOrOk',
+          'kOOOOOOOOSk',
+          'kkkkkkkkkkk',
+        ],
+      },
+    ],
+    bonus: (b, l) => (b.shinyMult += 0.25 * l),
+    fx: (l) => ({ moneyArmor: l }),
+  },
+];

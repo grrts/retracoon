@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Retracoon</string>
+    <string name="title_activity_main">Retracoon</string>
+    <string name="package_name">com.retracoon.game</string>
+    <string name="custom_url_scheme">com.retracoon.game</string>
+    <!-- Google's test AdMob app id. Replace with yours for release (docs/MONETIZATION.md). -->
+    <string name="admob_app_id">ca-app-pub-3940256099942544~3347511713</string>
+</resources>

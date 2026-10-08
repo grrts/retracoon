@@ -1,21 +1,19 @@
-import type { BiomeDef, EncounterDef, EnemyDef, EventDef, ItemDef, PackDef, SkillDef } from './types';
+import type { EnemyDef, EventDef, ItemDef, SkillDef } from './types';
+import type { SeasonDef, ThemeDef } from '../world/types';
+import type { SkinDef } from '../meta/types';
 
-export const packs: PackDef[] = [];
+// Everything the game knows about, filled once at boot by content/index.ts.
 export const items = new Map<string, ItemDef>();
 export const skills = new Map<string, SkillDef>();
 export const enemies = new Map<string, EnemyDef>();
+export const families = new Map<string, string[]>();
 export const events: EventDef[] = [];
-export const biomes: BiomeDef[] = [];
-export const sharedEncounters: EncounterDef[] = [];
+export const themes = new Map<string, ThemeDef>();
+export const seasons: SeasonDef[] = [];
+export const skins = new Map<string, SkinDef>();
 
-export function registerPack(p: PackDef) {
-  packs.push(p);
-  p.items?.forEach((i) => items.set(i.id, { ...i, pack: p.id }));
-  p.skills?.forEach((s) => skills.set(s.id, { ...s, pack: p.id }));
-  p.enemies?.forEach((e) => enemies.set(e.id, e));
-  p.events?.forEach((e) => events.push(e));
-  p.encounters?.forEach((e) => sharedEncounters.push(e));
-  if (p.biome) biomes.push(p.biome);
+export function themesByTier(tier: number): ThemeDef[] {
+  return [...themes.values()].filter((t) => t.tier === tier);
 }
 
 export const RARITY = [
@@ -27,11 +25,11 @@ export const RARITY = [
 ];
 
 export const TAGS: Record<string, { name: string; color: number; two: string; four: string }> = {
-  speed: { name: 'SPEED', color: 0x73eff7, two: '+3 AGILITY', four: 'DODGING A HIT STRIKES BACK' },
+  speed: { name: 'SPEED', color: 0x73eff7, two: '+3 AGILITY', four: 'DODGES STRIKE BACK' },
   tank: { name: 'TANK', color: 0x94b0c2, two: '+2 DEFENSE', four: '5 BLOCK EVERY TURN' },
   scav: { name: 'SCAVENGER', color: 0xffcd75, two: '+25% SHINIES', four: 'SHOPS 30% CHEAPER' },
-  crit: { name: 'CRIT', color: 0xef7d57, two: '+3 LUCK', four: 'CRITS FINISH FOES UNDER 30% HP' },
-  trash: { name: 'TRASH', color: 0xa7f070, two: '+2 STRENGTH', four: 'KILLS BURST FOR 6 TO ALL FOES' },
+  crit: { name: 'CRIT', color: 0xef7d57, two: '+3 LUCK', four: 'CRITS FINISH WEAK FOES' },
+  trash: { name: 'TRASH', color: 0xa7f070, two: '+2 STRENGTH', four: 'KILLS BURST FOR 6' },
 };
 
 export const SLOT_NAMES: Record<string, string> = {
@@ -45,9 +43,9 @@ export const SLOT_NAMES: Record<string, string> = {
 };
 
 export const STAT_INFO = {
-  str: { name: 'STRENGTH', short: 'STR', desc: 'HIT HARDER', color: 0xb13e53 },
-  def: { name: 'DEFENSE', short: 'DEF', desc: 'TAKE LESS DAMAGE, BETTER BLOCKS', color: 0x94b0c2 },
-  agi: { name: 'AGILITY', short: 'AGI', desc: 'DODGE HITS, +1 AP AT 10', color: 0x73eff7 },
-  lck: { name: 'LUCK', short: 'LCK', desc: 'MORE CRITS AND SHINIES', color: 0xffcd75 },
-  vit: { name: 'VITALITY', short: 'VIT', desc: '+5 MAX HEALTH', color: 0x38b764 },
+  str: { name: 'STRENGTH', short: 'STR', desc: 'HIT HARDER', color: 0xef7d57 },
+  def: { name: 'DEFENSE', short: 'DEF', desc: 'TAKE LESS DAMAGE', color: 0x94b0c2 },
+  agi: { name: 'AGILITY', short: 'AGI', desc: 'DODGE, AIM, +AP AT 10', color: 0x73eff7 },
+  lck: { name: 'LUCK', short: 'LCK', desc: 'CRITS PIERCE ARMOR', color: 0xffcd75 },
+  vit: { name: 'VITALITY', short: 'VIT', desc: 'MORE MAX HEALTH', color: 0x38b764 },
 } as const;

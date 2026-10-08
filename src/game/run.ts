@@ -1,6 +1,6 @@
 // Everything about the current run. Pure data and rules, no rendering.
-import type { Bonus, Fx, FxKey, ItemDef, Slot, StatKey, Tag } from '../content/types';
-import { items, skills, RARITY } from '../content/registry';
+import type { BlessingId, Bonus, Fx, FxKey, ItemDef, Slot, StatKey, Tag } from '../content/types';
+import { items, skills, RARITY, themesByTier, themes } from '../content/registry';
 import { store } from '../save';
 
 export interface OwnedItem {
@@ -11,11 +11,15 @@ export interface OwnedSkill {
   id: string;
   lvl: number;
 }
+export interface Blessing {
+  id: BlessingId;
+  fights: number;
+}
 
 export const SKILL_SLOTS = 4;
 export const STAT_KEYS: StatKey[] = ['str', 'def', 'agi', 'lck', 'vit'];
-export const LEG_NODES = ['fight', 'fight', 'fork', 'fight', 'fight', 'fork', 'boss'] as const;
-export type NodeKind = (typeof LEG_NODES)[number];
+export const BOSS_MIN = 2;
+export const BOSS_MAX = 20;
 
 export interface RunState {
   level: number;
@@ -27,11 +31,17 @@ export interface RunState {
   gear: Partial<Record<Slot, OwnedItem>>;
   shinies: number;
   distance: number;
-  area: number; // how many areas cleared
-  node: number; // position in LEG_NODES
-  heat: number; // permanent danger added by shortcuts and curses
+  stage: number; // fights cleared this run (the main difficulty clock)
+  areaStage: number; // fights cleared in the current area
+  bossAt: number; // secret: the area's boss is fight number bossAt (2..20)
+  area: number; // areas cleared
+  theme: string; // current theme id
+  themesVisited: string[];
+  sinceStop: number; // fights since the last road stop
+  heat: number; // permanent extra danger (retreat penalty, shortcuts, curses)
   eliteNext: boolean;
   pendingLevelUps: number;
+  blessings: Blessing[];
   // stats for the end screen
   kills: number;
   fights: number;
@@ -39,17 +49,25 @@ export interface RunState {
   bosses: number;
   shiniesEarned: number;
   itemsFound: number;
+  bonusCaps: number;
+  bestCombo: number;
   startedAt: number;
 }
 
-// A retreat banks level and stats into the next run; dying wipes them.
+export function rollBossAt() {
+  return BOSS_MIN + Math.floor(Math.random() * (BOSS_MAX - BOSS_MIN + 1));
+}
+
+// The core loop: retreat in time and the same raccoon (level and stats) starts a fresh
+// run from the street, so it can push further next time. Skills and items are lost.
+// Dying wipes the bank and you start over at level 1.
 export function newRun(): RunState {
   const kept = store.kept;
   const r: RunState = {
     level: kept?.level ?? 1,
     xp: 0,
     statPoints: kept?.statPoints ?? 0,
-    stats: kept ? { ...kept.stats } : { str: 3, def: 1, agi: 2, lck: 2, vit: 3 },
+    stats: kept ? { ...kept.stats } : { str: 3, def: 2, agi: 2, lck: 2, vit: 3 },
     hp: 0,
     skills: [
       { id: 'claw', lvl: 1 },
@@ -58,29 +76,48 @@ export function newRun(): RunState {
     gear: {},
     shinies: 0,
     distance: 0,
+    stage: 0,
+    areaStage: 0,
+    bossAt: rollBossAt(),
     area: 0,
-    node: 0,
+    theme: 'street',
+    themesVisited: ['street'],
+    sinceStop: 0,
     heat: 0,
     eliteNext: false,
     pendingLevelUps: 0,
+    blessings: [],
     kills: 0,
     fights: 0,
     elites: 0,
     bosses: 0,
     shiniesEarned: 0,
     itemsFound: 0,
+    bonusCaps: 0,
+    bestCombo: 0,
     startedAt: Date.now(),
   };
   r.hp = maxHp(r);
   return r;
 }
 
+// The difficulty clock: one point per fight cleared, plus heat.
 export function danger(r: RunState) {
-  return 1 + r.area * 5 + Math.floor(r.node * 0.7) + r.heat;
+  return 1 + r.stage + r.heat;
+}
+
+// Theme for the next area: Town, then one area per tier, then anything goes.
+export function nextTheme(r: RunState): string {
+  const tier = Math.min(5, r.area) as 1 | 2 | 3 | 4 | 5;
+  let pool = (r.area <= 5 ? themesByTier(Math.max(1, tier)) : [...themes.values()]).filter((t) => t.id !== 'street');
+  const fresh = pool.filter((t) => !r.themesVisited.includes(t.id));
+  if (fresh.length) pool = fresh;
+  if (!pool.length) return 'street';
+  return pool[Math.floor(Math.random() * pool.length)].id;
 }
 
 export function xpToLevel(level: number) {
-  return 8 + (level - 1) * 6;
+  return 10 + (level - 1) * 7;
 }
 
 export function emptyBonus(): Bonus {
@@ -99,7 +136,13 @@ export function tagCounts(r: RunState) {
   return c;
 }
 
+// Cached per gear change: bonus math runs a lot during combat.
+let cacheKey = '';
+let cacheVal: { bonus: Bonus; fx: Fx } = { bonus: emptyBonus(), fx: {} };
+
 export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
+  const key = JSON.stringify(r.gear);
+  if (key === cacheKey) return cacheVal;
   const b = emptyBonus();
   const fx: Fx = {};
   const add = (f: Fx) => {
@@ -120,31 +163,58 @@ export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
   if (t.crit >= 4) add({ execute: 30 });
   if (t.trash >= 2) b.str += 2;
   if (t.trash >= 4) add({ killBurst: 6 });
-  return { bonus: b, fx };
+  cacheKey = key;
+  cacheVal = { bonus: b, fx };
+  return cacheVal;
 }
 
-export function totalStat(r: RunState, k: StatKey) {
+// Raw stat: trained points plus gear.
+export function rawStat(r: RunState, k: StatKey) {
   return Math.max(0, r.stats[k] + computeBonus(r).bonus[k]);
 }
 
+// Effective stat with diminishing returns: full value up to 10, half up to 20,
+// a quarter after that. Pouring everything into one stat stops paying off.
+export function effective(n: number) {
+  if (n <= 10) return n;
+  if (n <= 20) return 10 + (n - 10) * 0.5;
+  return 15 + (n - 20) * 0.25;
+}
+
+export function totalStat(r: RunState, k: StatKey) {
+  return effective(rawStat(r, k));
+}
+
 export function maxHp(r: RunState) {
-  return 15 + totalStat(r, 'vit') * 5;
+  return Math.round(18 + totalStat(r, 'vit') * 6 + r.level * 2);
 }
 
 export function apPerTurn(r: RunState) {
-  return 3 + computeBonus(r).bonus.ap + (totalStat(r, 'agi') >= 10 ? 1 : 0) + (totalStat(r, 'agi') >= 20 ? 1 : 0);
+  const agi = rawStat(r, 'agi');
+  return 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0);
 }
 
 export function critChance(r: RunState) {
-  return Math.min(0.8, 0.05 + totalStat(r, 'lck') * 0.03);
+  return Math.min(0.75, 0.05 + totalStat(r, 'lck') * 0.03 + (hasBlessing(r, 'lucky') ? 0.15 : 0));
 }
 
 export function dodgeChance(r: RunState) {
   return Math.min(0.45, totalStat(r, 'agi') * 0.02 + computeBonus(r).bonus.dodge);
 }
 
+// Accuracy against evasive foes: agility cancels out part of their dodge.
+export function accuracy(r: RunState) {
+  return Math.min(0.6, totalStat(r, 'agi') * 0.025);
+}
+
 export function attackPower(r: RunState, scale: StatKey = 'str') {
-  return 4 + totalStat(r, scale) * 1.5;
+  return (4 + totalStat(r, scale) * 1.6) * (hasBlessing(r, 'sharp') ? 1.25 : 1);
+}
+
+// Defence: a percentage cut, so it never makes you immune.
+export function damageTaken(r: RunState) {
+  const def = totalStat(r, 'def');
+  return (1 - Math.min(0.6, def * 0.03)) * (hasBlessing(r, 'fragile') ? 1.25 : 1);
 }
 
 export function shinyMult(r: RunState) {
@@ -155,6 +225,39 @@ export function discount(r: RunState) {
   return Math.min(0.6, computeBonus(r).bonus.discount);
 }
 
+export function hasBlessing(r: RunState, id: BlessingId) {
+  return r.blessings.some((b) => b.id === id && b.fights > 0);
+}
+
+export function addBlessing(r: RunState, id: BlessingId, fights: number) {
+  const b = r.blessings.find((x) => x.id === id);
+  if (b) b.fights += fights;
+  else r.blessings.push({ id, fights });
+}
+
+export function tickBlessings(r: RunState) {
+  r.blessings.forEach((b) => b.fights--);
+  r.blessings = r.blessings.filter((b) => b.fights > 0);
+}
+
+export const BLESSING_INFO: Record<BlessingId, { name: string; desc: string; good: boolean; color: number }> = {
+  shield: { name: 'SHIELDED', desc: 'START FIGHTS WITH BLOCK', good: true, color: 0x41a6f6 },
+  sharp: { name: 'SHARP', desc: '+25% DAMAGE', good: true, color: 0xef7d57 },
+  lucky: { name: 'LUCKY', desc: '+15% CRIT CHANCE', good: true, color: 0xffcd75 },
+  friend: { name: 'CRITTER PAL', desc: 'A FRIEND BITES A FOE EACH TURN', good: true, color: 0xa7f070 },
+  swift: { name: 'SWIFT', desc: '+1 AP EVERY TURN', good: true, color: 0x73eff7 },
+  slow: { name: 'SLUGGISH', desc: '-1 AP EVERY TURN', good: false, color: 0x566c86 },
+  fragile: { name: 'FRAGILE', desc: 'TAKE 25% MORE DAMAGE', good: false, color: 0xb13e53 },
+  hexed: { name: 'HEXED', desc: 'FOES START WITH BLOCK', good: false, color: 0xb05ccf },
+};
+
+// ---------------------------------------------------------------- meta payout
+
+// Bottle Caps earned for a run: distance, depth, and the big fights.
+export function capsForRun(r: RunState) {
+  return Math.floor(r.distance / 12) + r.stage * 3 + r.elites * 5 + r.bosses * 25 + r.bonusCaps;
+}
+
 // ---------------------------------------------------------------- loot
 
 export function rollRarity(r: RunState, min = 0, max = 4): number {
@@ -163,7 +266,7 @@ export function rollRarity(r: RunState, min = 0, max = 4): number {
     if (i < min || i > max) return 0;
     if (i === 4 && store.bossKills === 0) return 0;
     // Rarer items get more common the further you go.
-    return x.weight * (1 + d * 0.08 * i);
+    return x.weight * (1 + d * 0.06 * i);
   });
   const total = weights.reduce((a, b) => a + b, 0);
   if (total <= 0) return Math.max(min, Math.min(max, 3));
@@ -210,7 +313,7 @@ export function equip(r: RunState, def: ItemDef): 'new' | 'level' | 'replace' {
 }
 
 export function itemPrice(r: RunState, def: ItemDef) {
-  const base = RARITY[def.rarity].price * (1 + r.area * 0.35);
+  const base = RARITY[def.rarity].price * (1 + r.stage * 0.04);
   return Math.max(1, Math.round(base * (1 - discount(r))));
 }
 

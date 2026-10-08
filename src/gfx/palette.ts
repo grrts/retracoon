@@ -23,7 +23,33 @@ export const PAL: Record<string, string> = {
   v: '#b05ccf', // violet
   O: '#ffa300', // gold
   e: '#7a4a8f', // dark violet
+  // extended palette for the wider world
+  H: '#0e0f1a', // night
+  u: '#3b1f5c', // deep purple
+  M: '#c0398e', // magenta
+  h: '#ff77c8', // hot pink
+  R: '#6e1f2e', // dark red
+  q: '#ff4b1f', // lava
+  Y: '#fff3b0', // pale yellow
+  Q: '#fff6e0', // cream
+  s: '#e8c170', // sand
+  S: '#b88a4a', // dark sand
+  T: '#d6a77a', // tan
+  U: '#7a4a33', // brick
+  E: '#16382c', // deep forest
+  F: '#2d6a3e', // forest
+  z: '#6a8f3a', // moss
+  m: '#9be2b0', // mint
+  t: '#5fd3c9', // teal light
+  i: '#c7f2ff', // frost
+  A: '#1e6fbf', // ocean
+  I: '#24305e', // indigo
+  j: '#4d3b24', // mud
+  J: '#86745a', // driftwood
 };
+
+// Names for the palette keys, for painters that prefer words.
+export const C = PAL;
 
 export const hex = (key: string): number => parseInt(PAL[key].slice(1), 16);
 

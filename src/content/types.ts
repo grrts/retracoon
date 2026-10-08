@@ -48,11 +48,14 @@ export type FxKey =
 
 export type Fx = Partial<Record<FxKey, number>>;
 
+// A piece of gear drawn on the raccoon. x/y place the top-left pixel of `rows`
+// relative to the anchor point (see gfx/coon.ts ANCHORS), so it follows the animation.
 export interface Gear {
+  anchor: 'head' | 'face' | 'body' | 'back' | 'paw' | 'tail';
   rows: string[];
-  x: number; // offset from the raccoon sprite's top-left corner
+  x: number;
   y: number;
-  behind?: boolean;
+  behind?: boolean; // drawn behind the raccoon (backpacks, capes)
   alt?: string[]; // optional second animation frame
 }
 
@@ -115,7 +118,7 @@ export interface MoveDef {
   heal?: number; // fraction of own max hp
   apply?: Partial<Record<StatusKey, number>>; // on the player
   buff?: Partial<Record<StatusKey, number>>; // on self/allies
-  allies?: boolean; // buff/block/heal goes to all allies
+  allies?: boolean; // buff and heal go to all living allies (including itself)
   guard?: boolean; // block goes to the weakest ally
   summon?: string;
   steal?: number;
@@ -125,9 +128,18 @@ export interface MoveDef {
   once?: boolean;
 }
 
+export type Role = 'brute' | 'guard' | 'support' | 'trickster' | 'charger';
+
 export interface EnemyDef {
   id: string;
   name: string;
+  family?: string; // which family it belongs to (themes pick foes by family)
+  role?: Role;
+  minStage?: number; // earliest stage it may show up in a normal fight
+  armor?: number; // flat damage removed from every non-crit hit
+  regen?: number; // heals this much at the start of its turn
+  // Bosses: at this fraction of health they switch to a second move set.
+  phase2?: { at: number; name: string; moves: MoveDef[]; frames?: string[][]; heal?: number };
   frames: string[][];
   fps?: number;
   hp: number;
@@ -139,7 +151,8 @@ export interface EnemyDef {
   colors: number[]; // death burst palette
   flyer?: boolean;
   boss?: boolean;
-  onDeath?: 'revive' | 'burst';
+  onDeath?: 'revive' | 'burst' | 'split';
+  split?: string; // enemy id spawned twice when it dies with onDeath 'split'
 }
 
 export interface EncounterDef {
@@ -152,12 +165,30 @@ export interface EncounterDef {
 
 // ---------------------------------------------------------------- events
 
+// Temporary effects that last for a number of fights. Blessings help, curses hurt.
+export type BlessingId =
+  | 'shield' // start each fight with 10 block (scales with stage)
+  | 'sharp' // +25% damage
+  | 'lucky' // +15% crit chance
+  | 'friend' // a critter friend bites a random foe each turn
+  | 'swift' // +1 AP every turn
+  | 'slow' // curse: -1 AP every turn
+  | 'fragile' // curse: take 25% more damage
+  | 'hexed'; // curse: foes start fights with block
+
 export interface RunAPI {
   hp: number;
   maxHp: number;
   shinies: number;
-  danger: number;
+  danger: number; // current difficulty, grows by about 1 per stage
+  stage: number; // stages cleared this run
+  theme: string; // current theme id
   itemCount: number;
+  addCaps(n: number): void; // Bottle Caps, the meta currency kept after the run
+  addBlessing(id: BlessingId, fights: number): void;
+  learnRandomSkill(): string; // returns the skill name, or '' if none left
+  upgradeRandomSkill(): string; // returns the skill name, or '' if none
+  giveItem(id: string): string; // returns the item name
   addShinies(n: number): void;
   hurt(n: number): void;
   heal(n: number): void;
@@ -181,8 +212,11 @@ export interface EventDef {
   id: string;
   title: string;
   text: string[];
-  art?: string;
+  art?: string; // texture key of an existing sprite (e.g. an enemy id + '_0')
+  artRows?: string[]; // or a pixel map drawn for this event (max 48x32)
   minDanger?: number;
+  weight?: number; // default 1
+  themes?: string[]; // only happens in these theme ids (default: anywhere)
   options: EventOption[];
 }
 
@@ -192,7 +226,10 @@ export interface AreaHazard {
   name: string; // shown in the fight HUD
   every: number; // turns between triggers
   desc: string;
-  kind: 'pot' | 'fumes' | 'sprinkler';
+  // pot: something falls on a random fighter (foes take double)
+  // fumes: poison everyone   sprinkler: washes away your block
+  // quake: everyone takes damage   spores: weakens everyone   lightning: a big hit on a random fighter
+  kind: 'pot' | 'fumes' | 'sprinkler' | 'quake' | 'spores' | 'lightning';
   power: number;
 }
 

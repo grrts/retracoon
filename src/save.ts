@@ -5,27 +5,66 @@ export interface Kept {
   statPoints: number;
 }
 
-interface Store {
+export interface Store {
   bestDistance: number;
+  bestStage: number;
   bestLevel: number;
   runs: number;
   bossKills: number;
   seen: string[]; // item ids ever found
+  foesSeen: string[]; // enemy ids ever met
+  themesSeen: string[];
   kept: Kept | null; // stats banked by retreating
   muted: boolean;
+  // meta progression and the shop
+  caps: number; // Bottle Caps, earned by playing
+  gems: number; // premium currency
+  skins: string[]; // owned skin ids
+  skin: string; // equipped skin id
+  noAds: boolean;
+  purchases: string[]; // product ids bought (for restore and receipts in test mode)
+  lastRunGear: { slot: string; id: string; lvl: number }[]; // shown in the wardrobe preview
 }
 
-const KEY = 'retracoon.v2';
+const KEY = 'retracoon.v3';
+const OLD_KEY = 'retracoon.v2';
+
+function base(): Store {
+  return {
+    bestDistance: 0,
+    bestStage: 0,
+    bestLevel: 0,
+    runs: 0,
+    bossKills: 0,
+    seen: [],
+    foesSeen: [],
+    themesSeen: [],
+    kept: null,
+    muted: false,
+    caps: 0,
+    gems: 0,
+    skins: ['classic'],
+    skin: 'classic',
+    noAds: false,
+    purchases: [],
+    lastRunGear: [],
+  };
+}
 
 function load(): Store {
-  const base: Store = { bestDistance: 0, bestLevel: 0, runs: 0, bossKills: 0, seen: [], kept: null, muted: false };
+  const b = base();
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...base, ...JSON.parse(raw) };
+    if (raw) return { ...b, ...JSON.parse(raw) };
+    const old = localStorage.getItem(OLD_KEY);
+    if (old) {
+      const o = JSON.parse(old);
+      return { ...b, bestDistance: o.bestDistance ?? 0, runs: o.runs ?? 0, bossKills: o.bossKills ?? 0, seen: o.seen ?? [], muted: !!o.muted };
+    }
   } catch {
     /* ignore */
   }
-  return base;
+  return b;
 }
 
 export const store: Store = load();
