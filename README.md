@@ -1,26 +1,72 @@
 # Retracoon
 
-An 8-bit endless roguelike scroller starring a raccoon. Run, throw trash at critters, pick rewards, get stronger, face harder threats, die, go again. There is no ending: the goal is to get further than last time.
+An 8-bit turn-based roguelike starring a raccoon. It starts on the street between the trash cans and walks on forever: into the woods, the jungle, the swamp, the mushroom kingdom and around fifty other places, each harder than the last. Fights are turn-based, level-ups raise RPG stats and offer roguelike skill picks, and every item you find is drawn on the raccoon, so the character is the inventory.
+
+Runs on the web, and ships to Google Play and the App Store with Capacitor.
 
 ## Play locally
 
 ```bash
 npm install
-npm run dev        # http://localhost:5173
-npm run build      # static build in dist/
-npm run build:single  # one self-contained HTML file in dist-single/
+npm run dev            # http://localhost:5173
+npm run build          # static web build in dist/
+npm run build:single   # one self-contained HTML file in dist-single/
+npm run sim            # balance check: bots play hundreds of runs
+npm run assets:count   # how much art the game ships
 ```
+
+## How a run works
+
+- **Stages.** Every fight cleared is a stage, and difficulty grows with every stage, forever. Foe health and damage scale faster than linearly, and deeper foes come in **Mean**, **Feral** and **Mythic** tiers with armor, regeneration and thorns.
+- **Bosses.** Each area hides its boss at a random stage between 2 and 20, so you can never plan for it. Beating the boss moves you to a new area with a new theme.
+- **Combat.** You get action points each turn and spend them on up to 4 skills. Foes show their intent above their heads. Areas add hazards (falling pots, fumes, sprinklers, quakes, spores, lightning).
+- **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 skills. Stats have diminishing returns past 10 and 20, so dumping everything into one stat stops paying off.
+- **Road stops** every two or three fights: shop, event, camp or treasure. Healing is scarce.
+- **Items** show up on the raccoon. Rarer and higher-level gear glows; a full kit shines; set bonuses fly a flag.
+
+## Retreat and death
+
+- **Retreat** before any fight: the run ends, and your raccoon keeps its level and stats for the next run, which starts from the street again. Items, skills and shinies are lost. Retreating in time is how you get further.
+- **Death:** everything is reset. The next run starts at level 1.
+- Every run pays **Bottle Caps** for the skin shop either way.
+
+## Shop, skins and the one ad
+
+- 250 raccoon skins: fur colours, outfits and holiday skins. Bought with Bottle Caps (earned by playing) or Gems (bought).
+- A new weekly sale every Monday, the same for every player.
+- Holiday skins (Christmas, Halloween and more) are only sold in season, and the backgrounds dress up for the season too.
+- **One ad**, at launch. No banners, no ads during runs, no ads for currency. No Ads removes it.
+
+Details: [docs/MONETIZATION.md](docs/MONETIZATION.md).
+
+## Phones
+
+The `android/` and `ios/` folders are the native projects. Building, signing and store submission: [docs/PUBLISHING.md](docs/PUBLISHING.md). Store text and graphics: [docs/store-listing.md](docs/store-listing.md), `docs/store/`. Privacy policy: [docs/privacy-policy.md](docs/privacy-policy.md).
 
 ## Controls
 
-- **Touch:** drag anywhere to move (relative drag, your thumb never covers the raccoon). Tap the dash button, or double-tap anywhere, to dash.
-- **Keyboard:** arrows/WASD to move, Space/Shift to dash, P/Esc to pause.
-- Throwing is automatic.
+- **Touch:** tap a skill, tap a foe to target it, tap END TURN.
+- **Keyboard:** 1-4 skills, Space or Enter ends the turn, Tab or arrows switch target, P or Esc pauses.
+
+## Code map
+
+| | |
+|---|---|
+| `src/game/` | Rules with no rendering: `combat.ts` (engine, scaling, tiers), `run.ts` (stats, loot, retreat), `encounters.ts`, `views.ts` (the raccoon with its gear) |
+| `src/scenes/` | Phaser screens: run, overlays, title, skin shop, launch ad |
+| `src/content/` | Enemies, items, skills and events |
+| `src/world/` | Themes (backgrounds), seasons, the parallax renderer |
+| `src/meta/` | Skins and the economy |
+| `src/platform/` | AdMob, RevenueCat, native shell |
+| `src/gfx/` | Pixel maps, palette, font, texture builders |
+| `tools/` | Balance simulator, art previews, icon generator, asset counter |
+
+How to add art and content: [docs/CONTENT.md](docs/CONTENT.md).
 
 ## Decisions
 
-- **Engine:** Phaser 3 + TypeScript + Vite. Small, fast to iterate, and wraps cleanly with Capacitor for iOS/Android later.
-- **Resolution:** 180 px wide portrait canvas, height stretches between 320 and 390 px to fill tall phones, scaled with nearest-neighbour.
-- **No external assets:** every sprite, the font and all backgrounds are pixel maps in `src/gfx/art.ts` turned into textures at boot. All sound is synthesized with WebAudio (`src/audio.ts`).
-- **Collision:** simple manual AABB checks instead of a physics engine, which keeps hitstop/slow-mo trivial and the code small.
-- **Persistence:** best distance and settings in `localStorage` (fails gracefully when unavailable).
+- **Engine:** Phaser 3 + TypeScript + Vite, wrapped with Capacitor for iOS and Android.
+- **Resolution:** a 216 px tall landscape canvas, 360 to 480 px wide depending on the screen, scaled with nearest-neighbour.
+- **No external assets:** every sprite, the font and all backgrounds are pixel maps or small painter functions turned into textures at runtime. Sound is synthesized with WebAudio.
+- **Pure combat engine:** `src/game/combat.ts` has no Phaser code. It returns events that `RunScene` plays back, and the same engine powers the simulator.
+- **Persistence:** progress, currencies and owned skins live in `localStorage` (`retracoon.v3`, migrated from v2). The game works without it.

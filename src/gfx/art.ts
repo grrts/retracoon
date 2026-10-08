@@ -1,244 +1,4 @@
-// Pixel maps. One character per pixel, '.' is transparent, other keys come from PAL.
-// Rows shorter than the widest row are padded on the right.
-
-export const RACCOON_0 = [
-  '..kk........kk..',
-  '.kgdk......kdgk.',
-  '.kggkkkkkkkkggk.',
-  'kggggggggggggggk',
-  'kgwwwggggggwwwgk',
-  'kkkkkkwggwkkkkkk',
-  'kkkwkkkggkkkwkkk',
-  '.kkkkgwwwwgkkkk.',
-  '..kggwwwwwwggk..',
-  '...kkwwkkwwkk...',
-  '....kkkkkkkk..kk',
-  '...kgglllggk.kgk',
-  '...kgllllllgkdk.',
-  '...kgllllllgkgk.',
-  '....kggggggkkk..',
-  '....kk....kk....',
-];
-
-export const RACCOON_1 = [
-  ...RACCOON_0.slice(0, 10),
-  '....kkkkkkkk.kk.',
-  '...kgglllggkkgk.',
-  '...kgllllllgkdk.',
-  '...kgllllllgkgk.',
-  '....kggggggkk...',
-  '.....kk..kk.....',
-];
-
-// Facing down: enemies walk toward the raccoon.
-export const RAT_0 = [
-  '....P.....',
-  '.....P....',
-  '....kk....',
-  '..knnnnk..',
-  '.knnnnnnk.',
-  '.knnnnnnk.',
-  'kPknnnnkPk',
-  '.knrnnrnk.',
-  '..knnnnk..',
-  '...kPPk...',
-];
-export const RAT_1 = [
-  '.....P....',
-  '....P.....',
-  '....kk....',
-  '..knnnnk..',
-  '.knnnnnnk.',
-  'kknnnnnnkk',
-  'kPknnnnkPk',
-  '.knrnnrnk.',
-  '..knnnnk..',
-  '...kPPk...',
-];
-
-export const PIGEON_0 = [
-  '...kk..kk...',
-  '....kllk....',
-  '..kklllkkk..',
-  '.kllgllgllk.',
-  'klllkllklllk',
-  'kkk.kllk.kkk',
-  '....klgk....',
-  '....kGDk....',
-  '.....kk.....',
-  '.....yy.....',
-];
-export const PIGEON_1 = [
-  '...kk..kk...',
-  '....kllk....',
-  '...kllllk...',
-  '..kllgglk...',
-  '..kllllllk..',
-  '...kkllkk...',
-  '....klgk....',
-  '....kGDk....',
-  '.....kk.....',
-  '.....yy.....',
-];
-
-export const CAT_0 = [
-  '.kk......kk.',
-  'kyok....koyk',
-  'kooooooooook',
-  'koonooooonok',
-  'koGkooookGok',
-  'koooooPooook',
-  '.koowkkwook.',
-  '..kooooook..',
-  '.kononnonok.',
-  '.kooooooook.',
-  '.kooooooookk',
-  '..kk....kk..',
-];
-export const CAT_1 = [
-  ...CAT_0.slice(0, 10),
-  '.kooooooook.',
-  '...kk..kk...',
-];
-
-export const CROW_0 = [
-  '....kkkk....',
-  '.....kk.....',
-  'kk..kddk..kk',
-  'kgkkddddkkgk',
-  '.kdgddddgdk.',
-  '..kkddddkk..',
-  '....kddk....',
-  '....krrk....',
-  '.....yy.....',
-];
-export const CROW_1 = [
-  '....kkkk....',
-  '.....kk.....',
-  '....kddk....',
-  '...kddddk...',
-  '..kddddddk..',
-  '.kgkddddkgk.',
-  '..k.kddk.k..',
-  '....krrk....',
-  '.....yy.....',
-];
-
-export const DOG_0 = [
-  '..kk......kk..',
-  '.kNNk....kNNk.',
-  '.kNnkkkkkknNk.',
-  '..knnnnnnnnk..',
-  '.knnnnnnnnnnk.',
-  '.knkwknnkwknk.',
-  '.knnnnnnnnnnk.',
-  '.knwwwkkwwwnk.',
-  '.kwwwkkkkwwwk.',
-  '..kwwkrrkwwk..',
-  '..kkwwwwwwkk..',
-  '.knnnnnnnnnnk.',
-  '.knnnnnnnnnnk.',
-  '.kk..kkkk..kk.',
-];
-export const DOG_1 = [
-  ...DOG_0.slice(0, 12),
-  '.knnnnnnnnnnk.',
-  '..kk.k..k.kk..',
-];
-
-export const VAN_0 = [
-  '..kkkkkkkkkkkkkkkkkkkkkkkkkkkk..',
-  '.kwwwwwwwwwwwwwwwwwwwwwwwwwwwwk.',
-  'kwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwk',
-  'kwlwwwwwwwwwwwwwwwwwwwwwwwwwwlwk',
-  'kwlwwwwwwwwwwwwwwwwwwwwwwwwwwlwk',
-  'kwlwwwwkkkwwwwwwwwwwwwkkkwwwwlwk',
-  'kwlwwwkgggkwwwwwwwwwwkgggkwwwlwk',
-  'kwlwwwwkkkwwwwwwwwwwwwkkkwwwwlwk',
-  'kwlwwwwwwwwwwwwwwwwwwwwwwwwwwlwk',
-  'kwlwwwwwwwwwkkkkkkkkwwwwwwwwwlwk',
-  'kwlwwwwwwwwkrrrrkbbbbkwwwwwwwlwk',
-  'kwlwwwwwwwwkrrrrkbbbbkwwwwwwwlwk',
-  'kwlwwwwwwwwwkkkkkkkkwwwwwwwwwlwk',
-  'kwrrrrrrrrrrrrrrrrrrrrrrrrrrrrwk',
-  'kwwwwwwwwwwwwwwwwwwwwwwwwwwwwwwk',
-  'kkBBBBBBBBBBBBBBBBBBBBBBBBBBBBkk',
-  'kBBcBBBBBBBBBBBBBBBBBBBBBBBBBBBk',
-  'kBcBBBBBBBBBBBBBBBBBBBBBBBBBBBBk',
-  'kBBBBBBBBBBBBBBBBBBBBBBBBBBBBcBk',
-  'kkwwwwwwwwwwwwwwwwwwwwwwwwwwwwkk',
-  'kwyyywwwwwkkkkkkkkkkkwwwwwyyywk.',
-  'kwyyywwwwwkdkdkdkdkdkwwwwwyyywk.',
-  'kgggggggggggggggggggggggggggggggk',
-  '.kkk.....................kkk....',
-];
-// Second frame swaps the siren colours.
-export const VAN_1 = VAN_0.map((row, i) =>
-  i === 10 || i === 11 ? row.replace('rrrr', '@@@@').replace('bbbb', 'rrrr').replace('@@@@', 'bbbb') : row,
-);
-
-export const RATKING_0 = [
-  '.....y...yy...y.....',
-  '.....yy.yyyy.yy.....',
-  '.....yyyyrryyyy.....',
-  '...kkyyyyyyyyyykk...',
-  '..kPknnnnnnnnnnkPk..',
-  '..kPknnnnnnnnnnkPk..',
-  '.kkknnnnnnnnnnnnkkk.',
-  '.knnnnnnnnnnnnnnnnk.',
-  'knnrrrnnnnnnnnrrrnnk',
-  'knnnrknnnnnnnnkrnnnk',
-  'knnnnnnnnnnnnnnnnnnk',
-  'knnnnnnnPPPPnnnnnnnk',
-  '.knnnnnPkkkkPnnnnk..',
-  '.knnnnnnwkkwnnnnnnk.',
-  '..knnnnnnnnnnnnnnk..',
-  '..knnlllllllllnnnk..',
-  '.knnllllllllllllnnk.',
-  '.knnllllllllllllnnk.',
-  '..knnnnnnnnnnnnnk...',
-  '..kkk..kk..kk..kkk..',
-  '.........PP.........',
-  '..........PP........',
-];
-export const RATKING_1 = [
-  ...RATKING_0.slice(0, 19),
-  '...kkk.kk..kk.kkk...',
-  '..........PP........',
-  '.........PP.........',
-];
-
-export const PEBBLE = [
-  '.ll.',
-  'lwwl',
-  'lwwl',
-  '.ll.',
-];
-
-export const ORB = [
-  '.kkk.',
-  'krrrk',
-  'krPrk',
-  'krrrk',
-  '.kkk.',
-];
-
-export const FEATHER = [
-  '.k.',
-  'kPk',
-  'kPk',
-  'krk',
-  'krk',
-  '.k.',
-];
-
-export const NET = [
-  'kkkkk',
-  'kowok',
-  'kwowk',
-  'kowok',
-  'kkkkk',
-];
+// Small props, UI icons and the HUD font. Character sprites live in sprites.ts.
 
 export const CAN = [
   '.kkkkkkkk.',
@@ -481,6 +241,31 @@ export const ICONS: Record<string, string[]> = {
     '..kw.wk..',
     '...k.k...',
   ],
+};
+
+// 7x7 status icons
+export const STATUS_ICONS: Record<string, string[]> = {
+  poison: ['..k....', '.kLk...', 'kLGLk..', 'kGGGk.k', '.kkk.kL', '.....kG', '......k'],
+  weak: ['.kkkkk.', 'kwwwwwk', 'kwkwkwk', 'kwwwwwk', '.kwkwk.', '.kwwwk.', '..kkk..'],
+  vuln: ['...k...', '..kok..', '..kok..', '..kok..', '...k...', '..kok..', '...k...'],
+  stun: ['y.k.k.y', '.ykyky.', 'kykwkyk', '.ywwwy.', 'kykwkyk', '.ykyky.', 'y.k.k.y'],
+  rage: ['...k...', '..krk..', '.krrok.', 'krroyok', 'kroyyok', '.kooyk.', '..kkk..'],
+  thorns: ['w.w.w.w', 'kkkkkkk', 'kdldldk', 'kdddddk', 'kdldldk', 'kkkkkkk', 'w.w.w.w'],
+  block: ['kkkkkkk', 'klllllk', 'klwlllk', 'klllllk', '.klllk.', '..klk..', '...k...'],
+};
+
+// 7x7 intent icons shown over enemies
+export const INTENT_ICONS: Record<string, string[]> = {
+  attack: ['.....kk', '....kwk', 'k..kwk.', 'kk.wk..', '.kkk...', '.kkk...', 'k..k...'],
+  multi: ['...kk.k', '..kwkwk', 'kkwkwk.', 'kwkwk..', '.kkk...', 'kkk....', 'k.k....'],
+  block: ['kkkkkkk', 'kbbbbbk', 'kbcbbbk', 'kbbbbbk', '.kbbbk.', '..kbk..', '...k...'],
+  buff: ['...k...', '..krk..', '.krrrk.', 'krrrrrk', '..krk..', '..krk..', '..kkk..'],
+  debuff: ['..kkk..', '..kvk..', '..kvk..', 'kvvvvvk', '.kvvvk.', '..kvk..', '...k...'],
+  heal: ['..kkk..', '..kGk..', 'kkkGkkk', 'kGGGGGk', 'kkkGkkk', '..kGk..', '..kkk..'],
+  summon: ['.k...k.', 'kPk.kPk', 'knnknnk', '.kkkkk.', '..kyk..', '.kyyyk.', '..kyk..'],
+  charge: ['..kkk..', '..kyk..', '..kyk..', '..kyk..', '..kkk..', '..kyk..', '..kkk..'],
+  steal: ['.kkkkk.', 'kyyyyyk', 'kywyyyk', 'kyyyyyk', 'kyyyyyk', '.kkkkk.', '.......'],
+  flee: ['...k...', '..kwk..', '.kwwwk.', 'kwwwwwk', '..kwk..', '..kwk..', '..kkk..'],
 };
 
 // 3x5 glyphs for the HUD font.

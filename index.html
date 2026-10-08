@@ -8,14 +8,18 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <title>Retracoon</title>
     <style>
-      html, body { margin: 0; padding: 0; height: 100%; background: #1a1c2c; overflow: hidden; overscroll-behavior: none; }
+      :root { color-scheme: dark; }
+      html, body { margin: 0; height: 100%; background: #1a1c2c; overflow: hidden; overscroll-behavior: none; }
       body { touch-action: none; -webkit-user-select: none; user-select: none; -webkit-tap-highlight-color: transparent; }
-      #game { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; }
+      #game { position: fixed; left: 0; right: 0; top: env(safe-area-inset-top, 0px); bottom: env(safe-area-inset-bottom, 0px); display: flex; align-items: center; justify-content: center; }
+      #rotate { display: none; position: fixed; left: 0; right: 0; bottom: calc(env(safe-area-inset-bottom, 0px) + 18px); text-align: center; font: bold 13px monospace; color: #ffcd75; letter-spacing: 1px; pointer-events: none; }
+      @media (orientation: portrait) and (pointer: coarse) { #rotate { display: block; } }
       canvas { image-rendering: pixelated; image-rendering: crisp-edges; }
     </style>
   </head>
   <body>
     <div id="game"></div>
+    <div id="rotate">TURN YOUR PHONE SIDEWAYS FOR A BIGGER VIEW</div>
     <script type="module" src="/src/main.ts"></script>
   </body>
 </html>
