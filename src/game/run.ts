@@ -103,7 +103,7 @@ export function newRun(): RunState {
 
 // The difficulty clock: one point per fight cleared, plus heat.
 export function danger(r: RunState) {
-  return 1 + r.stage + r.heat;
+  return 1 + r.stage + r.heat + (r.distance / 10);
 }
 
 // Theme for the next area: Town, then one area per tier, then anything goes.
