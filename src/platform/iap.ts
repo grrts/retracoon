@@ -2,11 +2,22 @@
 // receipt validation and restore). In the browser, or before RevenueCat keys are set,
 // purchases run in TEST MODE: the shop asks the player to confirm a fake purchase and
 // says clearly that no money is charged.
+//
+// Purchases belong to the signed-in account: RevenueCat is logged in with the player id,
+// and the server credits gems and No Ads from RevenueCat's webhook (server/src/
+// Controller/WebhookController.php). The game then reads them back from the server.
+// On Steam there is nothing to buy: the game itself is paid.
 import { store, save } from '../save';
 import { PRODUCTS, Product, REVENUECAT } from './config';
-import { isNative, platform } from './native';
+import { isNative, isSteam, platform } from './native';
+import { onlineConfigured, signedIn, profile } from './online';
 
-export type BuyResult = 'ok' | 'cancel' | 'error';
+export type BuyResult = 'ok' | 'pending' | 'cancel' | 'error';
+
+// Gems and No Ads are sold here (not on Steam).
+export const storeAvailable = () => !isSteam();
+// Purchases go through the account (server) rather than this device's save.
+const accountMode = () => onlineConfigured() && signedIn();
 
 let configured = false;
 const prices = new Map<string, string>();
@@ -42,6 +53,30 @@ export function priceLabel(p: Product) {
   return prices.get(p.id) ?? p.price;
 }
 
+// Ties this device's store purchases to the player, so the webhook can credit them.
+export async function loginPurchases(playerId: string) {
+  if (testMode()) return;
+  try {
+    await initIap();
+    const Purchases = await rc();
+    await Purchases.logIn({ appUserID: playerId });
+  } catch (e) {
+    console.warn('IAP login failed', e);
+  }
+}
+
+// After a purchase the store tells RevenueCat, RevenueCat tells our server; wait for
+// the server to show it (a few seconds at most, usually).
+async function waitForCredit(p: Product): Promise<boolean> {
+  const before = store.gems;
+  for (let i = 0; i < 10; i++) {
+    const me = await profile(true);
+    if (me && ((p.gems && me.gems >= before + p.gems) || (!p.gems && p.noAds && me.noAds))) return true;
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+  return false;
+}
+
 function grant(p: Product) {
   if (p.gems) store.gems += p.gems;
   if (p.noAds) store.noAds = true;
@@ -51,7 +86,7 @@ function grant(p: Product) {
 
 // No Ads is a non-consumable: restore it from the store's purchase history.
 async function syncEntitlements() {
-  if (testMode()) return;
+  if (testMode() || accountMode()) return;
   const Purchases = await rc();
   const { customerInfo } = await Purchases.getCustomerInfo();
   const owned = new Set(customerInfo.allPurchasedProductIdentifiers ?? []);
@@ -74,8 +109,11 @@ export async function buy(id: string, confirmTest: () => Promise<boolean>): Prom
     const sp = storeProducts.get(id);
     if (!sp) return 'error';
     await Purchases.purchaseStoreProduct({ product: sp });
-    grant(p);
-    return 'ok';
+    if (!accountMode()) {
+      grant(p);
+      return 'ok';
+    }
+    return (await waitForCredit(p)) ? 'ok' : 'pending';
   } catch (e) {
     const err = e as { userCancelled?: boolean; code?: string };
     if (err.userCancelled || err.code === '1') return 'cancel';
@@ -85,6 +123,11 @@ export async function buy(id: string, confirmTest: () => Promise<boolean>): Prom
 }
 
 export async function restore(): Promise<boolean> {
+  // Signed in: the account already holds every purchase.
+  if (accountMode()) {
+    await profile(true);
+    return store.noAds;
+  }
   if (testMode()) return store.noAds;
   try {
     const Purchases = await rc();

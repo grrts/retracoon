@@ -37,9 +37,9 @@ export const TIERS = [
 ];
 
 export function rollTier(stage: number): number {
-  const p3 = Math.max(0, Math.min(0.5, (stage - 55) / 50));
-  const p2 = Math.max(0, Math.min(0.5, (stage - 30) / 40));
-  const p1 = Math.max(0, Math.min(0.6, (stage - 12) / 30));
+  const p3 = Math.max(0, Math.min(0.5, (stage - 24) / 25));
+  const p2 = Math.max(0, Math.min(0.5, (stage - 14) / 20));
+  const p1 = Math.max(0, Math.min(0.6, (stage - 6) / 15));
   const r = Math.random();
   if (r < p3) return 3;
   if (r < p3 + p2) return 2;
@@ -47,12 +47,16 @@ export function rollTier(stage: number): number {
   return 0;
 }
 
-// Difficulty curves. Compounding, never capped: every run ends eventually.
+// Difficulty curves: exponential, never capped. Each point of danger (about one fight)
+// makes foes GROWTH times tougher, so every run ends eventually.
+export const GROWTH = 1.18;
+export const HP_BASE = 1.3;
+export const DMG_BASE = 1.3;
 export function hpScale(d: number) {
-  return (1 + 0.06 * (d - 1)) * Math.pow(1.035, d - 1);
+  return HP_BASE * Math.pow(GROWTH, d - 1);
 }
 export function dmgScale(d: number) {
-  return (1 + 0.045 * (d - 1)) * Math.pow(1.025, d - 1);
+  return DMG_BASE * Math.pow(GROWTH, d - 1);
 }
 
 export interface Foe {

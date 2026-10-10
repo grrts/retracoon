@@ -1,0 +1,74 @@
+name: Steam
+
+# Builds Retracoon for Steam (Windows, macOS, Linux) as plain folders, ready for SteamPipe.
+# Runs by hand, and on version tags (v1.2.0). With the Steam secrets set, a tag also
+# uploads the build to Steam on the "beta" branch; you set it live in Steamworks.
+# Setup: docs/STEAM.md.
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ['v*']
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: win
+          - os: macos-latest
+            target: mac
+          - os: ubuntu-latest
+            target: linux
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            steam/package-lock.json
+      - run: npm ci
+      - run: npm run build:steam
+        env:
+          VITE_API_URL: ${{ vars.API_URL }}
+      - run: npm ci
+        working-directory: steam
+      - run: npm run dist:${{ matrix.target }}
+        working-directory: steam
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - uses: actions/upload-artifact@v4
+        with:
+          name: retracoon-steam-${{ matrix.target }}
+          path: |
+            steam/out/*-unpacked
+            steam/out/mac*/*.app
+          if-no-files-found: error
+
+  deploy:
+    needs: build
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    env:
+      HAS_STEAM: ${{ secrets.STEAM_CONFIG_VDF != '' }}
+    steps:
+      - uses: actions/download-artifact@v4
+        if: env.HAS_STEAM == 'true'
+        with:
+          path: builds
+      - uses: game-ci/steam-deploy@v3
+        if: env.HAS_STEAM == 'true'
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
+          appId: ${{ vars.STEAM_APP_ID }}
+          buildDescription: ${{ github.ref_name }}
+          rootPath: builds
+          depot1Path: retracoon-steam-win/win-unpacked
+          depot2Path: retracoon-steam-mac
+          depot3Path: retracoon-steam-linux/linux-unpacked
+          releaseBranch: beta

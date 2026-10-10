@@ -5,7 +5,7 @@ namespace App\Service;
 use App\Entity\Player;
 
 /**
- * The JSON shape of players. Friend codes are private: only the owner sees theirs.
+ * The JSON shape of players. Friend codes, gems and unlocks are private: only the owner sees them.
  */
 final class Present
 {
@@ -15,6 +15,7 @@ final class Present
         return [
             'id' => $p->getId(),
             'name' => $p->getName(),
+            'tag' => $p->getTag(),
             'skin' => $p->getSkin(),
             'bestStage' => $p->getBestStage(),
             'bestLevel' => $p->getBestLevel(),
@@ -26,7 +27,13 @@ final class Present
     /** @return array<string, mixed> */
     public static function me(Player $p, ?int $rank): array
     {
-        return self::row($p, $rank) + ['friendCode' => $p->getFriendCode()];
+        return self::row($p, $rank) + [
+            'friendCode' => $p->getFriendCode(),
+            'provider' => $p->getProvider(),
+            'gems' => $p->getGems(),
+            'noAds' => $p->hasNoAds(),
+            'unlocks' => $p->getUnlocks(),
+        ];
     }
 
     /**

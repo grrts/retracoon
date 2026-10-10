@@ -36,12 +36,58 @@ final class ApiTest extends WebTestCase
         return json_decode((string) $res->getContent() ?: '[]', true);
     }
 
+    private int $accounts = 0;
+
     /** @return array{0: string, 1: array<string, mixed>} token and player */
-    private function register(?string $name = null): array
+    private function register(?string $name = null, ?string $account = null, string $provider = 'google', int $expect = 201): array
     {
-        $r = $this->call('POST', '/api/players', null === $name ? [] : ['name' => $name], expect: 201);
+        $body = ['provider' => $provider, 'credential' => 'ok:'.($account ?? 'acct'.++$this->accounts)];
+        if (null !== $name) {
+            $body['name'] = $name;
+        }
+        $r = $this->call('POST', '/api/auth', $body, expect: $expect);
 
         return [$r['token'], $r['player']];
+    }
+
+    public function testSignInIsRequiredAndChecked(): void
+    {
+        $this->call('POST', '/api/players', ['name' => 'NOPE'], expect: 404);
+        $this->call('POST', '/api/auth', ['provider' => 'google', 'credential' => 'forged'], expect: 401);
+        $this->call('POST', '/api/auth', ['provider' => 'myspace', 'credential' => 'ok:x'], expect: 422);
+    }
+
+    public function testSameAccountGetsSamePlayerOnEveryDevice(): void
+    {
+        [$phone, $p1] = $this->register('LEROY', 'g-1');
+        [$pc, $p2] = $this->register('SOMEONE ELSE', 'g-1', expect: 200);
+        self::assertSame($p1['id'], $p2['id']);
+        self::assertSame('LEROY', $p2['name']);
+        self::assertNotSame($phone, $pc);
+        // Both devices stay signed in.
+        $this->call('GET', '/api/me', token: $phone);
+        $this->call('GET', '/api/me', token: $pc);
+        // The same id at another provider is another account.
+        [, $p3] = $this->register(null, 'g-1', 'steam');
+        self::assertNotSame($p1['id'], $p3['id']);
+        self::assertSame('steam', $p3['provider']);
+    }
+
+    public function testNameTagsNeverCollide(): void
+    {
+        $tags = [];
+        for ($i = 0; $i < 15; ++$i) {
+            [, $p] = $this->register('BANDIT');
+            self::assertSame('BANDIT', $p['name']);
+            self::assertGreaterThanOrEqual(1000, $p['tag']);
+            self::assertLessThanOrEqual(9999, $p['tag']);
+            $tags[] = $p['tag'];
+        }
+        self::assertCount(15, array_unique($tags));
+        // Renaming to a taken name gets its own tag too.
+        [$t] = $this->register('OTHER');
+        $renamed = $this->call('PATCH', '/api/me', ['name' => 'bandit'], $t)['player'];
+        self::assertNotContains($renamed['tag'], $tags);
     }
 
     public function testRegisterCleansNameAndKeepsFriendCodePrivate(): void
@@ -142,11 +188,49 @@ final class ApiTest extends WebTestCase
         $this->call('PATCH', '/api/me', ['skin' => 'Not A Skin'], $t, 422);
     }
 
-    public function testRegisterIsRateLimited(): void
+    public function testSignInIsRateLimited(): void
     {
         for ($i = 0; $i < 20; ++$i) {
             $this->register();
         }
-        $this->call('POST', '/api/players', [], expect: 429);
+        $this->call('POST', '/api/auth', ['provider' => 'google', 'credential' => 'ok:late'], expect: 429);
+    }
+
+    /** @param array<string, mixed> $event */
+    private function hook(array $event, string $secret = 'test-hook', int $expect = 200): void
+    {
+        $this->client->request('POST', '/api/webhooks/revenuecat', [], [], ['CONTENT_TYPE' => 'application/json', 'HTTP_AUTHORIZATION' => 'Bearer '.$secret], json_encode(['event' => $event]));
+        self::assertSame($expect, $this->client->getResponse()->getStatusCode(), (string) $this->client->getResponse()->getContent());
+    }
+
+    public function testPurchasesAreBoundToTheAccount(): void
+    {
+        [$t, $me] = $this->register('BUYER', 'apple-1', 'apple');
+        $buy = ['type' => 'NON_RENEWING_PURCHASE', 'app_user_id' => $me['id'], 'product_id' => 'retracoon.starter', 'transaction_id' => 'tx-1'];
+        $this->hook($buy, 'wrong', 403);
+        $this->hook($buy);
+        $this->hook($buy); // RevenueCat retries: granted once
+        $p = $this->call('GET', '/api/me', token: $t)['player'];
+        self::assertSame(300, $p['gems']);
+        self::assertTrue($p['noAds']);
+
+        // A new device signing in with the same account sees the same gems.
+        [$t2] = $this->register(null, 'apple-1', 'apple', 200);
+        self::assertSame(300, $this->call('GET', '/api/me', token: $t2)['player']['gems']);
+
+        // Spending is idempotent per unlock and can't overdraw.
+        self::assertSame(200, $this->call('POST', '/api/me/spend', ['gems' => 100, 'item' => 'ninja'], $t)['player']['gems']);
+        self::assertSame(200, $this->call('POST', '/api/me/spend', ['gems' => 100, 'item' => 'ninja'], $t2)['player']['gems']);
+        self::assertSame(['ninja'], $this->call('GET', '/api/me', token: $t2)['player']['unlocks']);
+        $this->call('POST', '/api/me/spend', ['gems' => 5000, 'item' => 'king'], $t, 409);
+
+        // A refund takes the purchase back.
+        $this->hook(['type' => 'CANCELLATION', 'app_user_id' => $me['id'], 'product_id' => 'retracoon.starter', 'transaction_id' => 'tx-1']);
+        $p = $this->call('GET', '/api/me', token: $t)['player'];
+        self::assertSame(0, $p['gems']);
+        self::assertFalse($p['noAds']);
+
+        // Purchases for unknown players or products are ignored, not errors.
+        $this->hook(['type' => 'NON_RENEWING_PURCHASE', 'app_user_id' => 'nobody', 'product_id' => 'retracoon.gems80', 'transaction_id' => 'tx-2']);
     }
 }

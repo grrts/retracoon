@@ -173,6 +173,9 @@ export class RunScene extends Phaser.Scene {
     this.blessIcons = this.add.container(4, 22).setDepth(61);
     const pz = this.add.zone(W - 8, 8, 22, 22).setInteractive({ useHandCursor: true }).setDepth(70);
     pz.on('pointerup', () => this.pause());
+    // Bag: inspect gear, skills and passives without leaving the run.
+    const bag = button(this, W - 70, 8, 26, 13, 'BAG', () => this.inspect(), { depth: 70 });
+    bag.label.setTint(COL.yellow);
     this.refreshHud();
   }
 
@@ -1090,6 +1093,12 @@ export class RunScene extends Phaser.Scene {
 
   private autoPause() {
     if (this.scene.isActive()) this.pause();
+  }
+
+  private inspect() {
+    if (!this.scene.isActive()) return;
+    this.scene.pause();
+    this.scene.launch('Inspect', { run: this.run, from: 'Run' });
   }
 
   private pause() {

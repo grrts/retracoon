@@ -25,6 +25,7 @@ export interface Store {
   purchases: string[]; // product ids bought (for restore and receipts in test mode)
   lastRunGear: { slot: string; id: string; lvl: number }[]; // shown in the wardrobe preview
   tutorialDone: boolean;
+  signInOffered: boolean; // the launch sign-in screen was shown once
   tipsSeen: string[]; // one-time hints already shown during runs
   // online scoreboard
   playerName: string;
@@ -54,6 +55,7 @@ function base(): Store {
     purchases: [],
     lastRunGear: [],
     tutorialDone: false,
+    signInOffered: false,
     tipsSeen: [],
     playerName: '',
     bestSubmitted: 0,

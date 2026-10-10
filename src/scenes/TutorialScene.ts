@@ -52,7 +52,7 @@ const PAGES: Page[] = [
   {
     title: 'BOSSES',
     color: COL.orange,
-    lines: ['EACH AREA HIDES A BOSS SOMEWHERE BETWEEN STAGE 2 AND 20.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
+    lines: ['EACH AREA HIDES A BOSS SOMEWHERE BETWEEN STAGE 4 AND 10.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
     art: (s, x, y) => {
       s.coon(x - 60, y);
       foe(s, 'van', x + 30, y, 1);
@@ -65,6 +65,7 @@ const PAGES: Page[] = [
       'BEFORE EVERY FIGHT YOU CAN RETREAT.',
       'RETREAT: YOUR RACCOON KEEPS ITS LEVEL AND STATS AND STARTS AGAIN FROM THE STREET.',
       'DIE: EVERYTHING IS RESET TO LEVEL 1. KNOW WHEN TO GO HOME.',
+      'FOES GET MUCH TOUGHER EVERY FIGHT. A NEW RACCOON SHOULD THINK ABOUT HOME BY FIGHT 5.',
     ],
     art: (s, x, y) => {
       s.coon(x - 40, y);
@@ -92,8 +93,11 @@ export class TutorialScene extends Phaser.Scene {
     super('Tutorial');
   }
 
-  init(data: { next?: string }) {
+  private forced = false;
+
+  init(data: { next?: string; forced?: boolean }) {
     this.next = data.next ?? 'Title';
+    this.forced = !!data.forced;
     this.page = 0;
     this.layer = [];
     this.coons = [];
@@ -101,12 +105,12 @@ export class TutorialScene extends Phaser.Scene {
 
   create() {
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
-    button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
+    if (!this.forced) button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
     this.input.keyboard?.on('keydown-RIGHT', () => this.go(1));
     this.input.keyboard?.on('keydown-SPACE', () => this.go(1));
     this.input.keyboard?.on('keydown-ENTER', () => this.go(1));
     this.input.keyboard?.on('keydown-LEFT', () => this.go(-1));
-    this.input.keyboard?.on('keydown-ESC', () => this.finish());
+    if (!this.forced) this.input.keyboard?.on('keydown-ESC', () => this.finish());
     this.draw();
   }
 

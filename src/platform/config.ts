@@ -11,10 +11,10 @@ export const ADMOB = {
   // true = use Google's test ads (safe while developing; set false for release)
   testing: true,
   android: {
-    interstitial: 'ca-app-pub-3940256099942544/1033173712', // Google test unit
+    appOpen: 'ca-app-pub-3940256099942544/9257395921', // Google test unit
   },
   ios: {
-    interstitial: 'ca-app-pub-3940256099942544/4411468910', // Google test unit
+    appOpen: 'ca-app-pub-3940256099942544/5575463023', // Google test unit
   },
 };
 
@@ -46,3 +46,13 @@ export const PRODUCTS: Product[] = [
 // Set VITE_API_URL when building, e.g. https://api.retracoon.com. Empty = the scoreboard
 // says it is not connected yet and the game works offline.
 export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/+$/, '');
+
+// Sign-in (required to play once the API is set; see docs/ACCOUNTS.md). OAuth client
+// ids from Google Cloud and the Apple Services ID, set at build time.
+export const SIGN_IN = {
+  googleWebClientId: (import.meta.env.VITE_GOOGLE_WEB_CLIENT_ID as string | undefined) ?? '',
+  googleIosClientId: (import.meta.env.VITE_GOOGLE_IOS_CLIENT_ID as string | undefined) ?? '',
+  // Apple on the web needs a Services ID and a redirect page; on iPhone neither is needed.
+  appleServiceId: (import.meta.env.VITE_APPLE_SERVICE_ID as string | undefined) ?? '',
+  appleRedirectUrl: (import.meta.env.VITE_APPLE_REDIRECT_URL as string | undefined) ?? '',
+};

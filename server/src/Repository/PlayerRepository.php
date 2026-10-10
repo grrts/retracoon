@@ -17,9 +17,14 @@ class PlayerRepository extends ServiceEntityRepository
         parent::__construct($registry, Player::class);
     }
 
-    public function findOneByTokenHash(string $hash): ?Player
+    public function findOneByAccount(string $provider, string $providerId): ?Player
     {
-        return $this->findOneBy(['tokenHash' => $hash]);
+        return $this->findOneBy(['provider' => $provider, 'providerId' => $providerId]);
+    }
+
+    public function nameTaken(string $name, int $tag): bool
+    {
+        return null !== $this->findOneBy(['name' => $name, 'tag' => $tag]);
     }
 
     public function findOneByFriendCode(string $code): ?Player

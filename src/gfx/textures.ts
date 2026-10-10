@@ -4,6 +4,7 @@ import * as A from './art';
 import { FONT, GLYPH_H } from './font';
 import { canvasTexture, hueTexture, mapTexture, outlineMap, pad } from './pixels';
 import { enemies, items, skills } from '../content/registry';
+import { passives } from '../content/passives';
 import type { Gear } from '../content/types';
 import { ANCHORS } from './coon';
 
@@ -160,6 +161,7 @@ export function buildTextures(scene: Phaser.Scene) {
     mapTexture(scene, `item_${it.id}`, it.icon ?? (it.gear?.length ? gearIcon(it.gear) : ['k']));
   }
   for (const s of skills.values()) mapTexture(scene, `skill_${s.id}`, s.icon);
+  for (const p of passives.values()) mapTexture(scene, `passive_${p.id}`, p.icon);
 
   canvasTexture(scene, 'px', 2, 2, (ctx) => {
     ctx.fillStyle = '#ffffff';

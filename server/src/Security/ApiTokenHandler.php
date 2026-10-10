@@ -2,7 +2,7 @@
 
 namespace App\Security;
 
-use App\Repository\PlayerRepository;
+use App\Repository\SessionRepository;
 use App\Service\Tokens;
 use Symfony\Component\Security\Core\Exception\BadCredentialsException;
 use Symfony\Component\Security\Http\AccessToken\AccessTokenHandlerInterface;
@@ -13,13 +13,13 @@ use Symfony\Component\Security\Http\Authenticator\Passport\Badge\UserBadge;
  */
 final class ApiTokenHandler implements AccessTokenHandlerInterface
 {
-    public function __construct(private readonly PlayerRepository $players)
+    public function __construct(private readonly SessionRepository $sessions)
     {
     }
 
     public function getUserBadgeFrom(#[\SensitiveParameter] string $accessToken): UserBadge
     {
-        $player = $this->players->findOneByTokenHash(Tokens::hash($accessToken));
+        $player = $this->sessions->find(Tokens::hash($accessToken))?->getPlayer();
         if (null === $player) {
             throw new BadCredentialsException('Invalid token.');
         }

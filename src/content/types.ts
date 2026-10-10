@@ -21,6 +21,10 @@ export interface Bonus {
   shinyMult: number; // added to 1x
   discount: number; // 0..1 off shop prices
   dodge: number; // added to the agility dodge chance
+  dmg: number; // +fraction damage (passives)
+  hp: number; // flat max health (passives)
+  crit: number; // added to crit chance (passives)
+  armor: number; // fraction of damage cut on top of DEF (passives)
 }
 
 // Mechanics items switch on. Values add up across items.

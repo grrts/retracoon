@@ -1,7 +1,8 @@
 // Everything about the current run. Pure data and rules, no rendering.
-import type { BlessingId, Bonus, Fx, FxKey, ItemDef, Slot, StatKey, Tag } from '../content/types';
+import type { BlessingId, Bonus, Fx, FxKey, ItemDef, SkillDef, Slot, StatKey, Tag } from '../content/types';
 import { items, skills, RARITY, themesByTier, themes } from '../content/registry';
 import { store } from '../save';
+import { passives, type PassiveDef } from '../content/passives';
 
 export interface OwnedItem {
   id: string;
@@ -18,8 +19,8 @@ export interface Blessing {
 
 export const SKILL_SLOTS = 4;
 export const STAT_KEYS: StatKey[] = ['str', 'def', 'agi', 'lck', 'vit'];
-export const BOSS_MIN = 2;
-export const BOSS_MAX = 20;
+export const BOSS_MIN = 4;
+export const BOSS_MAX = 10;
 
 export interface RunState {
   level: number;
@@ -28,6 +29,7 @@ export interface RunState {
   stats: Record<StatKey, number>;
   hp: number;
   skills: OwnedSkill[]; // index 0 is always CLAW
+  passives: Record<string, number>; // passive id -> stacks, no limit
   gear: Partial<Record<Slot, OwnedItem>>;
   shinies: number;
   distance: number;
@@ -73,6 +75,7 @@ export function newRun(): RunState {
       { id: 'claw', lvl: 1 },
       { id: 'guard', lvl: 1 },
     ],
+    passives: {},
     gear: {},
     shinies: 0,
     distance: 0,
@@ -101,9 +104,14 @@ export function newRun(): RunState {
   return r;
 }
 
-// The difficulty clock: one point per fight cleared, plus heat.
+// Meters walked between two fights, roughly. Distance and fights cleared count equally.
+export const DIST_STEP = 24;
+
+// The difficulty clock: about one point per fight (half fights cleared, half distance),
+// plus heat. Enemies grow exponentially with it (see combat.ts), so a fresh raccoon
+// that doesn't retreat around the fifth fight dies soon after.
 export function danger(r: RunState) {
-  return 1 + r.stage + r.heat + (r.distance / 10);
+  return 1 + (r.stage + r.distance / DIST_STEP) / 2 + r.heat;
 }
 
 // Theme for the next area: Town, then one area per tier, then anything goes.
@@ -121,7 +129,7 @@ export function xpToLevel(level: number) {
 }
 
 export function emptyBonus(): Bonus {
-  return { str: 0, def: 0, agi: 0, lck: 0, vit: 0, ap: 0, critMult: 0, shinyMult: 0, discount: 0, dodge: 0 };
+  return { str: 0, def: 0, agi: 0, lck: 0, vit: 0, ap: 0, critMult: 0, shinyMult: 0, discount: 0, dodge: 0, dmg: 0, hp: 0, crit: 0, armor: 0 };
 }
 
 export function equipped(r: RunState): { def: ItemDef; lvl: number }[] {
@@ -136,12 +144,12 @@ export function tagCounts(r: RunState) {
   return c;
 }
 
-// Cached per gear change: bonus math runs a lot during combat.
+// Cached per gear and passive change: bonus math runs a lot during combat.
 let cacheKey = '';
 let cacheVal: { bonus: Bonus; fx: Fx } = { bonus: emptyBonus(), fx: {} };
 
 export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
-  const key = JSON.stringify(r.gear);
+  const key = JSON.stringify(r.gear) + JSON.stringify(r.passives ?? {});
   if (key === cacheKey) return cacheVal;
   const b = emptyBonus();
   const fx: Fx = {};
@@ -151,6 +159,12 @@ export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
   for (const { def, lvl } of equipped(r)) {
     def.bonus?.(b, lvl);
     if (def.fx) add(def.fx(lvl));
+  }
+  for (const [id, n] of Object.entries(r.passives ?? {})) {
+    const p = passives.get(id);
+    if (!p || n <= 0) continue;
+    p.bonus?.(b, n);
+    if (p.fx) add(p.fx(n));
   }
   const t = tagCounts(r);
   if (t.speed >= 2) b.agi += 3;
@@ -173,20 +187,16 @@ export function rawStat(r: RunState, k: StatKey) {
   return Math.max(0, r.stats[k] + computeBonus(r).bonus[k]);
 }
 
-// Effective stat with diminishing returns: full value up to 10, half up to 20,
-// a quarter after that. Pouring everything into one stat stops paying off.
-export function effective(n: number) {
-  if (n <= 10) return n;
-  if (n <= 20) return 10 + (n - 10) * 0.5;
-  return 15 + (n - 20) * 0.25;
+// Every point counts in full: no diminishing returns.
+export function totalStat(r: RunState, k: StatKey) {
+  return rawStat(r, k);
 }
 
-export function totalStat(r: RunState, k: StatKey) {
-  return effective(rawStat(r, k));
-}
+// Percentage stats stop here, so there is always a sliver of risk left.
+export const HARD_CAP = 0.95;
 
 export function maxHp(r: RunState) {
-  return Math.round(18 + totalStat(r, 'vit') * 6 + r.level * 2);
+  return Math.round(18 + totalStat(r, 'vit') * 6 + r.level * 2 + computeBonus(r).bonus.hp);
 }
 
 export function apPerTurn(r: RunState) {
@@ -195,26 +205,27 @@ export function apPerTurn(r: RunState) {
 }
 
 export function critChance(r: RunState) {
-  return Math.min(0.75, 0.05 + totalStat(r, 'lck') * 0.03 + (hasBlessing(r, 'lucky') ? 0.15 : 0));
+  return Math.min(HARD_CAP, 0.05 + totalStat(r, 'lck') * 0.03 + computeBonus(r).bonus.crit + (hasBlessing(r, 'lucky') ? 0.15 : 0));
 }
 
 export function dodgeChance(r: RunState) {
-  return Math.min(0.45, totalStat(r, 'agi') * 0.02 + computeBonus(r).bonus.dodge);
+  return Math.min(HARD_CAP, totalStat(r, 'agi') * 0.02 + computeBonus(r).bonus.dodge);
 }
 
 // Accuracy against evasive foes: agility cancels out part of their dodge.
 export function accuracy(r: RunState) {
-  return Math.min(0.6, totalStat(r, 'agi') * 0.025);
+  return Math.min(HARD_CAP, totalStat(r, 'agi') * 0.025);
 }
 
 export function attackPower(r: RunState, scale: StatKey = 'str') {
-  return (4 + totalStat(r, scale) * 1.6) * (hasBlessing(r, 'sharp') ? 1.25 : 1);
+  return (4 + totalStat(r, scale) * 1.6) * (1 + computeBonus(r).bonus.dmg) * (hasBlessing(r, 'sharp') ? 1.25 : 1);
 }
 
 // Defence: a percentage cut, so it never makes you immune.
 export function damageTaken(r: RunState) {
   const def = totalStat(r, 'def');
-  return (1 - Math.min(0.6, def * 0.03)) * (hasBlessing(r, 'fragile') ? 1.25 : 1);
+  const cut = 1 - (1 - def * 0.03) * (1 - computeBonus(r).bonus.armor);
+  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1);
 }
 
 export function shinyMult(r: RunState) {
@@ -266,7 +277,7 @@ export function rollRarity(r: RunState, min = 0, max = 4): number {
     if (i < min || i > max) return 0;
     if (i === 4 && store.bossKills === 0) return 0;
     // Rarer items get more common the further you go.
-    return x.weight * (1 + d * 0.06 * i);
+    return x.weight * (1 + d * 0.15 * i);
   });
   const total = weights.reduce((a, b) => a + b, 0);
   if (total <= 0) return Math.max(min, Math.min(max, 3));
@@ -319,12 +330,15 @@ export function itemPrice(r: RunState, def: ItemDef) {
 
 // ---------------------------------------------------------------- skills
 
+// Skills on offer: upgrades for what you own, and new skills only while a slot is free.
+// A full bar never gets new skills, so picking (and skipping) matters.
 export function skillChoices(r: RunState, n = 3) {
   const owned = new Map(r.skills.map((s) => [s.id, s]));
+  const room = r.skills.length < SKILL_SLOTS;
   const pool = [...skills.values()].filter((s) => {
     const o = owned.get(s.id);
     if (o) return o.lvl < s.max;
-    return s.id !== 'claw';
+    return room && s.id !== 'claw';
   });
   const out = [];
   const copy = [...pool];
@@ -332,14 +346,31 @@ export function skillChoices(r: RunState, n = 3) {
   return out;
 }
 
-export function learnSkill(r: RunState, id: string, replaceIndex?: number) {
+export type LevelChoice = { kind: 'skill'; def: SkillDef } | { kind: 'passive'; def: PassiveDef };
+
+// Level-up cards: skills first, passives fill the rest. Once every slot is full and
+// maxed, every card is a passive.
+export function levelUpChoices(r: RunState, n = 3): LevelChoice[] {
+  const out: LevelChoice[] = skillChoices(r, n).map((def) => ({ kind: 'skill', def }));
+  const pool = [...passives.values()];
+  while (out.length < n && pool.length) out.push({ kind: 'passive', def: pool.splice(Math.floor(Math.random() * pool.length), 1)[0] });
+  return out;
+}
+
+export function addPassive(r: RunState, id: string) {
+  const before = maxHp(r);
+  r.passives[id] = (r.passives[id] ?? 0) + 1;
+  const after = maxHp(r);
+  if (after > before) r.hp += after - before;
+}
+
+export function learnSkill(r: RunState, id: string) {
   const o = r.skills.find((s) => s.id === id);
   if (o) {
-    o.lvl++;
+    o.lvl = Math.min(skills.get(id)?.max ?? 3, o.lvl + 1);
     return;
   }
   if (r.skills.length < SKILL_SLOTS) r.skills.push({ id, lvl: 1 });
-  else if (replaceIndex !== undefined && replaceIndex > 0) r.skills[replaceIndex] = { id, lvl: 1 };
 }
 
 export function gainXp(r: RunState, n: number): number {

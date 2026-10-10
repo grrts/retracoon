@@ -10,13 +10,17 @@ export interface FoePick {
   tiers: number[];
 }
 
+// Runs are short now that difficulty is exponential, so each foe's minStage counts at
+// half: the whole roster still shows up within a typical good run.
+export const unlockStage = (minStage = 1) => Math.ceil(minStage / 2);
+
 // A group built from the theme's families. More and meaner foes as you go.
 export function pickFoes(r: RunState, theme: ThemeDef): FoePick {
   const s = r.stage;
   const pool = theme.families
     .flatMap((f) => families.get(f) ?? [])
     .map((id) => enemies.get(id)!)
-    .filter((e) => e && !e.boss && (e.minStage ?? 1) <= s + 3);
+    .filter((e) => e && !e.boss && unlockStage(e.minStage) <= s + 3);
   const fallback = (families.get('street') ?? []).map((id) => enemies.get(id)!).filter(Boolean);
   const list = pool.length >= 2 ? pool : [...pool, ...fallback];
   let count = s < 2 ? 1 + (Math.random() < 0.3 ? 1 : 0) : s < 8 ? 2 : s < 20 ? 2 + (Math.random() < 0.5 ? 1 : 0) : s < 40 ? 3 : 3 + (Math.random() < 0.5 ? 1 : 0);

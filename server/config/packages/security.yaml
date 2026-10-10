@@ -7,6 +7,10 @@ security:
         dev:
             pattern: ^/(_profiler|_wdt)/
             security: false
+        # Store webhooks check their own shared secret (see WebhookController).
+        webhooks:
+            pattern: ^/api/webhooks
+            security: false
         api:
             pattern: ^/api
             stateless: true

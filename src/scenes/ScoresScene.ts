@@ -7,7 +7,7 @@ import { sfx } from '../audio';
 import { store } from '../save';
 import { COL } from '../gfx/palette';
 import { askText } from '../textInput';
-import { onlineConfigured, profile, rename, worldScores, friendScores, addFriend, removeFriend, submitBest, type ScoreRow, type Me } from '../platform/online';
+import { onlineConfigured, profile, rename, worldScores, friendScores, addFriend, removeFriend, submitBest, fullName, mustSignInFor, type ScoreRow, type Me } from '../platform/online';
 
 type Tab = 'world' | 'friends';
 const TOP = 22;
@@ -52,6 +52,7 @@ export class ScoresScene extends Phaser.Scene {
     this.add.rectangle(0, 0, W, TOP, 0x29366f).setOrigin(0);
     text(this, W / 2, 11, 'SCOREBOARD', { scale: 2, color: COL.yellow });
     button(this, W - 30, 11, 52, 16, 'BACK', () => this.leave(), BTN.red);
+    if (onlineConfigured()) button(this, 38, 11, 64, 16, 'ACCOUNT', () => this.scene.start('Account'), BTN.blue);
     const g = this.add.graphics();
     panel(g, 4, BODY, LEFT_W, H - BODY - 4, 0x29366f, 0x1a1c2c, 0x3b5dc9);
     const rx = LEFT_W + 8;
@@ -80,6 +81,8 @@ export class ScoresScene extends Phaser.Scene {
 
   private async boot() {
     if (!onlineConfigured()) return this.drawRight();
+    // iPhone guests sign in when they first open the scoreboard.
+    if (!this.demo && mustSignInFor()) return this.scene.start('SignIn', { then: 'Scores' });
     this.loading = true;
     this.drawRight();
     await submitBest();
@@ -115,7 +118,7 @@ export class ScoresScene extends Phaser.Scene {
     const cx = 4 + LEFT_W / 2;
     const online = !!this.me;
     add(text(this, cx, BODY + 10, 'YOU', { color: COL.light }));
-    add(text(this, cx, BODY + 22, this.me?.name ?? (store.playerName || 'RACCOON'), { color: COL.white, maxWidth: LEFT_W - 8, maxLines: 1 }));
+    add(text(this, cx, BODY + 22, this.me ? fullName(this.me) : store.playerName || 'RACCOON', { color: COL.white, maxWidth: LEFT_W - 8, maxLines: 1 }));
     add(text(this, cx, BODY + 36, `BEST STAGE ${Math.max(store.bestStage, this.me?.bestStage ?? 0)}`, { color: COL.yellow }));
     add(text(this, cx, BODY + 47, `BEST LEVEL ${Math.max(store.bestLevel, this.me?.bestLevel ?? 0)}`, { color: COL.light }));
     add(text(this, cx, BODY + 64, 'FRIEND CODE', { color: COL.light }));
@@ -182,7 +185,7 @@ export class ScoresScene extends Phaser.Scene {
       const col = mine ? COL.yellow : i < 3 ? [COL.yellow, COL.light, COL.orange][i] : COL.white;
       const ty = y + (ROW_H - 2) / 2;
       add(text(this, xRank, ty, `${r.rank ?? i + 1}`, { origin: 0, color: col }));
-      add(text(this, xName, ty, r.name, { origin: 0, color: col, maxWidth: xStage - xName - 26, maxLines: 1 }));
+      add(text(this, xName, ty, fullName(r), { origin: 0, color: col, maxWidth: xStage - xName - 26, maxLines: 1 }));
       add(text(this, xStage, ty, `${r.bestStage}`, { origin: 1, color: col }));
       add(text(this, xLvl, ty, `${r.bestLevel}`, { origin: 1, color: col }));
       if (friends && !mine) add(button(this, rx + rw - 10, ty, 16, 12, 'X', () => void this.doRemove(r), BTN.red).c);

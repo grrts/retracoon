@@ -15,11 +15,12 @@ import { RaccoonView } from '../game/views';
 import { coonKey, ensureCoon } from '../gfx/coonTex';
 import { ANCHORS, COON_W, COON_H } from '../gfx/coon';
 import { PRODUCTS } from '../platform/config';
-import { buy, restore, priceLabel, testMode } from '../platform/iap';
+import { buy, restore, priceLabel, testMode, storeAvailable } from '../platform/iap';
+import { mustSignInFor } from '../platform/online';
 import { wallet } from './MetaScenes';
 
 type Tab = 'sale' | 'holiday' | 'fur' | 'outfit' | 'owned' | 'gems';
-const TABS: { id: Tab; label: string }[] = [
+const ALL_TABS: { id: Tab; label: string }[] = [
   { id: 'sale', label: 'SALE' },
   { id: 'holiday', label: 'HOLIDAY' },
   { id: 'fur', label: 'FUR' },
@@ -27,6 +28,8 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'owned', label: 'MINE' },
   { id: 'gems', label: 'GEMS' },
 ];
+// No gem shop on Steam: the game is paid there and skins cost caps.
+const TABS = () => ALL_TABS.filter((t) => t.id !== 'gems' || storeAvailable());
 
 const TOP = 22; // bottom of the header
 const TAB_Y = 32;
@@ -68,8 +71,8 @@ export class StoreScene extends Phaser.Scene {
     this.wallet = wallet(this, 6, 11);
     text(this, W / 2, 11, 'SKIN SHOP', { scale: 2, color: COL.yellow });
     button(this, W - 30, 11, 52, 16, 'BACK', () => this.leave(), BTN.red);
-    const tw = Math.floor((W - 8) / TABS.length);
-    TABS.forEach((t, i) => {
+    const tw = Math.floor((W - 8) / TABS().length);
+    TABS().forEach((t, i) => {
       const b = button(this, 4 + tw * i + tw / 2, TAB_Y, tw - 2, 16, t.label, () => {
         this.tab = t.id;
         this.page = 0;
@@ -116,7 +119,7 @@ export class StoreScene extends Phaser.Scene {
   private draw() {
     this.layer.forEach((o) => o.destroy());
     this.layer = [];
-    this.tabBtns.forEach((b, i) => b.setColors(TABS[i].id === this.tab ? 0x8f563b : 0x29366f, 0x1a1c2c, TABS[i].id === this.tab ? 0xffcd75 : 0x3b5dc9));
+    this.tabBtns.forEach((b, i) => b.setColors(TABS()[i].id === this.tab ? 0x8f563b : 0x29366f, 0x1a1c2c, TABS()[i].id === this.tab ? 0xffcd75 : 0x3b5dc9));
     this.wallet.refresh();
     this.drawPreview();
     if (this.tab === 'gems') return this.drawGems();
@@ -224,8 +227,15 @@ export class StoreScene extends Phaser.Scene {
     let by = y + 14;
     const opt = (currency: 'caps' | 'gems', cost: number, was?: number) => {
       const have = currency === 'caps' ? store.caps : store.gems;
-      const b = button(this, cx + 6, by, LEFT_W - 28, 22, `${cost}${was ? ` (WAS ${was})` : ''}`, () => {
-        if (!buySkin(s.id, currency)) {
+      const b = button(this, cx + 6, by, LEFT_W - 28, 22, `${cost}${was ? ` (WAS ${was})` : ''}`, async () => {
+        if (this.busy) return;
+        if (currency === 'gems' && mustSignInFor()) return this.scene.start('SignIn', { then: 'Store' });
+        this.busy = true;
+        const res = await buySkin(s.id, currency);
+        this.busy = false;
+        if (!this.scene.isActive()) return;
+        if (res !== 'ok') {
+          if (res === 'offline') this.toast('GEMS NEED A CONNECTION');
           this.cameras.main.shake(80, 0.004);
           return;
         }
@@ -273,6 +283,8 @@ export class StoreScene extends Phaser.Scene {
 
   private async purchase(id: string, title: string, price: string) {
     if (this.busy) return;
+    // Purchases belong to an account (iPhone guests sign in here).
+    if (mustSignInFor()) return this.scene.start('SignIn', { then: 'Store' });
     this.busy = true;
     const res = await buy(id, () => this.confirm(`${title} FOR ${price}`));
     this.busy = false;
@@ -280,7 +292,8 @@ export class StoreScene extends Phaser.Scene {
       sfx.upgrade();
       this.cameras.main.flash(150, 115, 239, 247);
       this.toast('THANK YOU!');
-    } else if (res === 'error') this.toast('PURCHASE FAILED. TRY AGAIN LATER.');
+    } else if (res === 'pending') this.toast('THANKS! YOUR GEMS ARRIVE IN A MOMENT.');
+    else if (res === 'error') this.toast('PURCHASE FAILED. TRY AGAIN LATER.');
     this.draw();
   }
 

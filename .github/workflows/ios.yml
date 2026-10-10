@@ -25,6 +25,8 @@ jobs:
         env:
           # Scoreboard server, set under Settings > Secrets and variables > Actions > Variables.
           VITE_API_URL: ${{ vars.API_URL }}
+          VITE_GOOGLE_WEB_CLIENT_ID: ${{ vars.GOOGLE_WEB_CLIENT_ID }}
+          VITE_GOOGLE_IOS_CLIENT_ID: ${{ vars.GOOGLE_IOS_CLIENT_ID }}
       - run: npx cap sync ios
       - name: Simulator build
         working-directory: ios/App

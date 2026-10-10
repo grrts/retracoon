@@ -12,9 +12,10 @@ import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
 import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
-import { initIap } from '../platform/iap';
-import { isNative } from '../platform/native';
-import { submitBest } from '../platform/online';
+import { initIap, loginPurchases } from '../platform/iap';
+import { isNative, isSteam, steam } from '../platform/native';
+import { submitBest, needsSignIn, profile } from '../platform/online';
+import { continueBoot } from './AccountScenes';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -71,8 +72,8 @@ function sheet(scene: Phaser.Scene, r: RunState, x: number, y: number, w: number
 export function wallet(scene: Phaser.Scene, x = 8, y = 10) {
   const capImg = scene.add.image(x + 3, y, 'bottlecap');
   const caps = text(scene, x + 10, y, `${store.caps}`, { origin: 0, color: COL.yellow });
-  const gemImg = scene.add.image(x + 18 + caps.width, y, 'gem');
-  const gems = text(scene, x + 25 + caps.width, y, `${store.gems}`, { origin: 0, color: COL.ice });
+  const gemImg = scene.add.image(x + 18 + caps.width, y, 'gem').setVisible(!isSteam());
+  const gems = text(scene, x + 25 + caps.width, y, `${store.gems}`, { origin: 0, color: COL.ice }).setVisible(!isSteam());
   return {
     parts: [capImg, caps, gemImg, gems],
     refresh() {
@@ -101,6 +102,10 @@ export class PauseScene extends Phaser.Scene {
       this.scene.resume('Run');
     };
     const bw = Math.min(100, (W - 24) / 3);
+    button(this, W - 40, 14, 64, 18, 'INSPECT', () => {
+      this.scene.pause();
+      this.scene.launch('Inspect', { run: data.run, from: 'Pause' });
+    }, BTN.gold);
     button(this, W / 2 - bw - 4, H - 16, bw, 22, 'RESUME', resume, BTN.green);
     const snd = button(this, W / 2, H - 16, bw, 22, sfx.muted ? 'SOUND OFF' : 'SOUND ON', () => {
       sfx.resume();
@@ -253,6 +258,8 @@ export class TitleScene extends Phaser.Scene {
       sfx.unlock();
       this.scene.start('Scores', { back: 'Title' });
     }, BTN.violet);
+    // Desktop (Steam) needs a way out; phones have their own.
+    if (isSteam()) button(this, mx, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0
@@ -284,31 +291,60 @@ export class TitleScene extends Phaser.Scene {
 
 // ---------------------------------------------------------------- the one ad
 
-// Web placeholder for the launch ad: the only ad in the game. On phones the real
-// AdMob interstitial shows instead (see platform/ads.ts).
+// The launch ad: first a note that it's coming and that it's the only one, then on
+// phones the AdMob App Open ad (see platform/ads.ts), in the browser a placeholder.
 export class AdScene extends Phaser.Scene {
   constructor() {
     super('Ad');
   }
 
-  create() {
+  private bg() {
     const g = this.add.graphics();
     g.fillStyle(0x333c57, 1).fillRect(0, 0, W, H);
     for (let x = -H; x < W; x += 16) {
       g.fillStyle(0x29366f, 1);
       g.fillTriangle(x, H, x + 8, H, x + H + 8, 0);
     }
+    return g;
+  }
+
+  // First the note, so the player knows what is coming and that it is the only one.
+  create() {
+    const g = this.bg();
     const bw = Math.min(W - 40, 300);
     panel(g, W / 2 - bw / 2, 30, bw, 120, 0x1a1c2c, 0x566c86);
-    text(this, W / 2, 48, 'ADVERTISEMENT', { scale: 2, color: COL.white });
-    text(this, W / 2, 72, 'THIS IS WHERE THE LAUNCH AD PLAYS ON PHONES.', { color: COL.light, maxWidth: bw - 16 });
-    text(this, W / 2, 86, 'IT IS THE ONLY AD IN RETRACOON.', { color: COL.yellow, maxWidth: bw - 16 });
-    text(this, W / 2, 100, 'NO ADS DURING RUNS. NO BANNERS. EVER.', { color: COL.light, maxWidth: bw - 16 });
-    const count = text(this, W / 2, 128, '', { color: COL.ice });
-    let left = 5;
-    const skip = button(this, W / 2 + 70, H - 26, 120, 24, 'SKIP', () => this.scene.start('Title'), BTN.green);
-    skip.setEnabled(false);
+    text(this, W / 2, 48, 'ONE AD COMING UP', { scale: 2, color: COL.white });
+    text(this, W / 2, 74, 'AN AD PLAYS ONCE WHEN THE GAME STARTS.', { color: COL.light, maxWidth: bw - 16 });
+    text(this, W / 2, 88, 'IT IS THE ONLY AD IN RETRACOON.', { color: COL.yellow, maxWidth: bw - 16 });
+    text(this, W / 2, 102, 'NO ADS DURING RUNS. NO BANNERS. EVER.', { color: COL.light, maxWidth: bw - 16 });
+    text(this, W / 2, 128, 'THANKS FOR SUPPORTING A SMALL GAME!', { color: COL.ice, maxWidth: bw - 16 });
+    button(this, W / 2 + 70, H - 26, 120, 24, 'CONTINUE', () => this.play(), BTN.green);
     button(this, W / 2 - 70, H - 26, 120, 24, 'REMOVE ADS', () => this.scene.start('Store', { back: 'Title', tab: 'gems' }), BTN.gold);
+    this.input.keyboard!.once('keydown-ENTER', () => this.play());
+  }
+
+  private playing = false;
+
+  private play() {
+    if (this.playing) return;
+    this.playing = true;
+    if (isNative()) {
+      this.children.removeAll(true);
+      this.bg();
+      void showNativeLaunchAd().then(() => this.scene.start('Title'));
+      return;
+    }
+    // Browser build: a stand-in for the ad itself.
+    this.children.removeAll(true);
+    const g = this.bg();
+    const bw = Math.min(W - 40, 300);
+    panel(g, W / 2 - bw / 2, 30, bw, 120, 0x1a1c2c, 0x566c86);
+    text(this, W / 2, 60, 'ADVERTISEMENT', { scale: 2, color: COL.white });
+    text(this, W / 2, 86, 'ON PHONES THE LAUNCH AD PLAYS HERE.', { color: COL.light, maxWidth: bw - 16 });
+    const count = text(this, W / 2, 120, '', { color: COL.ice });
+    let left = 5;
+    const skip = button(this, W / 2, H - 26, 120, 24, 'SKIP', () => this.scene.start('Title'), BTN.green);
+    skip.setEnabled(false);
     const tick = () => {
       count.setText(left > 0 ? `YOU CAN SKIP IN ${left}` : 'THANKS FOR WATCHING');
       if (left <= 0) skip.setEnabled(true);
@@ -316,6 +352,10 @@ export class AdScene extends Phaser.Scene {
     };
     tick();
     this.time.addEvent({ delay: 1000, repeat: 5, callback: tick });
+  }
+
+  init() {
+    this.playing = false;
   }
 }
 
@@ -329,11 +369,10 @@ export class BootScene extends Phaser.Scene {
     loadContent();
     buildTextures(this);
     void initIap();
-    if (!adsEnabled()) return this.scene.start('Title');
-    if (isNative()) {
-      void showNativeLaunchAd().then(() => this.scene.start('Title'));
-      return;
-    }
-    this.scene.start('Ad');
+    // An account comes first (when the game has a server), then the first-launch
+    // tutorial, then the launch ad. See continueBoot.
+    if (needsSignIn()) return this.scene.start('SignIn', { then: 'boot' });
+    void profile(true).then((me) => me && loginPurchases(me.id));
+    continueBoot(this, adsEnabled());
   }
 }

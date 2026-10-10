@@ -4,9 +4,9 @@ import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN } from '../ui';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
-import { STAT_INFO, skills } from '../content/registry';
-import type { SkillDef, StatKey } from '../content/types';
-import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, skillChoices, learnSkill, attackPower } from '../game/run';
+import { STAT_INFO } from '../content/registry';
+import type { StatKey } from '../content/types';
+import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, levelUpChoices, learnSkill, addPassive, attackPower, LevelChoice } from '../game/run';
 
 // Level up: spend stat points, then pick a skill.
 export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }> {
@@ -15,6 +15,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
   private pointsText!: Phaser.GameObjects.BitmapText;
   private derived!: Phaser.GameObjects.BitmapText;
   private layer: Phaser.GameObjects.GameObject[] = [];
+  private taken = false;
 
   constructor() {
     super('LevelUp');
@@ -24,6 +25,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     this.spent = { str: 0, def: 0, agi: 0, lck: 0, vit: 0 };
     this.rows = [];
     this.layer = [];
+    this.taken = false;
     this.backdrop();
     sfx.upgrade();
     if (this.d.run.statPoints > 0) this.statStep();
@@ -105,42 +107,61 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
 
   private skillStep() {
     const r = this.d.run;
-    const choices = skillChoices(r, 3);
+    const choices = levelUpChoices(r, 3);
     if (!choices.length) return this.close();
-    this.layer.push(...this.title('NEW SKILL', COL.ice, 'TAP ONE, THEN LEARN. OWNED SKILLS GET STRONGER.'));
+    const allPassive = choices.every((c) => c.kind === 'passive');
+    this.layer.push(
+      ...this.title(
+        allPassive ? 'PASSIVE SKILL' : 'NEW SKILL',
+        allPassive ? COL.lime : COL.ice,
+        allPassive ? 'SKILLS MAXED. PASSIVES STACK FOREVER.' : r.skills.length >= SKILL_SLOTS ? 'SLOTS FULL: UPGRADE A SKILL OR TAKE A PASSIVE.' : 'TAP ONE, THEN LEARN. OWNED SKILLS GET STRONGER.',
+      ),
+    );
     let picked = -1;
     const cards: Phaser.GameObjects.Container[] = [];
     const ring = this.add.graphics();
     this.layer.push(ring);
-    const learn = button(this, W / 2 + 50, H - 14, 150, 20, 'LEARN', () => picked >= 0 && this.pickSkill(choices[picked]), { ...BTN.green, depth: 5 });
+    const learn = button(this, W / 2 + 50, H - 14, 150, 20, 'LEARN', () => picked >= 0 && this.pickChoice(choices[picked]), { ...BTN.green, depth: 5 });
     learn.setEnabled(false);
     const select = (i: number) => {
-      if (picked === i) return this.pickSkill(choices[i]);
+      if (picked === i) return this.pickChoice(choices[i]);
       picked = i;
       sfx.select();
       const c = cards[i];
       ring.clear().lineStyle(2, 0xffcd75, 1).strokeRect(c.x - c.width / 2 - 3, c.y - c.height / 2 - 3, c.width + 6, c.height + 6);
       cards.forEach((k, j) => k.setAlpha(j === i ? 1 : 0.6));
       learn.setEnabled(true);
-      learn.setLabel(`LEARN ${choices[i].name}`);
+      learn.setLabel(`${choices[i].kind === 'passive' ? 'TAKE' : 'LEARN'} ${choices[i].def.name}`);
     };
     const n = choices.length;
     const cw = Math.min(130, Math.floor((W - 16 - (n - 1) * 6) / n));
     const ch = 140;
-    choices.forEach((s, i) => {
+    choices.forEach((choice, i) => {
       const x = W / 2 + (i - (n - 1) / 2) * (cw + 6);
       const y = TITLE_BAND + 12 + ch / 2;
-      const owned = r.skills.find((o) => o.id === s.id);
-      const lvl = owned ? owned.lvl + 1 : 1;
       const c = this.add.container(x, y);
       const g = this.add.graphics();
-      panel(g, -cw / 2, -ch / 2, cw, ch, 0x29366f, owned ? 0xffcd75 : 0x73eff7, 0x3b5dc9);
       c.add(g);
-      c.add(this.add.image(0, -ch / 2 + 16, `skill_${s.id}`).setScale(2));
-      c.add(text(this, 0, -ch / 2 + 36, s.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
-      c.add(text(this, 0, -ch / 2 + 47, owned ? `LEVEL ${lvl}` : 'NEW', { color: owned ? COL.yellow : COL.lime }));
-      c.add(text(this, 0, -ch / 2 + 56, s.desc(lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
-      c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
+      if (choice.kind === 'skill') {
+        const s = choice.def;
+        const owned = r.skills.find((o) => o.id === s.id);
+        const lvl = owned ? owned.lvl + 1 : 1;
+        panel(g, -cw / 2, -ch / 2, cw, ch, 0x29366f, owned ? 0xffcd75 : 0x73eff7, 0x3b5dc9);
+        c.add(this.add.image(0, -ch / 2 + 16, `skill_${s.id}`).setScale(2));
+        c.add(text(this, 0, -ch / 2 + 36, s.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
+        c.add(text(this, 0, -ch / 2 + 47, owned ? (lvl >= s.max ? `LEVEL ${lvl} (MAX)` : `LEVEL ${lvl}`) : 'NEW', { color: owned ? COL.yellow : COL.lime }));
+        c.add(text(this, 0, -ch / 2 + 56, s.desc(lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
+        c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
+      } else {
+        const p = choice.def;
+        const have = r.passives[p.id] ?? 0;
+        panel(g, -cw / 2, -ch / 2, cw, ch, 0x1f3a2c, 0xa7f070, 0x38b764);
+        c.add(this.add.image(0, -ch / 2 + 16, `passive_${p.id}`).setScale(2));
+        c.add(text(this, 0, -ch / 2 + 36, p.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
+        c.add(text(this, 0, -ch / 2 + 47, have ? `PASSIVE X${have + 1}` : 'PASSIVE', { color: COL.lime }));
+        c.add(text(this, 0, -ch / 2 + 56, p.each, { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 3 }));
+        c.add(text(this, 0, ch / 2 - 17, `TOTAL ${p.desc(have + 1)}`, { color: COL.ice, maxWidth: cw - 8, maxLines: 2 }));
+      }
       c.setSize(cw, ch).setInteractive({ useHandCursor: true });
       c.on('pointerup', () => select(i));
       cards.push(c);
@@ -152,44 +173,17 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     this.layer.push(skip.c, learn.c);
     const kb = this.input.keyboard!;
     ['ONE', 'TWO', 'THREE'].forEach((k, i) => kb.on(`keydown-${k}`, () => i < choices.length && select(i)));
-    kb.on('keydown-ENTER', () => picked >= 0 && this.pickSkill(choices[picked]));
+    kb.on('keydown-ENTER', () => picked >= 0 && this.pickChoice(choices[picked]));
   }
 
-  private pickSkill(s: SkillDef) {
+  private pickChoice(c: LevelChoice) {
+    if (this.taken) return;
+    this.taken = true;
     const r = this.d.run;
     sfx.select();
-    if (r.skills.find((o) => o.id === s.id) || r.skills.length < SKILL_SLOTS) {
-      learnSkill(r, s.id);
-      sfx.upgrade();
-      return this.close();
-    }
-    this.replaceStep(s);
-  }
-
-  // Slots are full: choose which skill to forget.
-  private replaceStep(s: SkillDef) {
-    this.input.keyboard!.removeAllListeners();
-    this.clearLayer();
-    const r = this.d.run;
-    this.layer.push(...this.title('SKILLS FULL', COL.orange, `FORGET A SKILL TO LEARN ${s.name}`));
-    r.skills.forEach((o, i) => {
-      const def = skills.get(o.id)!;
-      const y = TITLE_BAND + 26 + i * 30;
-      const b = button(this, W / 2, y, 220, 26, '', () => {
-        learnSkill(r, s.id, i);
-        sfx.upgrade();
-        this.close();
-      }, { depth: 5 });
-      b.label.destroy();
-      b.c.add(this.add.image(-96, 0, `skill_${def.id}`));
-      b.c.add(text(this, -84, 0, `${def.name} LV${o.lvl}`, { origin: 0, color: i === 0 ? COL.grey : COL.white }));
-      if (i === 0) {
-        b.setEnabled(false);
-        b.c.add(text(this, 102, 0, 'ALWAYS KEPT', { origin: 1, color: COL.grey }));
-      }
-      this.layer.push(b.c);
-    });
-    const keep = button(this, W / 2, H - 16, 130, 22, 'KEEP MY SKILLS', () => this.close(), { depth: 5 });
-    this.layer.push(keep.c);
+    if (c.kind === 'skill') learnSkill(r, c.def.id);
+    else addPassive(r, c.def.id);
+    sfx.upgrade();
+    this.close();
   }
 }
