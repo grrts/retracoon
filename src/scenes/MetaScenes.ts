@@ -14,6 +14,7 @@ import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
 import { initIap } from '../platform/iap';
 import { isNative } from '../platform/native';
+import { submitBest } from '../platform/online';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -218,6 +219,8 @@ export class TitleScene extends Phaser.Scene {
 
   create() {
     this.started = false;
+    // Catch up on a best score that couldn't be sent earlier (offline at the time).
+    void submitBest();
     const theme = themes.get('street') ?? [...themes.values()][0];
     this.world = new Parallax(this, theme);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.3).setOrigin(0).setDepth(-1);
@@ -237,14 +240,19 @@ export class TitleScene extends Phaser.Scene {
       sfx.unlock();
       sfx.select();
       this.cameras.main.fadeOut(220, 26, 28, 44);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Run', {}));
+      this.cameras.main.once('camerafadeoutcomplete', () => (store.tutorialDone ? this.scene.start('Run', {}) : this.scene.start('Tutorial', { next: 'Run' })));
     };
     const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', go, BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });
-    button(this, mx, 118, 140, 24, 'SKIN SHOP', () => {
+    button(this, mx, 114, 140, 22, 'SKIN SHOP', () => {
       sfx.unlock();
       this.scene.start('Store', { back: 'Title' });
     }, BTN.gold);
+    button(this, mx - 36, 140, 68, 20, 'HOW TO PLAY', () => this.scene.start('Tutorial', { next: 'Title' }));
+    button(this, mx + 36, 140, 68, 20, 'SCORES', () => {
+      sfx.unlock();
+      this.scene.start('Scores', { back: 'Title' });
+    }, BTN.violet);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0

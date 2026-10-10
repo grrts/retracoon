@@ -1,3 +1,4 @@
+import Phaser from 'phaser';
 import { W, H } from '../config';
 import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN } from '../ui';
@@ -106,7 +107,23 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     const r = this.d.run;
     const choices = skillChoices(r, 3);
     if (!choices.length) return this.close();
-    this.layer.push(...this.title('NEW SKILL', COL.ice, 'PICK ONE. OWNED SKILLS GET STRONGER.'));
+    this.layer.push(...this.title('NEW SKILL', COL.ice, 'TAP ONE, THEN LEARN. OWNED SKILLS GET STRONGER.'));
+    let picked = -1;
+    const cards: Phaser.GameObjects.Container[] = [];
+    const ring = this.add.graphics();
+    this.layer.push(ring);
+    const learn = button(this, W / 2 + 50, H - 14, 150, 20, 'LEARN', () => picked >= 0 && this.pickSkill(choices[picked]), { ...BTN.green, depth: 5 });
+    learn.setEnabled(false);
+    const select = (i: number) => {
+      if (picked === i) return this.pickSkill(choices[i]);
+      picked = i;
+      sfx.select();
+      const c = cards[i];
+      ring.clear().lineStyle(2, 0xffcd75, 1).strokeRect(c.x - c.width / 2 - 3, c.y - c.height / 2 - 3, c.width + 6, c.height + 6);
+      cards.forEach((k, j) => k.setAlpha(j === i ? 1 : 0.6));
+      learn.setEnabled(true);
+      learn.setLabel(`LEARN ${choices[i].name}`);
+    };
     const n = choices.length;
     const cw = Math.min(130, Math.floor((W - 16 - (n - 1) * 6) / n));
     const ch = 140;
@@ -125,17 +142,17 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
       c.add(text(this, 0, -ch / 2 + 56, s.desc(lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
       c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
       c.setSize(cw, ch).setInteractive({ useHandCursor: true });
-      c.on('pointerup', () => this.pickSkill(s));
+      c.on('pointerup', () => select(i));
+      cards.push(c);
       c.setScale(0.8).setAlpha(0);
       this.tweens.add({ targets: c, scale: 1, alpha: 1, delay: i * 70, duration: 200, ease: 'Back.out' });
       this.layer.push(c);
     });
-    const skip = button(this, W / 2, H - 14, 90, 20, 'SKIP', () => this.close(), { depth: 5 });
-    this.layer.push(skip.c);
+    const skip = button(this, W / 2 - 80, H - 14, 70, 20, 'SKIP', () => this.close(), { depth: 5 });
+    this.layer.push(skip.c, learn.c);
     const kb = this.input.keyboard!;
-    kb.on('keydown-ONE', () => choices[0] && this.pickSkill(choices[0]));
-    kb.on('keydown-TWO', () => choices[1] && this.pickSkill(choices[1]));
-    kb.on('keydown-THREE', () => choices[2] && this.pickSkill(choices[2]));
+    ['ONE', 'TWO', 'THREE'].forEach((k, i) => kb.on(`keydown-${k}`, () => i < choices.length && select(i)));
+    kb.on('keydown-ENTER', () => picked >= 0 && this.pickSkill(choices[picked]));
   }
 
   private pickSkill(s: SkillDef) {

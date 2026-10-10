@@ -95,6 +95,24 @@ for (const [w, h] of SIZES) {
   if (await page.evaluate(() => window.__game.scene.isActive('Ad'))) await shot('ad');
   await start('Title');
   await shot('title');
+  for (let i = 0; i < 6; i++) {
+    await start('Tutorial', { next: 'Title' });
+    await page.evaluate((n) => {
+      const t = window.__game.scene.getScene('Tutorial');
+      for (let k = 0; k < n; k++) t.go(1);
+    }, i);
+    await shot(`tutorial-${i}`);
+  }
+  // Scoreboard: offline notice, then a filled board from sample rows.
+  await start('Scores', {});
+  await shot('scores-offline');
+  const row = (i, name, stage) => ({ id: `id${i}`, name, skin: 'classic', bestStage: stage, bestLevel: Math.ceil(stage / 2), bestDistance: stage * 300, rank: i + 1 });
+  const rows = ['SNEAKY BANDIT 42', 'LEROY', 'MIGHTY TRASHER 7', 'FUZZY PAWS 31', 'SLY COON 88', 'BRAVE MASK 12', 'TINY TAIL 55', 'SHADY SNOUT 19', 'GRUMPY RASCAL 77', 'MESSY BANDIT 23', 'CHUNKY COON 61'].map((n, i) => row(i, n, 60 - i * 4));
+  const me = { ...rows[1], friendCode: 'K7MPQ2' };
+  for (const tab of ['world', 'friends']) {
+    await start('Scores', { tab, demo: { me, rows: tab === 'world' ? rows : rows.slice(0, 4) } });
+    await shot(`scores-${tab}`);
+  }
   for (const tab of ['sale', 'holiday', 'fur', 'outfit', 'owned', 'gems']) {
     await start('Store', { tab });
     await shot(`store-${tab}`);
@@ -125,6 +143,19 @@ for (const [w, h] of SIZES) {
     await overlay(key, data);
     await shot(key.toLowerCase());
   }
+  // Reward and shop with a card selected (the try-on preview and the confirm hint).
+  await overlay('Reward', { title: 'LOOT', min: 1 });
+  await sleep(300);
+  await page.evaluate(() => window.__game.scene.getScene('Reward').pick(0));
+  await shot('reward-picked');
+  await overlay('Shop', {});
+  await sleep(300);
+  await page.evaluate(() => {
+    const s = window.__game.scene.getScene('Shop');
+    s.sel = 0;
+    s.draw?.();
+  });
+  await shot('shop-picked');
   // Every event, by forcing each one in turn.
   const nEvents = await page.evaluate(() => window.__debug.events.length);
   for (let i = 0; i < nEvents; i++) {

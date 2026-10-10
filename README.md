@@ -15,13 +15,20 @@ npm run sim            # balance check: bots play hundreds of runs
 npm run assets:count   # how much art the game ships
 ```
 
+The online scoreboard has its own server in `server/` (PHP, Symfony). See [docs/ONLINE.md](docs/ONLINE.md).
+
+## First launch
+
+A short **How to play** explains the goal before the first run: get as far as you can on a road that never ends, and know when to retreat. It can be opened again from the title screen.
+
 ## How a run works
 
 - **Stages.** Every fight cleared is a stage, and difficulty grows with every stage, forever. Foe health and damage scale faster than linearly, and deeper foes come in **Mean**, **Feral** and **Mythic** tiers with armor, regeneration and thorns.
 - **Bosses.** Each area hides its boss at a random stage between 2 and 20, so you can never plan for it. Beating the boss moves you to a new area with a new theme.
 - **Combat.** You get action points each turn and spend them on up to 4 skills. Foes show their intent above their heads. Areas add hazards (falling pots, fumes, sprinklers, quakes, spores, lightning).
-- **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 skills. Stats have diminishing returns past 10 and 20, so dumping everything into one stat stops paying off.
+- **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 skills (tap a card to select it, then LEARN). Stats have diminishing returns past 10 and 20, so dumping everything into one stat stops paying off.
 - **Road stops** every two or three fights: shop, event, camp or treasure. Healing is scarce.
+- **Rewards:** tap an item to try it on (the preview raccoon wears it and the card says what it replaces), then TAKE.
 - **Items** show up on the raccoon. Rarer and higher-level gear glows; a full kit shines; set bonuses fly a flag.
 
 ## Retreat and death
@@ -29,6 +36,10 @@ npm run assets:count   # how much art the game ships
 - **Retreat** before any fight: the run ends, and your raccoon keeps its level and stats for the next run, which starts from the street again. Items, skills and shinies are lost. Retreating in time is how you get further.
 - **Death:** everything is reset. The next run starts at level 1.
 - Every run pays **Bottle Caps** for the skin shop either way.
+
+## Scoreboard and friends
+
+**SCORES** on the title screen shows the world board and a friends board, ranked by best stage. Everyone gets a random name (changeable) and a 6-letter friend code; add a friend by typing their code. No account or login. Runs are sent when they end, and again later if the phone was offline. Details: [docs/ONLINE.md](docs/ONLINE.md).
 
 ## Shop, skins and the one ad
 
@@ -57,7 +68,8 @@ The `android/` and `ios/` folders are the native projects. Building, signing and
 | `src/content/` | Enemies, items, skills and events |
 | `src/world/` | Themes (backgrounds), seasons, the parallax renderer |
 | `src/meta/` | Skins and the economy |
-| `src/platform/` | AdMob, RevenueCat, native shell |
+| `src/platform/` | AdMob, RevenueCat, native shell, scoreboard client (`online.ts`) |
+| `server/` | Scoreboard and friends API (Symfony + PostgreSQL) |
 | `src/gfx/` | Pixel maps, palette, font, texture builders |
 | `tools/` | Balance simulator, art previews, icon generator, asset counter |
 

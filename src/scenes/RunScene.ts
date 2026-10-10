@@ -28,6 +28,7 @@ import { COL } from '../gfx/palette';
 import { ensureEnemy, enemyKey } from '../gfx/textures';
 import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
+import { submitBest } from '../platform/online';
 
 const PX_PER_M = 6;
 const COON_X = 72;
@@ -395,6 +396,15 @@ export class RunScene extends Phaser.Scene {
     const fight = button(this, W / 2 - pw / 4, H - 13, pw / 2 - 10, 18, 'FIGHT', () => this.beginFight(), { ...BTN.red, depth: 52 });
     const retreat = button(this, W / 2 + pw / 4, H - 13, pw / 2 - 10, 18, 'RETREAT', () => this.confirmRetreat(), { depth: 52 });
     this.ui.push(g, t1, t2, fight.c, retreat.c);
+    this.hint('retreat', 'RETREAT ENDS THE RUN BUT YOUR RACCOON KEEPS ITS LEVEL AND STATS.');
+  }
+
+  // One-time hints for new players.
+  private hint(id: string, str: string) {
+    if (store.tipsSeen.includes(id)) return;
+    store.tipsSeen.push(id);
+    save();
+    this.tip(str, COL.yellow, 5000);
   }
 
   private confirmRetreat() {
@@ -449,6 +459,7 @@ export class RunScene extends Phaser.Scene {
     const caps = capsForRun(r);
     addCaps(caps);
     save();
+    void submitBest();
     sfx.stopMusic();
     this.scene.pause();
     this.scene.launch('GameOver', { run: r, reason, newBest, caps });
@@ -606,6 +617,7 @@ export class RunScene extends Phaser.Scene {
   private beginFight() {
     this.clearCombatUi();
     this.foeLabels(true);
+    this.hint('combat', 'TAP SKILLS TO SPEND AP. THE ICON OVER A FOE SHOWS ITS NEXT MOVE.');
     this.run.fights++;
     const c = this.combat!;
     this.layoutFoes(false);

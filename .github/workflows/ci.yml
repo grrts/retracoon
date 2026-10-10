@@ -18,3 +18,41 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npx tsx tools/sim.ts --quick
+
+  server:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: app
+          POSTGRES_PASSWORD: app
+          POSTGRES_DB: app
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd "pg_isready -U app" --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: pdo_pgsql, pdo_sqlite, intl
+      - run: composer install --no-interaction --no-progress
+      - run: composer audit
+      - run: php bin/console lint:container
+      # The migration must build exactly the schema the entities describe.
+      - run: php bin/console doctrine:migrations:migrate -n
+        env:
+          DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=16&charset=utf8
+      - run: php bin/console doctrine:schema:validate
+        env:
+          DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=16&charset=utf8
+      - name: Tests (SQLite)
+        run: php bin/phpunit
+      - name: Tests (PostgreSQL)
+        run: php bin/console doctrine:database:create --env=test --if-not-exists && php bin/phpunit
+        env:
+          DATABASE_URL: postgresql://app:app@127.0.0.1:5432/app?serverVersion=16&charset=utf8

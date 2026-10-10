@@ -1,0 +1,25 @@
+framework:
+    rate_limiter:
+        # new players per IP address
+        register:
+            policy: sliding_window
+            limit: 20
+            interval: '1 hour'
+            cache_pool: cache.rate_limiter
+        # finished runs per player
+        run:
+            policy: token_bucket
+            limit: 30
+            rate: { interval: '1 minute', amount: 10 }
+            cache_pool: cache.rate_limiter
+        # friend-code attempts per player
+        friend:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
+            cache_pool: cache.rate_limiter
+    cache:
+        pools:
+            cache.rate_limiter:
+                adapter: cache.app
+

@@ -2,6 +2,8 @@ import Phaser from 'phaser';
 import { W, H } from './config';
 import { BootScene, TitleScene, PauseScene, GameOverScene, AdScene } from './scenes/MetaScenes';
 import { StoreScene } from './scenes/StoreScene';
+import { TutorialScene } from './scenes/TutorialScene';
+import { ScoresScene } from './scenes/ScoresScene';
 import { initNative } from './platform/native';
 import { events } from './content/registry';
 import { store } from './save';
@@ -23,7 +25,7 @@ const game = new Phaser.Game({
   input: { activePointers: 3 },
   disableContextMenu: true,
   banner: false,
-  scene: [BootScene, AdScene, TitleScene, StoreScene, RunScene, LevelUpScene, RewardScene, ForkScene, ShopScene, CampScene, EventScene, PauseScene, GameOverScene],
+  scene: [BootScene, AdScene, TitleScene, StoreScene, TutorialScene, ScoresScene, RunScene, LevelUpScene, RewardScene, ForkScene, ShopScene, CampScene, EventScene, PauseScene, GameOverScene],
 });
 
 void initNative();
