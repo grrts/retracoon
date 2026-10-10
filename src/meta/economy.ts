@@ -3,6 +3,8 @@ import { skins } from '../content/registry';
 import { store, save } from '../save';
 import { activeSeasons } from '../world/calendar';
 import type { SkinDef } from './types';
+import { isSteam } from '../platform/native';
+import { onlineConfigured, signedIn, spendGems } from '../platform/online';
 
 export const SKIN_RARITY = [
   { name: 'COMMON', color: 0x94b0c2, caps: 500, gems: 0 },
@@ -77,6 +79,11 @@ export function skinPrice(s: SkinDef, d = new Date()): Price {
     gems = gems || 200;
   }
   if (s.id === 'classic') return { caps: 0, gems: 0 };
+  // Steam has no gems: gem-only skins cost caps instead (10 caps per gem).
+  if (isSteam()) {
+    caps = caps || gems * 10;
+    gems = 0;
+  }
   const deal = weeklySale(d).deals.find((x) => x.id === s.id);
   if (!deal) return { caps, gems };
   const cut = (n: number) => (n ? Math.round((n * (100 - deal.off)) / 100 / 10) * 10 : 0);
@@ -87,19 +94,24 @@ export function owns(id: string) {
   return store.skins.includes(id);
 }
 
-export function buySkin(id: string, currency: 'caps' | 'gems'): boolean {
+// Caps are local. Gems belong to the account when signed in, so the server does the
+// spending (and the skin is then unlocked on every device).
+export async function buySkin(id: string, currency: 'caps' | 'gems'): Promise<'ok' | 'poor' | 'offline' | 'no'> {
   const s = skins.get(id);
-  if (!s || owns(id) || !isAvailable(s)) return false;
+  if (!s || owns(id) || !isAvailable(s)) return 'no';
   const p = skinPrice(s);
   const cost = currency === 'caps' ? p.caps : p.gems;
-  if (!cost) return false;
-  if (currency === 'caps' ? store.caps < cost : store.gems < cost) return false;
-  if (currency === 'caps') store.caps -= cost;
+  if (!cost) return 'no';
+  if (currency === 'caps' ? store.caps < cost : store.gems < cost) return 'poor';
+  if (currency === 'gems' && onlineConfigured() && signedIn()) {
+    const res = await spendGems(cost, id);
+    if (res !== 'ok') return res;
+  } else if (currency === 'caps') store.caps -= cost;
   else store.gems -= cost;
-  store.skins.push(id);
+  if (!store.skins.includes(id)) store.skins.push(id);
   store.skin = id;
   save();
-  return true;
+  return 'ok';
 }
 
 export function equipSkin(id: string) {

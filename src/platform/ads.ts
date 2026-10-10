@@ -6,9 +6,10 @@
 // build the same slots show a placeholder so the experience can be seen and tested.
 import { store } from '../save';
 import { ADMOB, ADS_ON } from './config';
-import { isNative, platform } from './native';
+import { isNative, isSteam, platform } from './native';
 
-export const adsEnabled = () => ADS_ON && !store.noAds;
+// Steam is a paid game: never any ads there.
+export const adsEnabled = () => ADS_ON && !store.noAds && !isSteam();
 
 let ready: Promise<boolean> | null = null;
 

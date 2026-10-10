@@ -12,9 +12,10 @@ import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
 import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
-import { initIap } from '../platform/iap';
-import { isNative } from '../platform/native';
-import { submitBest } from '../platform/online';
+import { initIap, loginPurchases } from '../platform/iap';
+import { isNative, isSteam } from '../platform/native';
+import { submitBest, needsSignIn, profile } from '../platform/online';
+import { continueBoot } from './AccountScenes';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -71,8 +72,8 @@ function sheet(scene: Phaser.Scene, r: RunState, x: number, y: number, w: number
 export function wallet(scene: Phaser.Scene, x = 8, y = 10) {
   const capImg = scene.add.image(x + 3, y, 'bottlecap');
   const caps = text(scene, x + 10, y, `${store.caps}`, { origin: 0, color: COL.yellow });
-  const gemImg = scene.add.image(x + 18 + caps.width, y, 'gem');
-  const gems = text(scene, x + 25 + caps.width, y, `${store.gems}`, { origin: 0, color: COL.ice });
+  const gemImg = scene.add.image(x + 18 + caps.width, y, 'gem').setVisible(!isSteam());
+  const gems = text(scene, x + 25 + caps.width, y, `${store.gems}`, { origin: 0, color: COL.ice }).setVisible(!isSteam());
   return {
     parts: [capImg, caps, gemImg, gems],
     refresh() {
@@ -366,9 +367,10 @@ export class BootScene extends Phaser.Scene {
     loadContent();
     buildTextures(this);
     void initIap();
-    // First launch: the tutorial comes first and can't be skipped (and no ad yet).
-    if (!store.tutorialDone) return this.scene.start('Tutorial', { next: 'Title', forced: true });
-    if (!adsEnabled()) return this.scene.start('Title');
-    this.scene.start('Ad');
+    // An account comes first (when the game has a server), then the first-launch
+    // tutorial, then the launch ad. See continueBoot.
+    if (needsSignIn()) return this.scene.start('SignIn', { then: 'boot' });
+    void profile(true).then((me) => me && loginPurchases(me.id));
+    continueBoot(this, adsEnabled());
   }
 }
