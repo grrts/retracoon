@@ -24,6 +24,11 @@ export interface Store {
   noAds: boolean;
   purchases: string[]; // product ids bought (for restore and receipts in test mode)
   lastRunGear: { slot: string; id: string; lvl: number }[]; // shown in the wardrobe preview
+  tutorialDone: boolean;
+  tipsSeen: string[]; // one-time hints already shown during runs
+  // online scoreboard
+  playerName: string;
+  bestSubmitted: number; // best stage already sent to the scoreboard
 }
 
 const KEY = 'retracoon.v3';
@@ -48,6 +53,10 @@ function base(): Store {
     noAds: false,
     purchases: [],
     lastRunGear: [],
+    tutorialDone: false,
+    tipsSeen: [],
+    playerName: '',
+    bestSubmitted: 0,
   };
 }
 

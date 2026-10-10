@@ -1,13 +1,14 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
-import { text, button, BTN, LINE_H, wrapPx, Button } from '../ui';
+import { text, button, BTN, LINE_H, wrapPx, measure, fmt, Button } from '../ui';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
-import { events, items, skills, RARITY } from '../content/registry';
+import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
 import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
 import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
-import { itemCard } from '../game/views';
+import { itemCard, RaccoonView } from '../game/views';
+import { store } from '../save';
 import { mapTexture, ensureEnemy, enemyKey } from '../gfx/textures';
 
 const CARD_H = 112;
@@ -25,14 +26,26 @@ interface RewardData extends OverlayData {
 }
 
 export class RewardScene extends Overlay<RewardData> {
+  private picked = -1;
+  private choices: ItemDef[] = [];
+  private cards: Phaser.GameObjects.Container[] = [];
+  private ring!: Phaser.GameObjects.Graphics;
+  private note!: Phaser.GameObjects.BitmapText;
+  private take!: Button;
+  private preview!: RaccoonView;
+
   constructor() {
     super('Reward');
   }
 
+  // Tap a card to see it on your raccoon and what it replaces, then TAKE it
+  // (or tap the same card again). Keys: 1-3 pick, Enter takes.
   create() {
     this.backdrop();
     const r = this.d.run;
-    this.title(this.d.title, COL.yellow, 'TAKE ONE. IT SHOWS UP ON YOUR RACCOON.');
+    this.picked = -1;
+    this.cards = [];
+    this.title(this.d.title, COL.yellow, 'TAP AN ITEM TO TRY IT ON. IT SHOWS UP ON YOUR RACCOON.');
     let choices: ItemDef[] = [];
     if (this.d.fixed) choices = this.d.fixed.map((id) => items.get(id)!).filter(Boolean);
     else {
@@ -41,23 +54,69 @@ export class RewardScene extends Overlay<RewardData> {
         if (it) choices.push(it);
       }
     }
+    this.choices = choices;
     const n = choices.length;
     const cw = cardWidth(n);
     const cy = TITLE_BAND + 12 + CARD_H / 2;
+    this.ring = this.add.graphics().setDepth(1);
     choices.forEach((it, i) => {
       const x = W / 2 + (i - (n - 1) / 2) * (cw + 6);
-      const card = itemCard(this, x, cy, cw, CARD_H, it, r);
+      const card = itemCard(this, x, cy, cw, CARD_H, it, r).setDepth(2);
       card.setInteractive({ useHandCursor: true });
-      card.on('pointerup', () => {
-        const res = equip(r, it);
-        sfx.upgrade();
-        this.flashText(res === 'level' ? `${it.name} LEVELED UP!` : `EQUIPPED ${it.name}`);
-        this.time.delayedCall(450, () => this.close());
-      });
+      card.on('pointerup', () => (this.picked === i ? this.confirm() : this.pick(i)));
       card.setAlpha(0).setScale(0.85);
       this.tweens.add({ targets: card, alpha: 1, scale: 1, delay: i * 80, duration: 200, ease: 'Back.out' });
+      this.cards.push(card);
     });
-    button(this, W / 2, H - 16, 90, 20, 'SKIP', () => this.close(), { depth: 5 });
+    // Bottom band: your raccoon wearing the picked item, what it replaces, TAKE and SKIP.
+    const by = H - 16;
+    this.add.image(42, H - 5, 'shadow').setScale(1.5);
+    this.preview = new RaccoonView(this, 42, H - 5, r, store.skin).setScale(2);
+    const tick = (_t: number, d: number) => this.preview.update(d / 1000);
+    this.events.on('update', tick);
+    this.events.once('shutdown', () => this.events.off('update', tick));
+    this.note = text(this, W / 2 + 10, by - 22, 'PICK ONE', { color: COL.light, maxWidth: W - 170, maxLines: 1 });
+    this.take = button(this, W / 2 + 10, by, Math.min(170, W - 190), 22, 'TAKE', () => this.confirm(), { ...BTN.green, depth: 5 });
+    this.take.setEnabled(false);
+    button(this, W - 34, by, 56, 20, 'SKIP', () => this.close(), { depth: 5 });
+    const kb = this.input.keyboard!;
+    ['ONE', 'TWO', 'THREE'].forEach((k, i) => kb.on(`keydown-${k}`, () => i < n && this.pick(i)));
+    kb.on('keydown-ENTER', () => this.confirm());
+    if (n === 1) this.pick(0);
+  }
+
+  private pick(i: number) {
+    const r = this.d.run;
+    const it = this.choices[i];
+    this.picked = i;
+    sfx.select();
+    const c = this.cards[i];
+    const w = c.width + 6;
+    const h = c.height + 6;
+    this.ring.clear().lineStyle(2, 0xffcd75, 1).strokeRect(c.x - w / 2, c.y - h / 2, w, h);
+    this.cards.forEach((k, j) => k.setAlpha(j === i ? 1 : 0.6));
+    // Try it on: a copy of the run with this item equipped, drawn on the preview raccoon.
+    const trial = { ...r, gear: { ...r.gear }, stats: { ...r.stats } } as RunState;
+    const cur = trial.gear[it.slot];
+    trial.gear[it.slot] = cur?.id === it.id ? { id: it.id, lvl: Math.min(3, cur.lvl + 1) } : { id: it.id, lvl: 1 };
+    this.preview.setGear(trial);
+    const old = cur && cur.id !== it.id ? items.get(cur.id) : undefined;
+    this.note.setText(fmt(cur?.id === it.id ? `LEVELS UP YOUR ${it.name}` : old ? `REPLACES ${old.name}: ${old.desc}` : `NEW ${SLOT_NAMES[it.slot]} ITEM`));
+    this.note.setTint(old ? COL.orange : COL.lime);
+    if (measure(this.note.text) > W - 170) this.note.setText(wrapPx(this.note.text, W - 176)[0] + '..');
+    this.take.setEnabled(true);
+    this.take.setLabel(`TAKE ${it.name}`);
+  }
+
+  private confirm() {
+    if (this.picked < 0 || !this.take.c.active) return;
+    const r = this.d.run;
+    const it = this.choices[this.picked];
+    this.picked = -2;
+    const res = equip(r, it);
+    sfx.upgrade();
+    this.flashText(res === 'level' ? `${it.name} LEVELED UP!` : `EQUIPPED ${it.name}`);
+    this.time.delayedCall(450, () => this.close());
   }
 
   private flashText(s: string) {
@@ -128,6 +187,7 @@ export class ShopScene extends Overlay<OverlayData> {
   private stock: (ItemDef | null)[] = [];
   private rerolls = 0;
   private healed = 0;
+  private sel = -1;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private cash!: Phaser.GameObjects.BitmapText;
 
@@ -139,6 +199,7 @@ export class ShopScene extends Overlay<OverlayData> {
     this.backdrop(0.88);
     this.rerolls = 0;
     this.healed = 0;
+    this.sel = -1;
     this.title('POSSUM PAWN SHOP', COL.yellow);
     this.cash = text(this, W - 8, 11, '', { origin: 1, color: COL.yellow });
     this.roll();
@@ -171,7 +232,22 @@ export class ShopScene extends Overlay<OverlayData> {
       const card = itemCard(this, x, cy, cw, CARD_H, it, r, `BUY FOR ${price}`);
       if (!afford) card.setAlpha(0.55);
       card.setInteractive({ useHandCursor: true });
-      card.on('pointerup', () => this.buy(i, price));
+      // First tap picks the item, a second tap (or BUY) buys it, so nothing is bought by accident.
+      card.on('pointerup', () => {
+        if (this.sel === i) return this.buy(i, price);
+        this.sel = i;
+        sfx.select();
+        this.draw();
+      });
+      if (this.sel === i) {
+        const ring = this.add.graphics().lineStyle(2, 0xffcd75, 1).strokeRect(x - cw / 2 - 3, cy - CARD_H / 2 - 3, cw + 6, CARD_H + 6);
+        const hint = text(this, W / 2, cy + CARD_H / 2 + 12, afford ? `TAP AGAIN TO BUY ${it.name} FOR ${price}` : `NOT ENOUGH SHINIES FOR ${it.name}`, {
+          color: afford ? COL.lime : COL.red,
+          maxWidth: W - 16,
+          maxLines: 1,
+        });
+        this.layer.push(ring, hint);
+      }
       this.layer.push(card);
     });
     // Healing gets pricier each time in the same shop and with depth: HP is the scarce resource.
@@ -192,6 +268,7 @@ export class ShopScene extends Overlay<OverlayData> {
       if (r.shinies < rerollPrice) return;
       r.shinies -= rerollPrice;
       this.rerolls++;
+      this.sel = -1;
       sfx.pickup();
       this.roll();
     }, { depth: 5 });
@@ -212,6 +289,7 @@ export class ShopScene extends Overlay<OverlayData> {
     sfx.pickup();
     sfx.upgrade();
     this.stock[i] = null;
+    this.sel = -1;
     this.draw();
   }
 }

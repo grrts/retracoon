@@ -1,0 +1,6 @@
+# Controllers declare their routes with #[Route]. Everything answers in JSON,
+# errors included (as application/problem+json).
+controllers:
+    resource: routing.controllers
+    defaults:
+        _format: json

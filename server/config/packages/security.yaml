@@ -1,0 +1,19 @@
+security:
+    providers:
+        players:
+            entity: { class: App\Entity\Player, property: id }
+
+    firewalls:
+        dev:
+            pattern: ^/(_profiler|_wdt)/
+            security: false
+        api:
+            pattern: ^/api
+            stateless: true
+            provider: players
+            # The game sends "Authorization: Bearer <token>" (see PlayerController::register).
+            access_token:
+                token_handler: App\Security\ApiTokenHandler
+
+    # Routes say who may call them with #[IsGranted]; everything else is public.
+    access_control: []

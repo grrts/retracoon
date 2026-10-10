@@ -12,6 +12,7 @@ Everything in this repo is done. What is left needs your own accounts, so it is 
 | Build machine | Any OS with Android Studio, or GitHub Actions | A Mac with Xcode 16+, or GitHub Actions (macOS runner) |
 | Ads | [AdMob](https://admob.google.com) account | same AdMob account |
 | Purchases | [RevenueCat](https://www.revenuecat.com) project (free tier is fine) | same RevenueCat project |
+| Scoreboard server | A PHP host and PostgreSQL database, see [ONLINE.md](ONLINE.md) | same server |
 | Privacy policy URL | required | required |
 
 ## Build commands
@@ -29,7 +30,8 @@ npm run icons       # regenerates icons, splash screens and store graphics from 
 1. **Change the app id if you want another one.** `com.retracoon.game` is set in `capacitor.config.ts`, `android/app/build.gradle` (`namespace` and `applicationId`) and the Xcode project's bundle identifier. It cannot change after the first upload.
 2. **Ads:** replace Google's test ids with yours (see [MONETIZATION.md](MONETIZATION.md)), and set `ADMOB.testing = false` in `src/platform/config.ts`.
 3. **Purchases:** create the products and paste the RevenueCat keys (see [MONETIZATION.md](MONETIZATION.md)). Without keys the shop runs in test mode and says so on screen.
-4. **Privacy policy:** host [privacy-policy.md](privacy-policy.md) somewhere public (GitHub Pages works) after filling in your contact email.
+4. **Scoreboard:** deploy the API in `server/` and set the `API_URL` repository variable (see [ONLINE.md](ONLINE.md)). Without it the scoreboard says it is not connected yet.
+5. **Privacy policy:** host [privacy-policy.md](privacy-policy.md) somewhere public (GitHub Pages works) after filling in your contact email.
 
 ## Google Play
 

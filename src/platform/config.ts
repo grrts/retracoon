@@ -41,3 +41,8 @@ export const PRODUCTS: Product[] = [
   { id: 'retracoon.gems1200', title: 'BIN OF GEMS', desc: '1,200 GEMS', gems: 1200, price: '€9.99' },
   { id: 'retracoon.gems2600', title: 'DUMPSTER OF GEMS', desc: '2,600 GEMS', gems: 2600, price: '€19.99' },
 ];
+
+// Online scoreboard and friends: the Retracoon API in server/ (see docs/ONLINE.md).
+// Set VITE_API_URL when building, e.g. https://api.retracoon.com. Empty = the scoreboard
+// says it is not connected yet and the game works offline.
+export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/+$/, '');
