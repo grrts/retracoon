@@ -11,7 +11,7 @@ import { loadContent } from '../src/content';
 import { enemies, themes, items, skills, skins, events } from '../src/content/registry';
 import { Combat } from '../src/game/combat';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../src/game/encounters';
-import { newRun, danger, gainXp, maxHp, skillChoices, learnSkill, randomItem, equip, itemPrice, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
+import { newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
 import { store } from '../src/save';
 import type { StatKey } from '../src/content/types';
 
@@ -60,12 +60,12 @@ function spendPoints(r: RunState, bot: Bot) {
 }
 
 function pickSkill(r: RunState, bot: Bot) {
-  const ch = skillChoices(r);
+  const ch = levelUpChoices(r);
   if (!ch.length) return;
-  const owned = ch.find((s) => r.skills.some((o) => o.id === s.id));
+  const owned = ch.find((c) => c.kind === 'skill' && r.skills.some((o) => o.id === c.def.id));
   const pick = bot === 'skilled' && owned ? owned : ch[0];
-  if (r.skills.some((o) => o.id === pick.id) || r.skills.length < SKILL_SLOTS) learnSkill(r, pick.id);
-  else if (bot === 'skilled') learnSkill(r, pick.id, 1 + Math.floor(Math.random() * (SKILL_SLOTS - 1)));
+  if (pick.kind === 'skill') learnSkill(r, pick.def.id);
+  else addPassive(r, pick.def.id);
 }
 
 function roadStop(r: RunState) {
@@ -104,11 +104,11 @@ interface Result {
   r: RunState;
 }
 
-function playRun(bot: Bot): Result {
+function playRun(bot: Bot, push = 4): Result {
   const r = newRun();
   let theme = themes.get(r.theme)!;
   for (let guard = 0; guard < 600; guard++) {
-    if (bot === 'skilled' && r.stage > 3 && r.hp < maxHp(r) * 0.35) return { stage: r.stage, level: r.level, reason: 'retreat', bosses: r.bosses, r };
+    if (bot === 'skilled' && r.stage >= 3 && (r.stage >= push || r.hp < maxHp(r) * 0.5)) return { stage: r.stage, level: r.level, reason: 'retreat', bosses: r.bosses, r };
     if (r.sinceStop >= 3 || (r.sinceStop >= 2 && Math.random() < 0.55)) {
       r.sinceStop = 0;
       roadStop(r);
@@ -123,6 +123,7 @@ function playRun(bot: Bot): Result {
     const rw = fightRewards(r, c.killed);
     r.shinies += rw.shinies;
     r.stage++;
+    r.distance += DIST_STEP;
     r.areaStage++;
     r.sinceStop++;
     tickBlessings(r);
@@ -159,7 +160,8 @@ function career(maxRuns = 30) {
   let best = 0;
   let runs = 0;
   for (; runs < maxRuns; runs++) {
-    const res = playRun('skilled');
+    // Push one fight deeper than the best so far, then bank the raccoon.
+    const res = playRun('skilled', Math.max(4, best + 1));
     best = Math.max(best, res.stage);
     if (res.reason !== 'retreat') break;
     store.kept = { level: res.r.level, stats: { ...res.r.stats }, statPoints: res.r.statPoints };

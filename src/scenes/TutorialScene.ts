@@ -92,8 +92,11 @@ export class TutorialScene extends Phaser.Scene {
     super('Tutorial');
   }
 
-  init(data: { next?: string }) {
+  private forced = false;
+
+  init(data: { next?: string; forced?: boolean }) {
     this.next = data.next ?? 'Title';
+    this.forced = !!data.forced;
     this.page = 0;
     this.layer = [];
     this.coons = [];
@@ -101,12 +104,12 @@ export class TutorialScene extends Phaser.Scene {
 
   create() {
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
-    button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
+    if (!this.forced) button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
     this.input.keyboard?.on('keydown-RIGHT', () => this.go(1));
     this.input.keyboard?.on('keydown-SPACE', () => this.go(1));
     this.input.keyboard?.on('keydown-ENTER', () => this.go(1));
     this.input.keyboard?.on('keydown-LEFT', () => this.go(-1));
-    this.input.keyboard?.on('keydown-ESC', () => this.finish());
+    if (!this.forced) this.input.keyboard?.on('keydown-ESC', () => this.finish());
     this.draw();
   }
 

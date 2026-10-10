@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
-import { text, button, BTN, LINE_H, wrapPx, measure, fmt, Button } from '../ui';
+import { text, button, panel, BTN, LINE_H, wrapPx, measure, fmt, Button } from '../ui';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
@@ -140,9 +140,11 @@ export class ForkScene extends Overlay<OverlayData> {
     super('Fork');
   }
 
+  // Same flow as item rewards: tap a card to pick a way, then GO (or tap it again).
   create() {
-    this.backdrop(0.5);
-    this.title('A FORK IN THE ROAD', COL.white, 'WHICH WAY?');
+    this.going = false;
+    this.backdrop(0.7);
+    this.title('A FORK IN THE ROAD', COL.white, 'TAP A ROAD, THEN GO.');
     const kinds = Object.keys(STOPS) as StopKind[];
     const picks: StopKind[] = [];
     while (picks.length < 2) {
@@ -157,22 +159,53 @@ export class ForkScene extends Overlay<OverlayData> {
         }
       }
     }
+    let picked = -1;
+    const cw = Math.min(150, Math.floor((W - 22) / 2));
+    const ch = 112;
+    const cy = TITLE_BAND + 12 + ch / 2;
+    const ring = this.add.graphics().setDepth(1);
+    const cards: Phaser.GameObjects.Container[] = [];
+    const goBtn = button(this, W / 2, H - 16, Math.min(200, W - 40), 22, 'GO', () => picked >= 0 && this.go(picks[picked]), { ...BTN.green, depth: 5 });
+    goBtn.setEnabled(false);
+    const pick = (i: number) => {
+      if (picked === i) return this.go(picks[i]);
+      picked = i;
+      sfx.select();
+      const c = cards[i];
+      ring.clear().lineStyle(2, 0xffcd75, 1).strokeRect(c.x - cw / 2 - 3, c.y - ch / 2 - 3, cw + 6, ch + 6);
+      cards.forEach((k, j) => k.setAlpha(j === i ? 1 : 0.6));
+      goBtn.setEnabled(true);
+      goBtn.setLabel(`GO TO ${STOPS[picks[i]].label}`);
+    };
     picks.forEach((k, i) => {
-      const x = W / 2 + (i === 0 ? -1 : 1) * Math.min(90, W * 0.22);
-      const y = 140;
-      const c = this.add.container(x, y);
-      c.add(this.add.image(0, 0, 'sign').setScale(4).setOrigin(0.5, 1));
-      c.add(text(this, 0, -60, STOPS[k].label, { scale: 2, color: COL.white }));
-      c.add(this.add.image(0, -40, STOPS[k].icon).setScale(2));
-      c.add(text(this, 0, 10, STOPS[k].desc, { color: COL.yellow }));
-      c.setSize(100, 90).setInteractive(new Phaser.Geom.Rectangle(-50, -76, 100, 92), Phaser.Geom.Rectangle.Contains);
-      c.on('pointerup', () => this.go(k));
-      this.tweens.add({ targets: c, y: y - 3, yoyo: true, repeat: -1, duration: 700 + i * 90, ease: 'Sine.inOut' });
-      this.input.keyboard!.once(i === 0 ? 'keydown-LEFT' : 'keydown-RIGHT', () => this.go(k));
+      const x = W / 2 + (i - 0.5) * (cw + 6);
+      const c = this.add.container(x, cy).setDepth(2);
+      const g = this.add.graphics();
+      panel(g, -cw / 2, -ch / 2, cw, ch, 0x29366f, 0x73eff7, 0x3b5dc9);
+      c.add(g);
+      c.add(this.add.image(0, -ch / 2 + 30, 'sign').setScale(2).setOrigin(0.5, 1));
+      c.add(this.add.image(0, -ch / 2 + 46, STOPS[k].icon).setScale(2));
+      c.add(text(this, 0, -ch / 2 + 70, STOPS[k].label, { scale: 2, color: COL.white }));
+      c.add(text(this, 0, -ch / 2 + 92, STOPS[k].desc, { color: COL.yellow, maxWidth: cw - 10, maxLines: 2 }));
+      c.setSize(cw, ch).setInteractive({ useHandCursor: true });
+      c.on('pointerup', () => pick(i));
+      c.setAlpha(0).setScale(0.85);
+      this.tweens.add({ targets: c, alpha: 1, scale: 1, delay: i * 80, duration: 200, ease: 'Back.out' });
+      cards.push(c);
     });
+    const kb = this.input.keyboard!;
+    kb.on('keydown-LEFT', () => pick(0));
+    kb.on('keydown-RIGHT', () => pick(1));
+    kb.on('keydown-ONE', () => pick(0));
+    kb.on('keydown-TWO', () => pick(1));
+    kb.on('keydown-ENTER', () => picked >= 0 && this.go(picks[picked]));
   }
 
+  private going = false;
+
   private go(k: StopKind) {
+    if (this.going) return;
+    this.going = true;
     sfx.select();
     if (k === 'shop') this.close({ key: 'Shop', data: {} });
     else if (k === 'event') this.close({ key: 'Event', data: {} });
