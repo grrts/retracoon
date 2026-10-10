@@ -101,11 +101,11 @@ async function authed<T>(method: string, path: string, body?: unknown): Promise<
 
 export const signedIn = () => !!getToken();
 
-// Sign-in is needed to play whenever the game is built with an API address, except on
-// iPhone: Apple doesn't allow a login wall in front of a game (guideline 5.1.1(v)), so
-// there it is asked for when the player opens the scoreboard or buys something.
-export const signInRequired = () => platform() !== 'ios';
-export const needsSignIn = () => onlineConfigured() && !signedIn() && signInRequired();
+// Anyone can play as a guest: Apple doesn't allow a login wall in front of a game
+// (guideline 5.1.1(v)), and the same rule everywhere keeps things simple. Sign-in is
+// offered at the first launch (every launch on Steam, where it happens by itself) and
+// asked for when the player opens the scoreboard or buys something.
+export const needsSignIn = () => onlineConfigured() && !signedIn() && (platform() === 'steam' || !store.signInOffered);
 // For account things (scoreboard, purchases): true when the player still has to sign in.
 export const mustSignInFor = () => onlineConfigured() && !signedIn();
 

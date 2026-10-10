@@ -3,17 +3,17 @@ import { W, H } from '../config';
 import { text, button, panel, BTN } from '../ui';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
-import { store } from '../save';
+import { store, save } from '../save';
 import { providers, type Provider } from '../platform/auth';
 import { isSteam } from '../platform/native';
-import { signIn, signOut, deleteAccount, profile, fullName, signInRequired, signedIn } from '../platform/online';
+import { signIn, signOut, deleteAccount, profile, fullName, signedIn } from '../platform/online';
 import { loginPurchases } from '../platform/iap';
 import { adsEnabled } from '../platform/ads';
 import { askText } from '../textInput';
 
 const LABEL: Record<Provider, string> = { google: 'SIGN IN WITH GOOGLE', apple: 'SIGN IN WITH APPLE', steam: 'SIGN IN WITH STEAM' };
 const STYLE: Record<Provider, { fill: number; light: number }> = {
-  google: { fill: 0xf4f4f4, light: 0xffffff },
+  google: { fill: 0x3b5dc9, light: 0x73eff7 },
   apple: { fill: 0x1a1c2c, light: 0x566c86 },
   steam: { fill: 0x29366f, light: 0x41a6f6 },
 };
@@ -44,20 +44,23 @@ export class SignInScene extends Phaser.Scene {
   }
 
   create() {
+    if (this.then === 'boot') {
+      store.signInOffered = true;
+      save();
+    }
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
     const g = this.add.graphics();
     const bw = Math.min(W - 24, 300);
     panel(g, W / 2 - bw / 2, 20, bw, 70, 0x29366f, 0x1a1c2c, 0x3b5dc9);
     text(this, W / 2, 36, 'RETRACOON', { scale: 2, color: COL.yellow });
-    text(this, W / 2, 58, 'SIGN IN TO PLAY. YOUR NAME, SCORES', { color: COL.light, maxWidth: bw - 16 });
-    text(this, W / 2, 70, 'AND PURCHASES STAY WITH YOUR ACCOUNT.', { color: COL.light, maxWidth: bw - 16 });
+    text(this, W / 2, 58, 'SIGN IN SO YOUR NAME, SCORES', { color: COL.light, maxWidth: bw - 16 });
+    text(this, W / 2, 70, 'AND PURCHASES STAY WITH YOU.', { color: COL.light, maxWidth: bw - 16 });
     const list = providers();
     list.forEach((p, i) => {
-      const b = button(this, W / 2, 112 + i * 28, Math.min(W - 40, 220), 22, LABEL[p], () => void this.go(p), { ...STYLE[p], depth: 5 });
-      if (p === 'google') b.label.setTint(COL.black);
+      button(this, W / 2, 112 + i * 28, Math.min(W - 40, 220), 22, LABEL[p], () => void this.go(p), { ...STYLE[p], depth: 5 });
     });
-    // iPhone: playing without an account is allowed, so this screen can be skipped.
-    if (!signInRequired()) button(this, W / 2, 112 + list.length * 28, 120, 20, 'NOT NOW', () => (this.then === 'boot' ? this.leave() : this.scene.start('Title')), { depth: 5 });
+    // Playing without an account is always allowed.
+    button(this, W / 2, 112 + list.length * 28, 120, 20, 'NOT NOW', () => (this.then === 'boot' ? this.leave() : this.scene.start('Title')), { depth: 5 });
     this.status = text(this, W / 2, H - 20, '', { color: COL.orange, maxWidth: W - 24, maxLines: 2 });
     // Steam signs in by itself: the player is already logged in to Steam.
     if (isSteam()) void this.go('steam');

@@ -160,7 +160,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
         c.add(text(this, 0, -ch / 2 + 36, p.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
         c.add(text(this, 0, -ch / 2 + 47, have ? `PASSIVE X${have + 1}` : 'PASSIVE', { color: COL.lime }));
         c.add(text(this, 0, -ch / 2 + 56, p.each, { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 3 }));
-        c.add(text(this, 0, ch / 2 - 10, `TOTAL ${p.desc(have + 1)}`, { color: COL.ice, maxWidth: cw - 8, maxLines: 2 }));
+        c.add(text(this, 0, ch / 2 - 17, `TOTAL ${p.desc(have + 1)}`, { color: COL.ice, maxWidth: cw - 8, maxLines: 2 }));
       }
       c.setSize(cw, ch).setInteractive({ useHandCursor: true });
       c.on('pointerup', () => select(i));

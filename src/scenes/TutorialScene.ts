@@ -52,7 +52,7 @@ const PAGES: Page[] = [
   {
     title: 'BOSSES',
     color: COL.orange,
-    lines: ['EACH AREA HIDES A BOSS SOMEWHERE BETWEEN STAGE 2 AND 20.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
+    lines: ['EACH AREA HIDES A BOSS SOMEWHERE BETWEEN STAGE 4 AND 10.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
     art: (s, x, y) => {
       s.coon(x - 60, y);
       foe(s, 'van', x + 30, y, 1);
@@ -65,6 +65,7 @@ const PAGES: Page[] = [
       'BEFORE EVERY FIGHT YOU CAN RETREAT.',
       'RETREAT: YOUR RACCOON KEEPS ITS LEVEL AND STATS AND STARTS AGAIN FROM THE STREET.',
       'DIE: EVERYTHING IS RESET TO LEVEL 1. KNOW WHEN TO GO HOME.',
+      'FOES GET MUCH TOUGHER EVERY FIGHT. A NEW RACCOON SHOULD THINK ABOUT HOME BY FIGHT 5.',
     ],
     art: (s, x, y) => {
       s.coon(x - 40, y);

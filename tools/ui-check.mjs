@@ -79,7 +79,7 @@ for (const [w, h] of SIZES) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   page.on('pageerror', (e) => problems.push(`${w}x${h}: page error ${e.message} ${(e.stack ?? '').split('\n').slice(1, 4).join(' | ')}`));
   await page.goto(url);
-  await page.waitForFunction(() => window.__game?.scene?.isActive('Ad') || window.__game?.scene?.isActive('Title'), null, { timeout: 15000 });
+  await page.waitForFunction(() => ['Ad', 'Title', 'Tutorial', 'SignIn'].some((k) => window.__game?.scene?.isActive(k)), null, { timeout: 15000 });
   const shot = async (name) => {
     await sleep(450);
     check(`${w}x${h} ${name}`, await page.evaluate(collect));
@@ -92,7 +92,11 @@ for (const [w, h] of SIZES) {
       g.scene.start(k, d);
     }, [key, data]);
 
-  if (await page.evaluate(() => window.__game.scene.isActive('Ad'))) await shot('ad');
+  if (await page.evaluate(() => window.__game.scene.isActive('Tutorial'))) await shot('first-tutorial');
+  await start('Ad');
+  await shot('ad-note');
+  await start('SignIn', { then: 'Title' });
+  await shot('signin');
   await start('Title');
   await shot('title');
   for (let i = 0; i < 6; i++) {
@@ -142,6 +146,24 @@ for (const [w, h] of SIZES) {
   for (const [key, data] of [['Reward', { title: 'BOSS LOOT', min: 2 }], ['Fork', {}], ['Shop', {}], ['Camp', {}], ['LevelUp', {}], ['Pause', {}]]) {
     await overlay(key, data);
     await shot(key.toLowerCase());
+  }
+  // Level-up once every skill is maxed: only passives. Then the bag on each tab.
+  await page.evaluate(() => {
+    const run = window.__game.scene.getScene('Run').run;
+    run.skills = ['claw', 'guard', 'pounce', 'sweep'].map((id) => ({ id, lvl: 3 }));
+    run.passives = { brawn: 3, fur: 1, hide: 12 };
+    run.statPoints = 0;
+  });
+  await overlay('LevelUp', {});
+  await page.evaluate(() => {
+    const s = window.__game.scene.getScene('LevelUp');
+    s.d.run.statPoints = 0;
+    s.scene.restart(s.d);
+  });
+  await shot('levelup-passives');
+  for (const tab of ['gear', 'skills', 'passives']) {
+    await overlay('Inspect', { from: 'Run', tab });
+    await shot(`inspect-${tab}`);
   }
   // Reward and shop with a card selected (the try-on preview and the confirm hint).
   await overlay('Reward', { title: 'LOOT', min: 1 });
