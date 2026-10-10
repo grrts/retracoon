@@ -8,11 +8,14 @@ use Doctrine\ORM\Mapping as ORM;
 use Symfony\Component\Security\Core\User\UserInterface;
 
 /**
- * One installed copy of the game. Players never make an account: the game registers
- * once, keeps the token it gets back, and sends it with every request.
+ * One player, tied to exactly one Google, Apple or Steam account. Signing in with that
+ * account on any device gets the same player back (see AuthController). Names are not
+ * unique on their own: NAME#1234 is, through the 4-digit tag.
  */
 #[ORM\Entity(repositoryClass: PlayerRepository::class)]
 #[ORM\Index(name: 'player_rank_idx', columns: ['best_stage', 'best_distance'])]
+#[ORM\UniqueConstraint(name: 'player_name_tag', columns: ['name', 'tag'])]
+#[ORM\UniqueConstraint(name: 'player_account', columns: ['provider', 'provider_id'])]
 #[ORM\HasLifecycleCallbacks]
 class Player implements UserInterface
 {
@@ -23,12 +26,29 @@ class Player implements UserInterface
     #[ORM\Column(length: 16)]
     private string $name;
 
+    #[ORM\Column(type: Types::SMALLINT)]
+    private int $tag;
+
     #[ORM\Column(length: 6, unique: true)]
     private string $friendCode;
 
-    // sha256 of the API token; the token itself is only ever shown once, at registration.
-    #[ORM\Column(length: 64, unique: true)]
-    private string $tokenHash;
+    // 'google', 'apple' or 'steam', and that account's stable user id.
+    #[ORM\Column(length: 10)]
+    private string $provider;
+
+    #[ORM\Column(length: 100)]
+    private string $providerId;
+
+    // Premium currency and unlocks live here so they follow the account.
+    #[ORM\Column]
+    private int $gems = 0;
+
+    #[ORM\Column]
+    private bool $noAds = false;
+
+    /** @var list<string> skins bought with gems */
+    #[ORM\Column(type: Types::JSON)]
+    private array $unlocks = [];
 
     #[ORM\Column(length: 40)]
     private string $skin = 'classic';
@@ -51,12 +71,14 @@ class Player implements UserInterface
     #[ORM\Column]
     private \DateTimeImmutable $updatedAt;
 
-    public function __construct(string $id, string $name, string $friendCode, string $tokenHash)
+    public function __construct(string $id, string $name, int $tag, string $friendCode, string $provider, string $providerId)
     {
         $this->id = $id;
         $this->name = $name;
+        $this->tag = $tag;
         $this->friendCode = $friendCode;
-        $this->tokenHash = $tokenHash;
+        $this->provider = $provider;
+        $this->providerId = $providerId;
         $this->createdAt = new \DateTimeImmutable();
         $this->updatedAt = $this->createdAt;
     }
@@ -77,9 +99,64 @@ class Player implements UserInterface
         return $this->name;
     }
 
-    public function setName(string $name): void
+    public function setName(string $name, int $tag): void
     {
         $this->name = $name;
+        $this->tag = $tag;
+    }
+
+    public function getTag(): int
+    {
+        return $this->tag;
+    }
+
+    public function getProvider(): string
+    {
+        return $this->provider;
+    }
+
+    public function getGems(): int
+    {
+        return $this->gems;
+    }
+
+    public function addGems(int $n): void
+    {
+        $this->gems = max(0, $this->gems + $n);
+    }
+
+    public function hasNoAds(): bool
+    {
+        return $this->noAds;
+    }
+
+    public function setNoAds(bool $on): void
+    {
+        $this->noAds = $on;
+    }
+
+    /** @return list<string> */
+    public function getUnlocks(): array
+    {
+        return $this->unlocks;
+    }
+
+    /**
+     * Spends gems on an unlock. Buying the same thing twice is a no-op, so a retried
+     * request never charges twice. False if there aren't enough gems.
+     */
+    public function spend(int $gems, string $item): bool
+    {
+        if (\in_array($item, $this->unlocks, true)) {
+            return true;
+        }
+        if ($gems < 0 || $gems > $this->gems) {
+            return false;
+        }
+        $this->gems -= $gems;
+        $this->unlocks[] = $item;
+
+        return true;
     }
 
     public function getFriendCode(): string
