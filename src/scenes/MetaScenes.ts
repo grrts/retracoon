@@ -13,7 +13,7 @@ import { loadContent } from '../content';
 import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
 import { initIap, loginPurchases } from '../platform/iap';
-import { isNative, isSteam } from '../platform/native';
+import { isNative, isSteam, steam } from '../platform/native';
 import { submitBest, needsSignIn, profile } from '../platform/online';
 import { continueBoot } from './AccountScenes';
 
@@ -258,6 +258,8 @@ export class TitleScene extends Phaser.Scene {
       sfx.unlock();
       this.scene.start('Scores', { back: 'Title' });
     }, BTN.violet);
+    // Desktop (Steam) needs a way out; phones have their own.
+    if (isSteam()) button(this, mx, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0
@@ -289,8 +291,8 @@ export class TitleScene extends Phaser.Scene {
 
 // ---------------------------------------------------------------- the one ad
 
-// Web placeholder for the launch ad: the only ad in the game. On phones the real
-// AdMob interstitial shows instead (see platform/ads.ts).
+// The launch ad: first a note that it's coming and that it's the only one, then on
+// phones the AdMob App Open ad (see platform/ads.ts), in the browser a placeholder.
 export class AdScene extends Phaser.Scene {
   constructor() {
     super('Ad');

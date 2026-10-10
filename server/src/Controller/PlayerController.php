@@ -9,6 +9,7 @@ use App\Entity\Player;
 use App\Entity\Purchase;
 use App\Entity\Session;
 use App\Repository\PlayerRepository;
+use App\Service\AppleTokens;
 use App\Service\Names;
 use App\Service\Present;
 use App\Service\Tags;
@@ -99,8 +100,12 @@ final class PlayerController extends AbstractController
     /** Deletes the player, their scores, friendships, purchases and sign-ins. */
     #[Route('/me', methods: ['DELETE'])]
     #[IsGranted('ROLE_PLAYER')]
-    public function delete(#[CurrentUser] Player $me): Response
+    public function delete(#[CurrentUser] Player $me, AppleTokens $apple): Response
     {
+        // Apple requires revoking Sign in with Apple tokens on account deletion.
+        if (null !== ($t = $me->getAppleRefreshToken())) {
+            $apple->revoke($t);
+        }
         // Explicit as well as ON DELETE CASCADE, for databases that don't enforce it.
         foreach ([Session::class, Purchase::class] as $class) {
             $this->em->createQuery("DELETE FROM $class x WHERE x.player = :p")->setParameter('p', $me)->execute();

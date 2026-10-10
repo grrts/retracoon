@@ -42,7 +42,9 @@ function social() {
   return ready;
 }
 
-export type Credential = { ok: true; credential: string; name?: string } | { ok: false; why: 'cancel' | 'error' };
+// code: Apple's one-time authorization code, which the server trades for a token it can
+// revoke when the account is deleted (Apple requires that).
+export type Credential = { ok: true; credential: string; name?: string; code?: string } | { ok: false; why: 'cancel' | 'error' };
 
 export async function credential(p: Provider): Promise<Credential> {
   try {
@@ -53,8 +55,11 @@ export async function credential(p: Provider): Promise<Credential> {
     }
     const SocialLogin = await social();
     const res = await SocialLogin.login({ provider: p, options: p === 'google' ? { scopes: ['profile'] } : { scopes: [] } });
-    const token = (res.result as { idToken?: string | null }).idToken;
-    return token ? { ok: true, credential: token } : { ok: false, why: 'error' };
+    const result = res.result as { idToken?: string | null; accessToken?: { token?: string } | null };
+    const token = result.idToken;
+    // In the plugin's default mode Apple's authorization code comes back as accessToken.
+    const code = p === 'apple' ? result.accessToken?.token || undefined : undefined;
+    return token ? { ok: true, credential: token, code } : { ok: false, why: 'error' };
   } catch (e) {
     const msg = String((e as Error)?.message ?? e).toLowerCase();
     if (msg.includes('cancel')) return { ok: false, why: 'cancel' };

@@ -6,6 +6,7 @@
 import { API_URL } from './config';
 import { store, save } from '../save';
 import { credential, type Provider } from './auth';
+import { platform } from './native';
 
 export interface ScoreRow {
   id: string;
@@ -100,15 +101,20 @@ async function authed<T>(method: string, path: string, body?: unknown): Promise<
 
 export const signedIn = () => !!getToken();
 
-// Sign-in is needed whenever the game is built with an API address.
-export const needsSignIn = () => onlineConfigured() && !signedIn();
+// Sign-in is needed to play whenever the game is built with an API address, except on
+// iPhone: Apple doesn't allow a login wall in front of a game (guideline 5.1.1(v)), so
+// there it is asked for when the player opens the scoreboard or buys something.
+export const signInRequired = () => platform() !== 'ios';
+export const needsSignIn = () => onlineConfigured() && !signedIn() && signInRequired();
+// For account things (scoreboard, purchases): true when the player still has to sign in.
+export const mustSignInFor = () => onlineConfigured() && !signedIn();
 
 export type SignInResult = { ok: true; me: Me; created: boolean } | { ok: false; why: 'cancel' | 'rejected' | 'offline' | 'busy' };
 
 export async function signIn(provider: Provider): Promise<SignInResult> {
   const c = await credential(provider);
   if (!c.ok) return { ok: false, why: c.why === 'cancel' ? 'cancel' : 'rejected' };
-  const r = await call<{ token: string; created: boolean; player: Me }>('POST', '/auth', { provider, credential: c.credential, name: store.playerName || c.name || randomName(), skin: store.skin }, false);
+  const r = await call<{ token: string; created: boolean; player: Me }>('POST', '/auth', { provider, credential: c.credential, code: c.code, name: store.playerName || c.name || randomName(), skin: store.skin }, false);
   if (!r.data) return { ok: false, why: r.status === 0 ? 'offline' : r.status === 429 ? 'busy' : 'rejected' };
   setToken(r.data.token);
   // Scores from this device go to the account again.

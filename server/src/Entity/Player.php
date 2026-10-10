@@ -46,6 +46,10 @@ class Player implements UserInterface
     #[ORM\Column]
     private bool $noAds = false;
 
+    // Sign in with Apple refresh token, revoked when the account is deleted.
+    #[ORM\Column(type: Types::TEXT, nullable: true)]
+    private ?string $appleRefreshToken = null;
+
     /** @var list<string> skins bought with gems */
     #[ORM\Column(type: Types::JSON)]
     private array $unlocks = [];
@@ -113,6 +117,16 @@ class Player implements UserInterface
     public function getProvider(): string
     {
         return $this->provider;
+    }
+
+    public function getAppleRefreshToken(): ?string
+    {
+        return $this->appleRefreshToken;
+    }
+
+    public function setAppleRefreshToken(?string $token): void
+    {
+        $this->appleRefreshToken = $token;
     }
 
     public function getGems(): int

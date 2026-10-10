@@ -6,6 +6,7 @@ use App\Dto\SignIn;
 use App\Entity\Player;
 use App\Entity\Session;
 use App\Repository\PlayerRepository;
+use App\Service\AppleTokens;
 use App\Service\IdentityVerifier;
 use App\Service\Names;
 use App\Service\Present;
@@ -30,6 +31,7 @@ final class AuthController extends AbstractController
         private readonly PlayerRepository $players,
         private readonly IdentityVerifier $verifier,
         private readonly Tags $tags,
+        private readonly AppleTokens $apple,
     ) {
     }
 
@@ -60,6 +62,9 @@ final class AuthController extends AbstractController
                 $player->setSkin($skin);
             }
             $this->em->persist($player);
+        }
+        if ('apple' === $in->provider && null !== $in->code && null !== ($refresh = $this->apple->refreshToken($in->code))) {
+            $player->setAppleRefreshToken($refresh);
         }
         $token = Tokens::apiToken();
         $this->em->persist(new Session(Tokens::hash($token), $player));

@@ -59,20 +59,24 @@ RevenueCat is one SDK for both stores. It validates receipts and handles restore
 
 Until those keys are set, and always in the browser, the shop runs in **test mode**: buying asks for confirmation, says no money is charged, and grants the item locally. Restore Purchases is on the Gems tab and restores No Ads.
 
+**Purchases belong to the account.** Once the game has a server (`VITE_API_URL`), players sign in with Google, Apple or Steam, the game logs in to RevenueCat with the player id, and the server grants gems and No Ads when RevenueCat's webhook reports the purchase. So gems, No Ads and skins bought with gems show up on every device that signs in with the same account, and a refund takes them back. Set up the webhook as described in [ACCOUNTS.md](ACCOUNTS.md#purchases).
+
+On Steam the game is paid up front: no gem shop, no ads, and gem-only skins cost Bottle Caps instead (10 caps per gem).
+
 Code: `src/platform/iap.ts`.
 
 ## Ads: AdMob
 
 1. Create an AdMob account and add two apps (Android and iOS).
-2. In each app create **one** ad unit of type *Interstitial*.
+2. In each app create **one** ad unit of type *App open*. (Not *Interstitial*: AdMob doesn't allow interstitials on app load.)
 3. Put the ids in:
-   - `src/platform/config.ts`: `ADMOB.android.interstitial`, `ADMOB.ios.interstitial`, and set `ADMOB.testing = false`.
+   - `src/platform/config.ts`: `ADMOB.android.appOpen`, `ADMOB.ios.appOpen`, and set `ADMOB.testing = false`.
    - `android/app/src/main/res/values/strings.xml`: `admob_app_id` (the app id with a `~`).
    - `ios/App/App/Info.plist`: `GADApplicationIdentifier`.
 4. **Privacy messages:** in AdMob > Privacy & messaging, create a GDPR message (required for the EU and UK) and an IDFA explainer for iOS. The game already asks for consent with Google's UMP form before showing the ad.
 5. Add `app-ads.txt` to your website once AdMob gives you the line for it.
 
-In the browser the launch ad is a placeholder screen that says it is the only ad, can be skipped after 5 seconds, and links to No Ads. Code: `src/platform/ads.ts` and `AdScene` in `src/scenes/MetaScenes.ts`.
+Before the ad, a note says an ad is coming and that it's the only one; the ad plays when the player taps CONTINUE. On Steam there are no ads at all. In the browser the launch ad is a placeholder screen that says it is the only ad, can be skipped after 5 seconds, and links to No Ads. Code: `src/platform/ads.ts` and `AdScene` in `src/scenes/MetaScenes.ts`.
 
 ## Turning ads off entirely
 

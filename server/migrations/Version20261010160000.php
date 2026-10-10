@@ -29,6 +29,7 @@ final class Version20261010160000 extends AbstractMigration
         $this->addSql('ALTER TABLE player ADD gems INT DEFAULT 0 NOT NULL');
         $this->addSql('ALTER TABLE player ADD no_ads BOOLEAN DEFAULT false NOT NULL');
         $this->addSql("ALTER TABLE player ADD unlocks JSON DEFAULT '[]' NOT NULL");
+        $this->addSql('ALTER TABLE player ADD apple_refresh_token TEXT DEFAULT NULL');
         $this->addSql('UPDATE player p SET tag = 999 + n.rn FROM (SELECT id, ROW_NUMBER() OVER (PARTITION BY name ORDER BY created_at) AS rn FROM player) n WHERE p.id = n.id');
         $this->addSql("UPDATE player SET provider = 'legacy', provider_id = id");
         $this->addSql('ALTER TABLE player ALTER tag SET NOT NULL');
@@ -62,6 +63,6 @@ final class Version20261010160000 extends AbstractMigration
         $this->addSql('UPDATE player SET token_hash = md5(id) || md5(random()::text)');
         $this->addSql('ALTER TABLE player ALTER token_hash SET NOT NULL');
         $this->addSql('CREATE UNIQUE INDEX UNIQ_98197A65B3BC57DA ON player (token_hash)');
-        $this->addSql('ALTER TABLE player DROP tag, DROP provider, DROP provider_id, DROP gems, DROP no_ads, DROP unlocks');
+        $this->addSql('ALTER TABLE player DROP tag, DROP provider, DROP provider_id, DROP gems, DROP no_ads, DROP unlocks, DROP apple_refresh_token');
     }
 }

@@ -1,5 +1,6 @@
-// Ads policy: exactly one ad, a full-screen ad when the game launches. No banners, no
-// ads during or after a run, no watch-an-ad rewards, no ads for currency.
+// Ads policy: exactly one ad, an App Open ad when the game launches (AdMob's format for
+// launch: interstitials are not allowed on app load). A note says it is coming first.
+// No banners, no ads during or after a run, no watch-an-ad rewards, no ads for currency.
 // Buying No Ads (or the Starter Pack) removes it.
 //
 // On phones this uses Google AdMob through @capacitor-community/admob. In the browser
@@ -50,15 +51,27 @@ export function initAds(): Promise<boolean> {
 
 const units = () => (platform() === 'ios' ? ADMOB.ios : ADMOB.android);
 
-// Native launch interstitial. Resolves when it closes or fails. Returns false on web,
-// where the Ad scene shows the placeholder instead.
+// Native launch ad (App Open format). Resolves when it closes or fails. Returns false on
+// web, where the Ad scene shows the placeholder instead.
 export async function showNativeLaunchAd(): Promise<boolean> {
   if (!isNative() || !adsEnabled()) return false;
   if (!(await initAds())) return true;
   try {
-    const { AdMob } = await admob();
-    await AdMob.prepareInterstitial({ adId: units().interstitial, isTesting: ADMOB.testing });
-    await AdMob.showInterstitial();
+    const { AdMob, AppOpenAdPluginEvents } = await admob();
+    await AdMob.loadAppOpen({ adId: units().appOpen });
+    await new Promise<void>((done) => {
+      const subs: Promise<{ remove: () => Promise<void> }>[] = [];
+      const finish = () => {
+        clearTimeout(timer);
+        subs.forEach((p) => void p.then((h) => h.remove()));
+        done();
+      };
+      // Never leave the player stuck on a black screen.
+      const timer = setTimeout(finish, 60000);
+      subs.push(AdMob.addListener(AppOpenAdPluginEvents.Closed, finish));
+      subs.push(AdMob.addListener(AppOpenAdPluginEvents.FailedToShow, finish));
+      AdMob.showAppOpen().catch(finish);
+    });
   } catch (e) {
     console.warn('launch ad failed', e);
   }

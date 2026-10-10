@@ -15,7 +15,9 @@
     "icons": "tsx tools/make-icons.ts",
     "sim": "tsx tools/sim.ts",
     "assets:count": "tsx tools/count-assets.ts",
-    "ui:check": "npm run build && node tools/ui-check.mjs"
+    "ui:check": "npm run build && node tools/ui-check.mjs",
+    "build:steam": "tsc --noEmit && vite build --outDir steam/game --emptyOutDir",
+    "steam": "npm run build:steam && npm --prefix steam start"
   },
   "dependencies": {
     "@capacitor-community/admob": "8.2.1",

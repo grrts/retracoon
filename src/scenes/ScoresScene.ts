@@ -7,7 +7,7 @@ import { sfx } from '../audio';
 import { store } from '../save';
 import { COL } from '../gfx/palette';
 import { askText } from '../textInput';
-import { onlineConfigured, profile, rename, worldScores, friendScores, addFriend, removeFriend, submitBest, fullName, type ScoreRow, type Me } from '../platform/online';
+import { onlineConfigured, profile, rename, worldScores, friendScores, addFriend, removeFriend, submitBest, fullName, mustSignInFor, type ScoreRow, type Me } from '../platform/online';
 
 type Tab = 'world' | 'friends';
 const TOP = 22;
@@ -81,6 +81,8 @@ export class ScoresScene extends Phaser.Scene {
 
   private async boot() {
     if (!onlineConfigured()) return this.drawRight();
+    // iPhone guests sign in when they first open the scoreboard.
+    if (!this.demo && mustSignInFor()) return this.scene.start('SignIn', { then: 'Scores' });
     this.loading = true;
     this.drawRight();
     await submitBest();

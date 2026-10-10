@@ -11,10 +11,10 @@ export const ADMOB = {
   // true = use Google's test ads (safe while developing; set false for release)
   testing: true,
   android: {
-    interstitial: 'ca-app-pub-3940256099942544/1033173712', // Google test unit
+    appOpen: 'ca-app-pub-3940256099942544/9257395921', // Google test unit
   },
   ios: {
-    interstitial: 'ca-app-pub-3940256099942544/4411468910', // Google test unit
+    appOpen: 'ca-app-pub-3940256099942544/5575463023', // Google test unit
   },
 };
 

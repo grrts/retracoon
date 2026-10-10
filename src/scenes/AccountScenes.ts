@@ -6,7 +6,7 @@ import { COL } from '../gfx/palette';
 import { store } from '../save';
 import { providers, type Provider } from '../platform/auth';
 import { isSteam } from '../platform/native';
-import { signIn, signOut, deleteAccount, profile, fullName } from '../platform/online';
+import { signIn, signOut, deleteAccount, profile, fullName, signInRequired, signedIn } from '../platform/online';
 import { loginPurchases } from '../platform/iap';
 import { adsEnabled } from '../platform/ads';
 import { askText } from '../textInput';
@@ -32,13 +32,13 @@ export function continueBoot(scene: Phaser.Scene, adsOn: boolean) {
 export class SignInScene extends Phaser.Scene {
   private status!: Phaser.GameObjects.BitmapText;
   private busy = false;
-  private then: 'boot' | 'title' = 'boot';
+  private then = 'boot'; // 'boot', or the scene to go to afterwards
 
   constructor() {
     super('SignIn');
   }
 
-  init(data: { then?: 'boot' | 'title' }) {
+  init(data: { then?: string }) {
     this.then = data.then ?? 'boot';
     this.busy = false;
   }
@@ -56,6 +56,8 @@ export class SignInScene extends Phaser.Scene {
       const b = button(this, W / 2, 112 + i * 28, Math.min(W - 40, 220), 22, LABEL[p], () => void this.go(p), { ...STYLE[p], depth: 5 });
       if (p === 'google') b.label.setTint(COL.black);
     });
+    // iPhone: playing without an account is allowed, so this screen can be skipped.
+    if (!signInRequired()) button(this, W / 2, 112 + list.length * 28, 120, 20, 'NOT NOW', () => (this.then === 'boot' ? this.leave() : this.scene.start('Title')), { depth: 5 });
     this.status = text(this, W / 2, H - 20, '', { color: COL.orange, maxWidth: W - 24, maxLines: 2 });
     // Steam signs in by itself: the player is already logged in to Steam.
     if (isSteam()) void this.go('steam');
@@ -81,7 +83,12 @@ export class SignInScene extends Phaser.Scene {
     sfx.upgrade();
     void loginPurchases(res.me.id);
     this.status.setText(res.created ? `WELCOME, ${fullName(res.me)}!` : `WELCOME BACK, ${fullName(res.me)}!`).setTint(COL.lime);
-    this.time.delayedCall(700, () => (this.then === 'boot' ? continueBoot(this, adsEnabled()) : this.scene.start('Title')));
+    this.time.delayedCall(700, () => this.leave());
+  }
+
+  private leave() {
+    if (this.then === 'boot') continueBoot(this, adsEnabled());
+    else this.scene.start(this.then, { back: 'Title' });
   }
 }
 
@@ -97,12 +104,13 @@ export class AccountScene extends Phaser.Scene {
     text(this, W / 2, 14, 'ACCOUNT', { scale: 2, color: COL.yellow });
     button(this, W - 30, 11, 52, 16, 'BACK', () => this.scene.start('Scores'), BTN.red);
     const info = text(this, W / 2, 50, 'LOADING...', { color: COL.light, maxWidth: W - 24, maxLines: 3 });
+    if (!signedIn()) return this.scene.start('SignIn', { then: 'Scores' });
     const me = await profile(true);
     if (!this.scene.isActive()) return;
     info.setText(me ? `${fullName(me)}\nSIGNED IN WITH ${me.provider.toUpperCase()}` : 'OFFLINE. TRY AGAIN WHEN CONNECTED.');
     info.setTint(me ? COL.white : COL.orange);
     if (!me) return;
-    const toSignIn = () => this.scene.start('SignIn', { then: 'title' });
+    const toSignIn = () => this.scene.start('SignIn', { then: 'Title' });
     if (!isSteam())
       button(this, W / 2, 100, 180, 22, 'SIGN OUT', () => {
         signOut();

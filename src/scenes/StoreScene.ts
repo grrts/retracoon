@@ -16,6 +16,7 @@ import { coonKey, ensureCoon } from '../gfx/coonTex';
 import { ANCHORS, COON_W, COON_H } from '../gfx/coon';
 import { PRODUCTS } from '../platform/config';
 import { buy, restore, priceLabel, testMode, storeAvailable } from '../platform/iap';
+import { mustSignInFor } from '../platform/online';
 import { wallet } from './MetaScenes';
 
 type Tab = 'sale' | 'holiday' | 'fur' | 'outfit' | 'owned' | 'gems';
@@ -228,6 +229,7 @@ export class StoreScene extends Phaser.Scene {
       const have = currency === 'caps' ? store.caps : store.gems;
       const b = button(this, cx + 6, by, LEFT_W - 28, 22, `${cost}${was ? ` (WAS ${was})` : ''}`, async () => {
         if (this.busy) return;
+        if (currency === 'gems' && mustSignInFor()) return this.scene.start('SignIn', { then: 'Store' });
         this.busy = true;
         const res = await buySkin(s.id, currency);
         this.busy = false;
@@ -281,6 +283,8 @@ export class StoreScene extends Phaser.Scene {
 
   private async purchase(id: string, title: string, price: string) {
     if (this.busy) return;
+    // Purchases belong to an account (iPhone guests sign in here).
+    if (mustSignInFor()) return this.scene.start('SignIn', { then: 'Store' });
     this.busy = true;
     const res = await buy(id, () => this.confirm(`${title} FOR ${price}`));
     this.busy = false;
