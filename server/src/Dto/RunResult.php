@@ -16,8 +16,9 @@ final class RunResult
         #[Assert\Regex('/^[a-z0-9_-]{1,40}$/')]
         public readonly ?string $skin = null,
         // 'normal' runs count for the world board and the season; 'daily' runs only
-        // for that day's daily board.
-        #[Assert\Choice(choices: ['normal', 'daily'])]
+        // for that day's daily board; 'best' is an all-time best made while signed out,
+        // so it counts for the world board only.
+        #[Assert\Choice(choices: ['normal', 'daily', 'best'])]
         public readonly string $mode = 'normal',
         #[Assert\Regex('/^\d{4}-\d{2}-\d{2}$/')]
         public readonly ?string $day = null,

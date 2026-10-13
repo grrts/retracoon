@@ -3,6 +3,7 @@ import type { BlessingId, Bonus, Fx, FxKey, ItemDef, SkillDef, Slot, StatKey, Ta
 import { items, skills, RARITY, themesByTier, themes } from '../content/registry';
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
+import { rand, reseed, hash } from './rng';
 
 export interface OwnedItem {
   id: string;
@@ -19,10 +20,15 @@ export interface Blessing {
 
 export const SKILL_SLOTS = 4;
 export const STAT_KEYS: StatKey[] = ['str', 'def', 'agi', 'lck', 'vit'];
-export const BOSS_MIN = 4;
-export const BOSS_MAX = 10;
+
+export type RunMode = 'normal' | 'daily';
 
 export interface RunState {
+  mode: RunMode;
+  day: string | null; // daily runs: the UTC date (YYYY-MM-DD) of the daily seed
+  seed: number | null; // daily runs: the shared seed; null = plain Math.random
+  rollStage: number; // stage the per-stage random rolls below belong to
+  rollCounts: Record<string, number>;
   level: number;
   xp: number;
   statPoints: number;
@@ -35,7 +41,7 @@ export interface RunState {
   distance: number;
   stage: number; // fights cleared this run (the main difficulty clock)
   areaStage: number; // fights cleared in the current area
-  bossAt: number; // secret: the area's boss is fight number bossAt (2..20)
+  bossAt: number; // secret: the area's boss is fight number bossAt (see bossWindow)
   area: number; // areas cleared
   theme: string; // current theme id
   themesVisited: string[];
@@ -56,16 +62,51 @@ export interface RunState {
   startedAt: number;
 }
 
-export function rollBossAt() {
-  return BOSS_MIN + Math.floor(Math.random() * (BOSS_MAX - BOSS_MIN + 1));
+// Where the boss hides grows with how far you came: area 1 at fight 2-4, area 4 at
+// 4-8, and on along the same line (area 7 at 6-12, area 10 at 8-16).
+export function bossWindow(areaNo: number): [number, number] {
+  const lo = Math.round(2 + (2 * (Math.max(1, areaNo) - 1)) / 3);
+  return [lo, lo * 2];
+}
+
+// `area` is the number of areas already cleared, as in RunState.area.
+export function rollBossAt(area: number) {
+  const [lo, hi] = bossWindow(area + 1);
+  return lo + Math.floor(rand() * (hi - lo + 1));
+}
+
+// Today's daily run, the same for everyone: the UTC date picks the seed.
+export function dailyDay(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+// Reseed game-logic randomness for one decision of the current stage. A daily run gets
+// the same rolls on the same stage for every player; normal runs stay on Math.random.
+export function roll(r: RunState, what: string) {
+  if (r.seed === null) return reseed(null);
+  if (r.rollStage !== r.stage) {
+    r.rollStage = r.stage;
+    r.rollCounts = {};
+  }
+  const n = (r.rollCounts[what] = (r.rollCounts[what] ?? 0) + 1);
+  reseed(r.seed, r.area, r.stage, what, n);
 }
 
 // The core loop: retreat in time and the same raccoon (level and stats) starts a fresh
 // run from the street, so it can push further next time. Skills and items are lost.
 // Dying wipes the bank and you start over at level 1.
-export function newRun(): RunState {
-  const kept = store.kept;
+// A daily run is always a fresh level 1 raccoon and never touches the banked one.
+export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
+  const daily = mode === 'daily';
+  const kept = daily ? null : store.kept;
+  const seed = daily ? hash('retracoon-daily', day) : null;
+  reseed(seed, 'start');
   const r: RunState = {
+    mode,
+    day: daily ? day : null,
+    seed,
+    rollStage: 0,
+    rollCounts: {},
     level: kept?.level ?? 1,
     xp: 0,
     statPoints: kept?.statPoints ?? 0,
@@ -81,7 +122,7 @@ export function newRun(): RunState {
     distance: 0,
     stage: 0,
     areaStage: 0,
-    bossAt: rollBossAt(),
+    bossAt: rollBossAt(0),
     area: 0,
     theme: 'street',
     themesVisited: ['street'],
@@ -121,7 +162,7 @@ export function nextTheme(r: RunState): string {
   const fresh = pool.filter((t) => !r.themesVisited.includes(t.id));
   if (fresh.length) pool = fresh;
   if (!pool.length) return 'street';
-  return pool[Math.floor(Math.random() * pool.length)].id;
+  return pool[Math.floor(rand() * pool.length)].id;
 }
 
 export function xpToLevel(level: number) {
@@ -281,7 +322,7 @@ export function rollRarity(r: RunState, min = 0, max = 4): number {
   });
   const total = weights.reduce((a, b) => a + b, 0);
   if (total <= 0) return Math.max(min, Math.min(max, 3));
-  let roll = Math.random() * total;
+  let roll = rand() * total;
   for (let i = 0; i < weights.length; i++) {
     roll -= weights[i];
     if (roll <= 0) return i;
@@ -297,10 +338,10 @@ export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []
   for (let tries = 0; tries < 12; tries++) {
     const rar = rollRarity(r, min, max);
     const pool = itemPool(r, rar).filter((i) => !exclude.includes(i.id));
-    if (pool.length) return pool[Math.floor(Math.random() * pool.length)];
+    if (pool.length) return pool[Math.floor(rand() * pool.length)];
   }
   const any = [...items.values()].filter((i) => !exclude.includes(i.id) && i.rarity >= min && i.rarity <= max);
-  return any.length ? any[Math.floor(Math.random() * any.length)] : null;
+  return any.length ? any[Math.floor(rand() * any.length)] : null;
 }
 
 // Equip an item: duplicates level up, otherwise it replaces whatever is in the slot.
@@ -342,7 +383,7 @@ export function skillChoices(r: RunState, n = 3) {
   });
   const out = [];
   const copy = [...pool];
-  while (out.length < n && copy.length) out.push(copy.splice(Math.floor(Math.random() * copy.length), 1)[0]);
+  while (out.length < n && copy.length) out.push(copy.splice(Math.floor(rand() * copy.length), 1)[0]);
   return out;
 }
 
@@ -353,7 +394,7 @@ export type LevelChoice = { kind: 'skill'; def: SkillDef } | { kind: 'passive'; 
 export function levelUpChoices(r: RunState, n = 3): LevelChoice[] {
   const out: LevelChoice[] = skillChoices(r, n).map((def) => ({ kind: 'skill', def }));
   const pool = [...passives.values()];
-  while (out.length < n && pool.length) out.push({ kind: 'passive', def: pool.splice(Math.floor(Math.random() * pool.length), 1)[0] });
+  while (out.length < n && pool.length) out.push({ kind: 'passive', def: pool.splice(Math.floor(rand() * pool.length), 1)[0] });
   return out;
 }
 

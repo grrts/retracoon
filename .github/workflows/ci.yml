@@ -18,6 +18,7 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: npx tsx tools/sim.ts --quick
+      - run: npx tsx tools/sim.ts --daily
 
   server:
     runs-on: ubuntu-latest

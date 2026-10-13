@@ -131,6 +131,11 @@ final class BoardsTest extends WebTestCase
         self::assertSame('2026-11', $board['season']);
         self::assertSame(['BRAVO', 'ALPHA'], array_column($board['players'], 'name'));
         self::assertSame('2026-12-01T00:00:00+00:00', $board['endsAt']);
+        // An old best sent after signing in counts for the world board, not the season.
+        $c = $this->register('CHARLIE');
+        $this->call('POST', '/api/me/runs', ['stage' => 40, 'level' => 9, 'mode' => 'best'], $c);
+        self::assertSame(2, $this->call('GET', '/api/season')['total']);
+        self::assertSame('CHARLIE', $this->call('GET', '/api/leaderboard')['players'][0]['name']);
 
         // New month: a fresh board, and last season's winner is paid.
         $this->clock->modify('2026-12-01 02:00:00');

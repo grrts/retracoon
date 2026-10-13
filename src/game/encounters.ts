@@ -4,6 +4,7 @@ import { enemies, families } from '../content/registry';
 import type { ThemeDef } from '../world/types';
 import { rollTier, Foe } from './combat';
 import { RunState, computeBonus, shinyMult } from './run';
+import { rand } from './rng';
 
 export interface FoePick {
   ids: string[];
@@ -23,7 +24,7 @@ export function pickFoes(r: RunState, theme: ThemeDef): FoePick {
     .filter((e) => e && !e.boss && unlockStage(e.minStage) <= s + 3);
   const fallback = (families.get('street') ?? []).map((id) => enemies.get(id)!).filter(Boolean);
   const list = pool.length >= 2 ? pool : [...pool, ...fallback];
-  let count = s < 2 ? 1 + (Math.random() < 0.3 ? 1 : 0) : s < 8 ? 2 : s < 20 ? 2 + (Math.random() < 0.5 ? 1 : 0) : s < 40 ? 3 : 3 + (Math.random() < 0.5 ? 1 : 0);
+  let count = s < 2 ? 1 + (rand() < 0.3 ? 1 : 0) : s < 8 ? 2 : s < 20 ? 2 + (rand() < 0.5 ? 1 : 0) : s < 40 ? 3 : 3 + (rand() < 0.5 ? 1 : 0);
   count = Math.min(4, count);
   const ids: string[] = [];
   let supports = 0;
@@ -31,7 +32,7 @@ export function pickFoes(r: RunState, theme: ThemeDef): FoePick {
   for (let i = 0; i < count; i++) {
     const choices = list.filter((e) => !(e.role === 'support' && supports >= 1) && !(e.role === 'guard' && guards >= 1) && !(s < 3 && (e.role === 'brute' || e.role === 'charger') && i > 0));
     const from = choices.length ? choices : list;
-    const e = from[Math.floor(Math.random() * from.length)];
+    const e = from[Math.floor(rand() * from.length)];
     if (e.role === 'support') supports++;
     if (e.role === 'guard') guards++;
     ids.push(e.id);
@@ -61,7 +62,7 @@ export function fightRewards(r: RunState, killed: Foe[]) {
   for (const f of killed) {
     const mul = (f.elite ? 2 : 1) * (1 + f.tier * 0.5);
     xp += Math.round(f.def.xp * (1 + 0.06 * r.stage) * mul);
-    sh += f.def.shinies * mul * (0.7 + Math.random() * 0.6) * (1 + r.stage * 0.03);
+    sh += f.def.shinies * mul * (0.7 + rand() * 0.6) * (1 + r.stage * 0.03);
   }
   const fx = computeBonus(r).fx;
   sh = Math.round(sh * shinyMult(r));

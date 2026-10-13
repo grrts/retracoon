@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { text, button, panel, BTN } from '../ui';
-import { sfx } from '../audio';
+import { sfx, menuMusic } from '../audio';
 import { COL } from '../gfx/palette';
 import { store, save } from '../save';
 import { providers, type Provider } from '../platform/auth';
@@ -44,6 +44,7 @@ export class SignInScene extends Phaser.Scene {
   }
 
   create() {
+    menuMusic(this);
     if (this.then === 'boot') {
       store.signInOffered = true;
       save();
@@ -103,6 +104,7 @@ export class AccountScene extends Phaser.Scene {
   }
 
   async create() {
+    menuMusic(this);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
     text(this, W / 2, 14, 'ACCOUNT', { scale: 2, color: COL.yellow });
     button(this, W - 30, 11, 52, 16, 'BACK', () => this.scene.start('Scores'), BTN.red);

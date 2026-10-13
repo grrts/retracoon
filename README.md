@@ -23,8 +23,8 @@ Sign in is offered first (Google, Apple or Steam), or play as a guest and sign i
 
 ## How a run works
 
-- **Stages.** Every fight cleared is a stage, and difficulty grows exponentially, forever: foes get about 18% tougher per fight (half from fights cleared, half from distance walked). A fresh raccoon that doesn't retreat around the fifth fight dies soon after. Foe health and damage keep compounding, and deeper foes come in **Mean**, **Feral** and **Mythic** tiers with armor, regeneration and thorns.
-- **Bosses.** Each area hides its boss at a random stage between 4 and 10, so you can never plan for it. Beating the boss moves you to a new area with a new theme.
+- **Stages.** Every fight cleared is a stage, and difficulty grows exponentially, forever: foes get about 16% tougher per fight (half from fights cleared, half from distance walked). A fresh raccoon that doesn't retreat around the fifth fight dies soon after. Foe health and damage keep compounding, and deeper foes come in **Mean**, **Feral** and **Mythic** tiers with armor, regeneration and thorns.
+- **Bosses.** Each area hides its boss at a random fight, and the window grows with how far you came: area 1 at fight 2-4, area 4 at 4-8, and on along the same line (area 7 at 6-12, area 10 at 8-16). Early bosses come in lighter. Beating the boss moves you to a new area with a new theme.
 - **Combat.** You get action points each turn and spend them on up to 4 skills. Foes show their intent above their heads. Areas add hazards (falling pots, fumes, sprinklers, quakes, spores, lightning).
 - **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 cards (tap a card to select it, then LEARN), or SKIP. Every stat point counts in full; crit, dodge and damage cut cap at 95%. New skills are offered only while one of the 4 slots is free; after that only upgrades for your own skills. **Passive skills** (+6% damage, +8 max health, +2% crit and more) fill the rest, and once every skill is maxed every card is a passive. Passives stack forever but last one run. The **BAG** button in a run shows your gear, skills and passives in full.
 - **Road stops** every two or three fights: tap one of two roads (shop, event, camp or treasure), then GO. Healing is scarce.
@@ -37,9 +37,22 @@ Sign in is offered first (Google, Apple or Steam), or play as a guest and sign i
 - **Death:** everything is reset. The next run starts at level 1.
 - Every run pays **Bottle Caps** for the skin shop either way.
 
+## Daily run and seasons
+
+- **DAILY RUN** on the title screen: the same road for everyone today (areas, foes, bosses, road stops and cards come from a seed made from the UTC date), with a fresh level 1 raccoon that never touches your normal one. Try as often as you like. The daily board ranks the furthest stage, fastest time breaking ties, and #1 wins **10 gems** when the day ends.
+- **Seasons** last a calendar month. Every normal run counts on the season board, and #1 wins **300 gems** at the end. Both boards are for signed-in players; prizes pop up on the title screen.
+
+## Music
+
+Every one of the 50 areas has its own chiptune track, made from 14 family songs (street funk, forest jig, swamp blues, synthwave and more), plus a boss version of each and a title theme with Christmas and Halloween versions. Everything is synthesized in the browser; there are no audio files (`src/music/`).
+
+## Play statistics
+
+The game sends anonymous play events (runs, stages, retention) to the game's own server for the soft launch, and the server reports installs and day 1/7/30 retention with `php bin/console app:stats`. Players can turn it off on the title screen. See [docs/ONLINE.md](docs/ONLINE.md#gameplay-tracking).
+
 ## Scoreboard and friends
 
-**SCORES** on the title screen shows the world board and a friends board, ranked by best stage. Players sign in with Google, Apple or Steam; names show as NAME#1234 so they never clash, and gems and purchases follow the account. Everyone gets a 6-letter friend code; add a friend by typing their code. Runs are sent when they end, and again later if the phone was offline. Details: [docs/ONLINE.md](docs/ONLINE.md).
+**SCORES** on the title screen shows the world board, a friends board, the daily board and the season board. Players sign in with Google, Apple or Steam; names show as NAME#1234 so they never clash, and gems and purchases follow the account. Everyone gets a 6-letter friend code; add a friend by typing their code. Runs are sent when they end, and again later if the phone was offline. Details: [docs/ONLINE.md](docs/ONLINE.md).
 
 ## Shop, skins and the one ad
 

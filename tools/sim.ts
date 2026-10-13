@@ -2,6 +2,7 @@
 //   npx tsx tools/sim.ts [runs]      full report
 //   npx tsx tools/sim.ts --quick     a fast smoke test for CI (fails on crashes)
 //   npx tsx tools/sim.ts --all-str   the skilled bot dumps every point into STR, for comparison
+//   npx tsx tools/sim.ts --daily     checks that daily runs give every player the same road
 //
 // Two bots:
 //   casual   dumps every point into STR, takes the first skill offered, never retreats.
@@ -11,8 +12,10 @@ import { loadContent } from '../src/content';
 import { enemies, themes, items, skills, skins, events } from '../src/content/registry';
 import { Combat } from '../src/game/combat';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../src/game/encounters';
-import { newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
+import { roll, newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
 import { store } from '../src/save';
+import { rand } from '../src/game/rng';
+import type { RunMode } from '../src/game/run';
 import type { StatKey } from '../src/content/types';
 
 loadContent();
@@ -104,22 +107,30 @@ interface Result {
   r: RunState;
 }
 
-function playRun(bot: Bot, push = 4): Result {
-  const r = newRun();
+// The same rolls, in the same order, as the run scene (see roll() in run.ts), so a
+// daily run here meets what a player would.
+function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[]): Result {
+  const r = newRun(mode, '2026-11-14');
   let theme = themes.get(r.theme)!;
   for (let guard = 0; guard < 600; guard++) {
     if (bot === 'skilled' && r.stage >= 3 && (r.stage >= push || r.hp < maxHp(r) * 0.5)) return { stage: r.stage, level: r.level, reason: 'retreat', bosses: r.bosses, r };
-    if (r.sinceStop >= 3 || (r.sinceStop >= 2 && Math.random() < 0.55)) {
-      r.sinceStop = 0;
-      roadStop(r);
-    }
+    roll(r, 'arrive');
     const boss = r.areaStage + 1 >= r.bossAt;
-    const elite = !boss && (r.eliteNext || Math.random() < eliteChance(r));
+    if (!boss && (r.sinceStop >= 3 || (r.sinceStop >= 2 && rand() < 0.55))) {
+      r.sinceStop = 0;
+      roll(r, 'Fork');
+      roadStop(r);
+      roll(r, 'arrive');
+    }
+    const elite = !boss && (r.eliteNext || rand() < eliteChance(r));
     const pick = boss ? { ids: [theme.boss], tiers: [0] } : elite ? pickElite(r, theme) : pickFoes(r, theme);
+    log?.push(`${r.stage}:${r.theme}:${pick.ids.join('+')}:${pick.tiers.join('')}`);
+    roll(r, 'combat');
     const c = new Combat(r, pick.ids, danger(r), { boss, elite, tiers: pick.tiers, hazard: theme.hazard, hooks: { shinies: () => r.shinies, addShinies: (n) => (r.shinies = Math.max(0, r.shinies + n)) } });
     const won = fight(c, bot);
     r.hp = c.hp;
     if (!won) return { stage: r.stage, level: r.level, reason: 'death', bosses: r.bosses, r };
+    roll(r, 'after');
     const rw = fightRewards(r, c.killed);
     r.shinies += rw.shinies;
     r.stage++;
@@ -137,14 +148,15 @@ function playRun(bot: Bot, push = 4): Result {
       const it = randomItem(r, 2);
       if (it) equip(r, it);
       if (boss) r.bosses++;
-    } else if (Math.random() < 0.15) {
+    } else if ((roll(r, 'drop'), rand() < 0.15)) {
       const it = randomItem(r, 0, 2);
       if (it) equip(r, it);
     }
     if (boss) {
       r.area++;
       r.areaStage = 0;
-      r.bossAt = rollBossAt();
+      roll(r, 'area');
+      r.bossAt = rollBossAt(r.area);
       r.theme = nextTheme(r);
       r.themesVisited.push(r.theme);
       theme = themes.get(r.theme)!;
@@ -175,6 +187,29 @@ function pct(xs: number[], p: number) {
   return s[Math.min(s.length - 1, Math.floor(s.length * p))];
 }
 
+// Two very different players on the same daily seed must meet the same foes on every
+// stage both reach. Exits non-zero if they don't.
+if (process.argv.includes('--daily')) {
+  let shared = 0;
+  for (let i = 0; i < 40; i++) {
+    const a: string[] = [];
+    const b: string[] = [];
+    playRun('casual', 99, 'daily', a);
+    playRun('skilled', 99, 'daily', b);
+    // A level-up or road stop can differ, but the encounter on each stage may not.
+    const n = Math.min(a.length, b.length);
+    for (let k = 0; k < n; k++) {
+      if (a[k] !== b[k]) {
+        console.error(`daily runs differ at fight ${k + 1}: ${a[k]} vs ${b[k]}`);
+        process.exit(1);
+      }
+    }
+    shared += n;
+  }
+  console.log(`daily: 40 pairs of runs met the same foes on all ${shared} shared fights`);
+  process.exit(0);
+}
+
 const quick = process.argv.includes('--quick');
 const N = quick ? 20 : Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 300);
 console.log(`content: ${enemies.size} enemies, ${themes.size} themes, ${items.size} items, ${skills.size} skills, ${events.length} events, ${skins.size} skins`);
@@ -186,7 +221,8 @@ for (const bot of ['casual', 'skilled'] as Bot[]) {
   console.log(
     `${bot.padEnd(8)} one run: median stage ${pct(st, 0.5)}, p10 ${pct(st, 0.1)}, p90 ${pct(st, 0.9)}, max ${Math.max(...st)}, ` +
       `avg level ${(res.reduce((a, x) => a + x.level, 0) / N).toFixed(1)}, bosses/run ${(res.reduce((a, x) => a + x.bosses, 0) / N).toFixed(2)}, ` +
-      `retreats ${res.filter((x) => x.reason === 'retreat').length}, hit cap ${res.filter((x) => x.reason === 'cap').length}`,
+      `retreats ${res.filter((x) => x.reason === 'retreat').length}, hit cap ${res.filter((x) => x.reason === 'cap').length}, ` +
+      `left area 1 in ${Math.round((100 * res.filter((x) => x.bosses > 0).length) / N)}% of runs`,
   );
 }
 

@@ -9,6 +9,7 @@ import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
 import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
 import { itemCard, RaccoonView } from '../game/views';
 import { store } from '../save';
+import { rand } from '../game/rng';
 import { mapTexture, ensureEnemy, enemyKey } from '../gfx/textures';
 
 const CARD_H = 112;
@@ -149,7 +150,7 @@ export class ForkScene extends Overlay<OverlayData> {
     const picks: StopKind[] = [];
     while (picks.length < 2) {
       const total = kinds.filter((k) => !picks.includes(k)).reduce((a, k) => a + STOPS[k].weight, 0);
-      let x = Math.random() * total;
+      let x = rand() * total;
       for (const k of kinds) {
         if (picks.includes(k)) continue;
         x -= STOPS[k].weight;
@@ -376,7 +377,7 @@ function pickEvent(r: RunState): EventDef {
   // Theme-specific events are rarer overall, so give them a nudge when they fit.
   const w = (e: EventDef) => (e.weight ?? 1) * (e.themes ? 2 : 1);
   const total = pool.reduce((a, e) => a + w(e), 0);
-  let x = Math.random() * total;
+  let x = rand() * total;
   for (const e of pool) {
     x -= w(e);
     if (x <= 0) return e;
@@ -485,7 +486,7 @@ export class EventScene extends Overlay<OverlayData> {
       upgradeRandomSkill: () => {
         const up = r.skills.filter((s) => s.lvl < (skills.get(s.id)?.max ?? 1));
         if (!up.length) return '';
-        const o = up[Math.floor(Math.random() * up.length)];
+        const o = up[Math.floor(rand() * up.length)];
         o.lvl++;
         return skills.get(o.id)!.name;
       },
@@ -514,7 +515,7 @@ export class EventScene extends Overlay<OverlayData> {
       removeRandomItem: () => {
         const slots = Object.keys(r.gear).filter((k) => r.gear[k as keyof typeof r.gear]);
         if (!slots.length) return null;
-        const k = slots[Math.floor(Math.random() * slots.length)] as keyof typeof r.gear;
+        const k = slots[Math.floor(rand() * slots.length)] as keyof typeof r.gear;
         const name = items.get(r.gear[k]!.id)?.name ?? '';
         delete r.gear[k];
         r.hp = Math.min(r.hp, maxHp(r));

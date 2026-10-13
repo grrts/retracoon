@@ -100,6 +100,8 @@ final class PlayerController extends AbstractController
                 }
                 $improved = $score->record($run->stage, $run->level, $run->distance, $run->timeMs, $now);
             }
+        } elseif ('best' === $run->mode) {
+            $improved = $me->recordRun($run->stage, $run->level, $run->distance);
         } else {
             $improved = $me->recordRun($run->stage, $run->level, $run->distance);
             $season = $this->periods->season();

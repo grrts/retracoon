@@ -4,9 +4,10 @@
 // unlocks live on the server so they follow the account.
 // Everything except signing in fails soft: no network or an error means offline.
 import { API_URL } from './config';
-import { store, save } from '../save';
+import { store, save, type PendingRun } from '../save';
 import { credential, type Provider } from './auth';
 import { platform } from './native';
+import { track } from './track';
 
 export interface ScoreRow {
   id: string;
@@ -19,12 +20,40 @@ export interface ScoreRow {
   rank: number | null;
 }
 
+// A row on the daily or season board: the player plus that run.
+export interface BoardRow extends ScoreRow {
+  stage: number;
+  level: number;
+  distance: number;
+  timeMs?: number; // daily only
+}
+
+export interface Prize {
+  id: number;
+  kind: 'daily' | 'season';
+  period: string;
+  place: number;
+  gems: number;
+}
+
 export interface Me extends ScoreRow {
   friendCode: string;
   provider: Provider;
   gems: number;
   noAds: boolean;
   unlocks: string[];
+  daily?: BoardRow | null; // today's daily run
+  season?: BoardRow | null; // this season
+  prizes?: Prize[]; // won and not shown yet
+}
+
+export interface Board {
+  period: string; // day (YYYY-MM-DD) or season (YYYY-MM)
+  endsAt: string;
+  prize: number; // gems for first place
+  total: number;
+  players: BoardRow[];
+  lastWinner: BoardRow | null;
 }
 
 // NAME#1234: names are shared, the tag makes each one unique.
@@ -117,6 +146,7 @@ export async function signIn(provider: Provider): Promise<SignInResult> {
   const r = await call<{ token: string; created: boolean; player: Me }>('POST', '/auth', { provider, credential: c.credential, code: c.code, name: store.playerName || c.name || randomName(), skin: store.skin }, false);
   if (!r.data) return { ok: false, why: r.status === 0 ? 'offline' : r.status === 429 ? 'busy' : 'rejected' };
   setToken(r.data.token);
+  track('sign_in', { provider, created: r.data.created });
   // Scores from this device go to the account again.
   store.bestSubmitted = 0;
   save();
@@ -166,14 +196,63 @@ export async function rename(name: string): Promise<boolean> {
   return true;
 }
 
-// Called after every run. Only sends when the best stage went up.
+// Called after every run. Signed in, every run is queued and sent: normal runs count
+// for the world board and this season, daily runs for today's daily board. Results
+// wait on the phone while offline and go out with the next run or launch.
+export async function submitRun(run: PendingRun) {
+  if (onlineConfigured() && signedIn() && run.stage > 0) {
+    store.pendingRuns.push(run);
+    store.pendingRuns = store.pendingRuns.slice(-20);
+    save();
+  }
+  await flushRuns();
+  await submitBest();
+}
+
+let flushing = false;
+export async function flushRuns() {
+  if (flushing || !store.pendingRuns.length || !signedIn()) return;
+  flushing = true;
+  try {
+    while (store.pendingRuns.length) {
+      const run = store.pendingRuns[0];
+      const r = await authed<{ player: Me }>('POST', '/me/runs', { ...run, stage: Math.max(1, run.stage), level: Math.max(1, run.level), distance: Math.max(0, Math.floor(run.distance)), timeMs: Math.min(86400000, Math.max(0, Math.round(run.timeMs))) });
+      // 422: a run the server can't take (stage 0, a closed day). Drop it, keep going.
+      if (!r.data && r.status !== 422) break;
+      store.pendingRuns.shift();
+      if (run.mode === 'normal') store.bestSubmitted = Math.max(store.bestSubmitted, run.stage);
+      save();
+      if (r.data) remember(r.data.player);
+    }
+  } finally {
+    flushing = false;
+  }
+}
+
+// An all-time best made while signed out goes to the world board (not the season).
 export async function submitBest() {
   if (store.bestStage <= 0 || store.bestStage <= store.bestSubmitted) return;
-  const r = await authed<{ player: Me }>('POST', '/me/runs', { stage: store.bestStage, level: Math.max(1, store.bestLevel), distance: Math.max(0, Math.floor(store.bestDistance)), skin: store.skin });
+  const r = await authed<{ player: Me }>('POST', '/me/runs', { mode: 'best', stage: store.bestStage, level: Math.max(1, store.bestLevel), distance: Math.max(0, Math.floor(store.bestDistance)), skin: store.skin });
   if (!r.data) return;
   remember(r.data.player);
   store.bestSubmitted = store.bestStage;
   save();
+}
+
+async function board(path: string): Promise<Board | null> {
+  const r = await call<Omit<Board, 'period'> & { day?: string; season?: string }>('GET', path, undefined, false);
+  if (!r.data) return null;
+  return { ...r.data, period: r.data.day ?? r.data.season ?? '' };
+}
+
+export const dailyBoard = (limit = 50) => board(`/daily?limit=${limit}`);
+export const seasonBoard = (limit = 50) => board(`/season?limit=${limit}`);
+
+// The game showed the "you won" popup: don't show these prizes again.
+export async function prizesSeen(): Promise<boolean> {
+  const r = await authed<{ player: Me }>('POST', '/me/prizes/seen', {});
+  if (r.data) remember(r.data.player);
+  return !!r.data;
 }
 
 export async function worldScores(limit = 50): Promise<ScoreRow[] | null> {
