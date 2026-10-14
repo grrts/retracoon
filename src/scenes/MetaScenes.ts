@@ -1,12 +1,12 @@
 import Phaser from 'phaser';
 import { W, H, GROUND_Y, IS_TOUCH } from '../config';
 import { text, button, panel, BTN, LINE_H } from '../ui';
-import { sfx } from '../audio';
+import { sfx, menuMusic } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { items, skills, themes, RARITY, STAT_INFO, TAGS } from '../content/registry';
 import type { Slot } from '../content/types';
-import { RunState, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
+import { RunState, newRun, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
 import { RaccoonView } from '../game/views';
 import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
@@ -14,7 +14,9 @@ import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
 import { initIap, loginPurchases } from '../platform/iap';
 import { isNative, isSteam, steam } from '../platform/native';
-import { submitBest, needsSignIn, profile } from '../platform/online';
+import { submitBest, flushRuns, needsSignIn, profile, prizesSeen, signedIn, onlineConfigured, type Me } from '../platform/online';
+import { startTracking, setTracking } from '../platform/track';
+import { addCaps } from '../meta/economy';
 import { continueBoot } from './AccountScenes';
 
 // ---------------------------------------------------------------- shared bits
@@ -119,8 +121,8 @@ export class PauseScene extends Phaser.Scene {
         quit.setLabel('SURE? TAP');
         return;
       }
-      // Giving up counts as dying: the banked character is gone.
-      store.kept = null;
+      // Giving up counts as dying: the banked character is gone (a daily run has none).
+      if (data.run.mode !== 'daily') store.kept = null;
       save();
       sfx.resume();
       sfx.stopMusic();
@@ -140,12 +142,13 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number }) {
+  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown> }) {
     const r = data.run;
+    const daily = r.mode === 'daily';
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.92).setOrigin(0).setInteractive();
     this.cameras.main.fadeIn(300, 26, 28, 44);
     const dead = data.reason === 'death';
-    const t = text(this, W / 2, 14, dead ? 'WIPED OUT' : 'RETREATED', { scale: 2, color: dead ? COL.red : COL.lime });
+    const t = text(this, W / 2, 14, daily ? 'DAILY RUN OVER' : dead ? 'WIPED OUT' : 'RETREATED', { scale: 2, color: daily ? COL.lime : dead ? COL.red : COL.lime });
     t.setScale(0);
     this.tweens.add({ targets: t, scale: 2, duration: 300, ease: 'Back.out' });
 
@@ -164,13 +167,21 @@ export class GameOverScene extends Phaser.Scene {
     panel(g, x - 6, 28, pw + 6, 130, 0x29366f, 0x1a1c2c, 0x3b5dc9);
     text(this, x, 37, 'STAGE REACHED', { origin: 0, color: COL.light });
     text(this, x, 51, `${r.stage}`, { origin: 0, scale: 2, color: COL.white });
-    text(this, x + 40, 51, r.stage > 0 && r.stage >= store.bestStage ? 'NEW BEST!' : `BEST ${store.bestStage}`, { origin: 0, color: COL.yellow });
+    const best = daily
+      ? data.newBest
+        ? 'NEW BEST TODAY!'
+        : `BEST TODAY ${store.dailyBest?.stage ?? 0}`
+      : r.stage > 0 && r.stage >= store.bestStage
+        ? 'NEW BEST!'
+        : `BEST ${store.bestStage}`;
+    text(this, x + 40, 51, best, { origin: 0, color: COL.yellow });
     const capX = x + pw - 10;
     this.add.image(capX - 4, 37, 'bottlecap');
     text(this, capX - 12, 37, 'CAPS EARNED', { origin: 1, color: COL.light });
     const capsT = text(this, capX, 51, `+0`, { origin: 1, scale: 2, color: COL.yellow });
     this.tweens.addCounter({ from: 0, to: data.caps, duration: 900, onUpdate: (tw) => capsT.setText(`+${Math.round(tw.getValue() ?? 0)}`) });
-    const mins = Math.floor((Date.now() - r.startedAt) / 60000);
+    const secs = Math.floor((Date.now() - r.startedAt) / 1000);
+    const mins = Math.floor(secs / 60);
     const rows: [string, string][] = [
       ['DISTANCE', `${Math.floor(r.distance)}M`],
       ['AREAS CLEARED', `${r.area}`],
@@ -178,19 +189,36 @@ export class GameOverScene extends Phaser.Scene {
       ['ELITES / BOSSES', `${r.elites} / ${r.bosses}`],
       ['ITEMS FOUND', `${r.itemsFound}`],
       ['BEST COMBO', `${r.bestCombo}`],
-      ['RUN TIME', `${mins} MIN`],
+      ['RUN TIME', daily ? `${mins}:${String(secs % 60).padStart(2, '0')}` : `${mins} MIN`],
     ];
     rows.forEach(([k, v], i) => {
       text(this, x, 70 + i * LINE_H, k, { origin: 0, color: COL.light });
       text(this, x + pw - 10, 70 + i * LINE_H, v, { origin: 1, color: COL.white });
     });
-    text(
+    const note = text(
       this,
       W / 2,
       H - 40,
-      dead ? 'YOUR RACCOON IS GONE. NEXT RUN STARTS AT LEVEL 1.' : `KEPT: LV ${r.level} AND YOUR STATS. ITEMS AND SKILLS ARE LOST.`,
-      { color: dead ? COL.orange : COL.lime, maxWidth: W - 16, maxLines: 1 },
+      daily
+        ? signedIn()
+          ? 'SENDING YOUR RUN TO THE DAILY BOARD...'
+          : onlineConfigured()
+            ? 'SIGN IN ON THE SCORES SCREEN TO RANK YOUR DAILY RUNS.'
+            : 'SAME ROAD FOR EVERYONE TODAY. TRY AGAIN TO GO FURTHER!'
+        : dead
+          ? 'YOUR RACCOON IS GONE. NEXT RUN STARTS AT LEVEL 1.'
+          : `KEPT: LV ${r.level} AND YOUR STATS. ITEMS AND SKILLS ARE LOST.`,
+      { color: daily ? COL.light : dead ? COL.orange : COL.lime, maxWidth: W - 16, maxLines: 1 },
     );
+    if (daily && signedIn())
+      void Promise.resolve(data.sent)
+        .then(() => profile())
+        .then((me) => {
+          if (!note.active) return;
+          const d = me?.daily;
+          note.setText(d?.rank ? `YOU ARE #${d.rank} ON TODAY'S DAILY BOARD. #1 WINS 10 GEMS.` : 'OFFLINE: YOUR RUN WILL BE SENT LATER.');
+          note.setTint(d?.rank === 1 ? COL.yellow : COL.lime);
+        });
 
     let armed = false;
     this.time.delayedCall(700, () => (armed = true));
@@ -201,13 +229,16 @@ export class GameOverScene extends Phaser.Scene {
       this.scene.stop();
       this.scene.start(key, d);
     };
-    const again = () => leave('Run');
+    const again = () => (daily ? leave('Run', { run: newRun('daily') }) : leave('Run'));
     const bw = Math.min(110, (W - 24) / 3);
-    button(this, W / 2 - bw - 4, H - 16, bw, 22, dead ? 'NEW RUN' : 'GO AGAIN', again, BTN.red);
-    button(this, W / 2, H - 16, bw, 22, 'SKIN SHOP', () => leave('Store', { back: 'Title' }), BTN.gold);
+    button(this, W / 2 - bw - 4, H - 16, bw, 22, daily ? 'TRY AGAIN' : dead ? 'NEW RUN' : 'GO AGAIN', again, BTN.red);
+    if (daily) button(this, W / 2, H - 16, bw, 22, 'DAILY BOARD', () => leave('Scores', { back: 'Title', tab: 'daily' }), BTN.violet);
+    else button(this, W / 2, H - 16, bw, 22, 'SKIN SHOP', () => leave('Store', { back: 'Title' }), BTN.gold);
     button(this, W / 2 + bw + 4, H - 16, bw, 22, 'MENU', () => leave('Title'));
     this.input.keyboard!.on('keydown-SPACE', again);
     this.input.keyboard!.on('keydown-ENTER', again);
+    // The title theme comes back once the game-over jingle has played.
+    this.time.delayedCall(1400, () => menuMusic(this));
   }
 }
 
@@ -224,8 +255,13 @@ export class TitleScene extends Phaser.Scene {
 
   create() {
     this.started = false;
-    // Catch up on a best score that couldn't be sent earlier (offline at the time).
-    void submitBest();
+    menuMusic(this);
+    // Catch up on runs and a best score that couldn't be sent earlier (offline at the time),
+    // then tell the player about any board they won.
+    void flushRuns()
+      .then(() => submitBest())
+      .then(() => profile(true))
+      .then((me) => me?.prizes?.length && this.scene.isActive() && this.showPrizes(me));
     const theme = themes.get('street') ?? [...themes.values()][0];
     this.world = new Parallax(this, theme);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.3).setOrigin(0).setDepth(-1);
@@ -239,17 +275,21 @@ export class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: logo, y: 32, yoyo: true, repeat: -1, duration: 900, ease: 'Sine.inOut' });
     text(this, mx, 56, 'A TURN-BASED TRASH ROGUELIKE', { color: COL.yellow });
 
-    const go = () => {
+    const go = (daily = false) => {
       if (this.started) return;
       this.started = true;
       sfx.unlock();
       sfx.select();
       this.cameras.main.fadeOut(220, 26, 28, 44);
-      this.cameras.main.once('camerafadeoutcomplete', () => (store.tutorialDone ? this.scene.start('Run', {}) : this.scene.start('Tutorial', { next: 'Run' })));
+      this.cameras.main.once('camerafadeoutcomplete', () =>
+        !store.tutorialDone ? this.scene.start('Tutorial', { next: 'Run' }) : this.scene.start('Run', daily ? { run: newRun('daily') } : {}),
+      );
     };
-    const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', go, BTN.red);
+    const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', () => go(), BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });
-    button(this, mx, 114, 140, 22, 'SKIN SHOP', () => {
+    // The daily run: the same road for everyone today, a fresh level 1 raccoon.
+    button(this, mx - 36, 114, 68, 22, 'DAILY RUN', () => go(true), BTN.green);
+    button(this, mx + 36, 114, 68, 22, 'SKIN SHOP', () => {
       sfx.unlock();
       this.scene.start('Store', { back: 'Title' });
     }, BTN.gold);
@@ -275,17 +315,65 @@ export class TitleScene extends Phaser.Scene {
       sfx.setMuted(!sfx.muted);
       mute.setText(sfx.muted ? 'SOUND OFF' : 'SOUND ON');
     });
+    // Anonymous play stats for the developer (see the privacy policy); one tap to turn off.
+    if (onlineConfigured()) {
+      const stats = text(this, W - 6, 22, store.trackingOff ? 'STATS OFF' : 'STATS ON', { origin: 1, color: COL.light });
+      const tz = this.add.zone(W - 30, 22, 60, 12).setInteractive({ useHandCursor: true });
+      tz.on('pointerup', () => {
+        setTracking(store.trackingOff);
+        save();
+        stats.setText(store.trackingOff ? 'STATS OFF' : 'STATS ON');
+      });
+    }
     text(this, W / 2, H - 10, IS_TOUCH ? 'TAP PLAY TO START' : 'PRESS SPACE TO PLAY', { color: COL.light });
-    this.input.keyboard?.on('keydown-SPACE', go);
-    this.input.keyboard?.on('keydown-ENTER', go);
+    this.input.keyboard?.on('keydown-SPACE', () => go());
+    this.input.keyboard?.on('keydown-ENTER', () => go());
     this.cameras.main.fadeIn(250, 26, 28, 44);
     this.events.once('shutdown', () => this.world.destroy());
+  }
+
+  // "You won": daily and season prizes, shown once, over the title screen.
+  showPrizes(me: Pick<Me, 'prizes'>) {
+    this.scene.pause();
+    this.scene.launch('Prize', { prizes: me.prizes ?? [] });
   }
 
   update(_t: number, delta: number) {
     const dt = delta / 1000;
     this.coon.update(dt);
     this.world.update(dt, true, 40 * dt);
+  }
+}
+
+export class PrizeScene extends Phaser.Scene {
+  constructor() {
+    super('Prize');
+  }
+
+  create(data: { prizes: NonNullable<Me['prizes']> }) {
+    const prizes = data.prizes;
+    this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.85).setOrigin(0).setInteractive();
+    const g = this.add.graphics();
+    const pw = Math.min(W - 30, 300);
+    const ph = 64 + prizes.length * LINE_H;
+    const py = H / 2 - ph / 2;
+    panel(g, W / 2 - pw / 2, py, pw, ph, 0x29366f, 0xffcd75, 0x3b5dc9);
+    text(this, W / 2, py + 12, 'YOU WON!', { scale: 2, color: COL.yellow });
+    // Steam has no gem shop, so a prize there pays Bottle Caps (10 per gem) instead.
+    const steamCaps = isSteam();
+    prizes.forEach((p, i) => {
+      const what = p.kind === 'daily' ? `#1 IN THE DAILY RUN OF ${p.period}` : `#1 OF SEASON ${p.period}`;
+      text(this, W / 2, py + 32 + i * LINE_H, `${what}: +${steamCaps ? `${p.gems * 10} CAPS` : `${p.gems} GEMS`}`, { color: COL.white, maxWidth: pw - 12, maxLines: 1 });
+    });
+    sfx.upgrade();
+    const ok = button(this, W / 2, py + ph - 14, 80, 18, 'NICE!', () => {
+      ok.setEnabled(false);
+      void prizesSeen().then((seen) => {
+        if (seen && steamCaps) addCaps(prizes.reduce((a, p) => a + p.gems * 10, 0));
+        this.scene.stop();
+        this.scene.get('Title').scene.restart();
+      });
+    }, BTN.gold);
   }
 }
 
@@ -329,6 +417,8 @@ export class AdScene extends Phaser.Scene {
     if (this.playing) return;
     this.playing = true;
     if (isNative()) {
+      // No music under the ad; the title screen starts it again.
+      sfx.stopMusic();
       this.children.removeAll(true);
       this.bg();
       void showNativeLaunchAd().then(() => this.scene.start('Title'));
@@ -368,6 +458,7 @@ export class BootScene extends Phaser.Scene {
   create() {
     loadContent();
     buildTextures(this);
+    startTracking();
     void initIap();
     // An account comes first (when the game has a server), then the first-launch
     // tutorial, then the launch ad. See continueBoot.

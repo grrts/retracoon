@@ -117,6 +117,20 @@ for (const [w, h] of SIZES) {
     await start('Scores', { tab, demo: { me, rows: tab === 'world' ? rows : rows.slice(0, 4) } });
     await shot(`scores-${tab}`);
   }
+  const boardRows = rows.map((r, i) => ({ ...r, stage: 30 - i * 2, level: 9 - Math.floor(i / 2), distance: 700, timeMs: 400000 + i * 61000 }));
+  const meBoards = { ...me, daily: { ...boardRows[1], rank: 2 }, season: { ...boardRows[1], rank: 2 } };
+  const ends = new Date(Date.now() + 5 * 3600000).toISOString();
+  for (const tab of ['daily', 'season']) {
+    await start('Scores', { tab, demo: { me: meBoards, rows: boardRows, board: { period: tab === 'daily' ? '2026-11-14' : '2026-11', endsAt: ends, prize: tab === 'daily' ? 10 : 300, total: 11, players: boardRows, lastWinner: boardRows[0] } } });
+    await shot(`scores-${tab}`);
+  }
+  // The "you won" popup on the title screen.
+  await start('Title');
+  await sleep(300);
+  await page.evaluate(() =>
+    window.__game.scene.getScene('Title').showPrizes({ prizes: [{ id: 1, kind: 'daily', period: '2026-11-14', place: 1, gems: 10 }, { id: 2, kind: 'season', period: '2026-10', place: 1, gems: 300 }] }),
+  );
+  await shot('title-prizes');
   for (const tab of ['sale', 'holiday', 'fur', 'outfit', 'owned', 'gems']) {
     await start('Store', { tab });
     await shot(`store-${tab}`);
@@ -193,14 +207,24 @@ for (const [w, h] of SIZES) {
     if (i < 3) await page.screenshot({ path: `${out}/${w}x${h}-event-${i}.png` });
     await page.evaluate(() => window.__restoreEvents());
   }
-  for (const reason of ['death', 'retreat']) {
+  for (const reason of ['death', 'retreat', 'daily']) {
     await page.evaluate((why) => {
       const g = window.__game;
       for (const s of g.scene.getScenes(true)) if (s.scene.key !== 'Run') s.scene.stop();
-      g.scene.getScene('Run').scene.launch('GameOver', { run: g.scene.getScene('Run').run, reason: why, newBest: true, caps: 123 });
+      const run = why === 'daily' ? { ...g.scene.getScene('Run').run, mode: 'daily', day: '2026-11-14' } : g.scene.getScene('Run').run;
+      g.scene.getScene('Run').scene.launch('GameOver', { run, reason: why === 'daily' ? 'death' : why, newBest: true, caps: 123 });
     }, reason);
     await shot(`gameover-${reason}`);
   }
+  // A daily run's HUD.
+  await page.evaluate(() => window.__game.scene.getScene('Run').scene.stop('GameOver'));
+  await page.evaluate(() => {
+    const g = window.__game;
+    for (const s of g.scene.getScenes(true)) s.scene.stop();
+    g.scene.start('Run', { run: window.__debug.newRun('daily') });
+  });
+  await sleep(600);
+  await shot('run-daily');
   await page.close();
 }
 

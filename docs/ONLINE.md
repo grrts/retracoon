@@ -42,6 +42,8 @@ STEAM_WEB_API_KEY=...
 STEAM_APP_ID=...
 REVENUECAT_WEBHOOK_AUTH=...
 SUPPORT_EMAIL=support@retracoon.com
+# Optional: a long random key that unlocks GET /api/stats (soft-launch numbers)
+STATS_KEY=...
 ```
 
 Then:
@@ -55,6 +57,33 @@ php bin/console cache:clear
 Point the web server's document root at `server/public/` (Apache or nginx with PHP-FPM; see [Symfony's guide](https://symfony.com/doc/current/setup/web_server_configuration.html)). Check it with `curl https://api.retracoon.com/api/health`, which answers `{"ok":true}`.
 
 Run the migrate command again after each update of the API.
+
+Add one cron job so daily and season prizes are paid even on a quiet day (the API also pays them by itself whenever a board or profile is read):
+
+```cron
+*/15 * * * * cd /path/to/server && php bin/console app:prizes
+```
+
+## Daily run, seasons and prizes
+
+- **Daily run.** Everyone plays the same seed each UTC day (the game makes it from the date). The board ranks the furthest stage, and the fastest time breaks ties. Players can try as often as they like; their best run counts. When the day closes, #1 gets **10 gems**.
+- **Season.** A season is a UTC calendar month. Every normal run of a signed-in player counts; the board ranks like the world board. When the month closes, #1 gets **300 gems** (`Prizes::SEASON_GEMS`).
+- Results from an offline phone still count for 30 minutes after a day or season closes, then the winner is paid. Each board is paid once (a lock plus a unique row per board and place). Only signed-in players are on these boards, so only they can win.
+- The game shows a "YOU WON!" popup on the title screen and then marks the prize seen. On Steam, which has no gem shop, the game turns a prize into Bottle Caps (10 per gem).
+
+## Gameplay tracking
+
+The game sends a few events to `POST /api/events` under a random install id made on the device: `app_open`, `tutorial_done`, `run_start`, `run_end` (mode, reason, stage, area, level, bosses, time), `area_reached`, `boss_beaten`, `sign_in`, `purchase`, `shop_open`, `scores_open`. They are not linked to the account. Players can turn it off with STATS ON/OFF on the title screen.
+
+Read the numbers on the server:
+
+```bash
+php bin/console app:stats --days=14
+```
+
+That prints installs, players, runs, daily runs, median stage, the share of runs that left the first area, and day 1, 7 and 30 retention per install day. The same numbers come from `GET /api/stats?days=14` with header `X-Stats-Key: <STATS_KEY>` (404 without it). Good soft-launch targets: 35% back on day 1, 10% on day 7.
+
+Events are kept until you delete them, e.g. `DELETE FROM play_event WHERE at < now() - interval '180 days'` in a monthly cron job.
 
 ## Connecting the game
 
@@ -83,15 +112,20 @@ All responses are JSON; errors use `application/problem+json` with a `detail` me
 | Call | What it does |
 |---|---|
 | `POST /api/auth` `{provider, credential, code?, name?, skin?}` | Signs in with `google`/`apple` (ID token) or `steam` (Web API ticket). Makes the player the first time, with a free NAME#tag. Returns `{token, created, player}`; 201 when new. 20 per IP address per hour. |
-| `GET /api/me` 🔒 | Your player, including friend code, gems, No Ads, gem unlocks and world rank. |
+| `GET /api/me` 🔒 | Your player, including friend code, gems, No Ads, gem unlocks, world rank, today's daily run and this season (`daily`, `season`: stage and rank, or null) and prizes won but not shown yet (`prizes`). |
 | `PATCH /api/me` `{name?, skin?}` 🔒 | Changes name (3-16 letters, digits, spaces; gets a new free tag) or shown skin. |
 | `POST /api/me/spend` `{gems, item}` 🔒 | Spends gems on a skin. The same item twice only charges once; 409 when short. |
 | `DELETE /api/me` 🔒 | Deletes your player, scores, friendships, purchases and sign-ins, and revokes Sign in with Apple. |
-| `POST /api/me/runs` `{stage, level, distance?, skin?}` 🔒 | Records a finished run. Bests only go up. |
+| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed. |
+| `POST /api/me/prizes/seen` 🔒 | The game showed the prizes in `GET /api/me`'s `prizes`; don't list them again. |
 | `GET /api/me/friends` 🔒 | You and your friends, ranked. |
 | `POST /api/me/friends` `{code}` 🔒 | Adds a friend by code; both of you see each other. 30 tries per hour. |
 | `DELETE /api/me/friends/{id}` 🔒 | Removes a friend (both directions). |
 | `GET /api/leaderboard?limit=50&offset=0` | The world board, best stage first, then distance. Public, cacheable for 30 s. |
+| `GET /api/daily?day=&limit=50&offset=0` | A day's daily board (today by default): `{day, endsAt, prize, total, players, lastWinner}`. Rows add `stage, level, distance, timeMs`. Public, 30 s cache. |
+| `GET /api/season?season=&limit=50&offset=0` | This season's board (`YYYY-MM`), with last season's winner. Public, 30 s cache. |
+| `POST /api/events` `{device, platform, version, events: [{name, at, props}]}` | Gameplay tracking, guests included; at most 50 events per call. 204. |
+| `GET /api/stats?days=14` | Soft-launch numbers; needs `X-Stats-Key`. |
 | `GET /api/players/{id}` | One player's public profile and rank. |
 | `GET /api/health` | `{"ok":true}` |
 | `POST /api/webhooks/revenuecat` | RevenueCat purchase events; checks the shared secret. Grants and refunds gems and No Ads. |

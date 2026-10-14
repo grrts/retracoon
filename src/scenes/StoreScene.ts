@@ -3,9 +3,10 @@
 // gem packs and No Ads purchase. In test mode (browser, or no store keys yet) every real
 // money purchase asks for confirmation and says no money is charged.
 import Phaser from 'phaser';
+import { track } from '../platform/track';
 import { W, H } from '../config';
 import { text, button, panel, BTN, Button } from '../ui';
-import { sfx } from '../audio';
+import { sfx, menuMusic } from '../audio';
 import { store } from '../save';
 import { COL } from '../gfx/palette';
 import { skins, seasons } from '../content/registry';
@@ -66,6 +67,7 @@ export class StoreScene extends Phaser.Scene {
   }
 
   create() {
+    menuMusic(this);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
     this.add.rectangle(0, 0, W, TOP, 0x29366f).setOrigin(0);
     this.wallet = wallet(this, 6, 11);
@@ -288,6 +290,7 @@ export class StoreScene extends Phaser.Scene {
     this.busy = true;
     const res = await buy(id, () => this.confirm(`${title} FOR ${price}`));
     this.busy = false;
+    if (res === 'ok' || res === 'pending') track('purchase', { product: id });
     if (res === 'ok') {
       sfx.upgrade();
       this.cameras.main.flash(150, 115, 239, 247);

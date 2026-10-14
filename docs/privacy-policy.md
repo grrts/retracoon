@@ -10,11 +10,15 @@ Your progress (best runs, Bottle Caps, Gems, owned skins, settings) is saved on 
 
 ## Your account
 
-When you sign in, Google, Apple or Steam tells our server a stable account id for you (not your password, and we don't ask for your email). Our server stores that account id, a random player id, your nickname with its 4-digit tag (for example SNEAKY BANDIT#1234), your best stage, level and distance, the skin you wear, your friend list (players whose friend code you entered, or who entered yours), your gem balance, skins bought with gems, a record of your purchases (product and store transaction id) and when you last played. If you sign in with Apple we also keep a token from Apple so we can cancel it when you delete your account.
+When you sign in, Google, Apple or Steam tells our server a stable account id for you (not your password, and we don't ask for your email). Our server stores that account id, a random player id, your nickname with its 4-digit tag (for example SNEAKY BANDIT#1234), your best stage, level and distance, your best daily run of each day and your best run of each season (shown on the daily and season boards), any prizes you won, the skin you wear, your friend list (players whose friend code you entered, or who entered yours), your gem balance, skins bought with gems, a record of your purchases (product and store transaction id) and when you last played. If you sign in with Apple we also keep a token from Apple so we can cancel it when you delete your account.
 
 Other players can see your nickname with its tag, skin and scores; only you see your friend code and gems. The server sees your IP address to limit abuse but does not store it with your account.
 
 **Deleting your account:** in the game open Scores > Account > Delete account. This deletes everything listed above right away. You can also follow the steps at https://YOUR-API/account/delete.
+
+## Play statistics
+
+To learn how the game plays (how far runs get, whether players come back), the game sends a few anonymous events to our own server: when the game is opened, when a run starts and ends (with the stage, area, level and time), when the tutorial is finished, when the shop or scoreboard is opened, and when a purchase is made (only which product). They are stored with a random id made on your device, the platform and the game version. They are not linked to your account or name, and are not shared with anyone. Turn it off any time with **STATS ON/OFF** on the title screen; anything not yet sent is dropped.
 
 ## Ads
 
@@ -41,6 +45,7 @@ Retracoon is not directed at children under 13.
 | Purchase history | Yes (RevenueCat, our server) | No | App functionality | Gems and No Ads on every device |
 | Nickname, game scores, friend list | Yes (our server) | No (shown to other players in the game) | App functionality | Scoreboard |
 | User ids (Google, Apple or Steam account id; random player id) | Yes (our server) | No | App functionality, account management | Sign-in |
+| App interactions (play statistics: runs, stages, screens opened) | Yes (our server) | No | Analytics | Improving the game; not linked to the account |
 | Crash or diagnostic data | No | | | |
 | Personal info (real name, email, contacts) | No | | | |
 

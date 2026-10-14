@@ -1,4 +1,5 @@
 // Small helpers shared by the event files.
+import { rand } from '../../game/rng';
 import type { BlessingId, EventOption, RunAPI, StatKey } from '../types';
 
 export const pctHp = (r: RunAPI, f: number) => Math.max(1, Math.round(r.maxHp * f));
@@ -12,8 +13,8 @@ export const heal = (r: RunAPI, f: number) => {
   r.heal(n);
   return n;
 };
-export const roll = (p: number) => Math.random() < p;
-export const pick = <T>(a: readonly T[]): T => a[Math.floor(Math.random() * a.length)];
+export const roll = (p: number) => rand() < p;
+export const pick = <T>(a: readonly T[]): T => a[Math.floor(rand() * a.length)];
 
 // Options that cost health need the raccoon to survive paying it.
 export const canHurt = (f: number) => (r: RunAPI) => r.hp > r.maxHp * f;

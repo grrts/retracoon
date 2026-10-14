@@ -1,8 +1,9 @@
 // How to play: a few short pages shown before the first run, and from the title screen.
 import Phaser from 'phaser';
+import { track } from '../platform/track';
 import { W, H } from '../config';
 import { text, button, panel, BTN } from '../ui';
-import { sfx } from '../audio';
+import { sfx, menuMusic } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { RaccoonView } from '../game/views';
@@ -52,7 +53,7 @@ const PAGES: Page[] = [
   {
     title: 'BOSSES',
     color: COL.orange,
-    lines: ['EACH AREA HIDES A BOSS SOMEWHERE BETWEEN STAGE 4 AND 10.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
+    lines: ['EACH AREA HIDES A BOSS. THE FIRST WITHIN 2 TO 4 FIGHTS, LATER ONES DEEPER.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
     art: (s, x, y) => {
       s.coon(x - 60, y);
       foe(s, 'van', x + 30, y, 1);
@@ -104,6 +105,7 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   create() {
+    menuMusic(this);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
     if (!this.forced) button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
     this.input.keyboard?.on('keydown-RIGHT', () => this.go(1));
@@ -169,6 +171,7 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   private finish() {
+    if (!store.tutorialDone) track('tutorial_done');
     store.tutorialDone = true;
     save();
     this.scene.start(this.next);

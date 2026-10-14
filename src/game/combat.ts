@@ -15,6 +15,7 @@ import {
   maxHp,
   totalStat,
 } from './run';
+import { rand } from './rng';
 
 export type Statuses = Partial<Record<StatusKey, number>>;
 export type Who = 'p' | number; // 'p' = raccoon, number = foe uid
@@ -40,7 +41,7 @@ export function rollTier(stage: number): number {
   const p3 = Math.max(0, Math.min(0.5, (stage - 24) / 25));
   const p2 = Math.max(0, Math.min(0.5, (stage - 14) / 20));
   const p1 = Math.max(0, Math.min(0.6, (stage - 6) / 15));
-  const r = Math.random();
+  const r = rand();
   if (r < p3) return 3;
   if (r < p3 + p2) return 2;
   if (r < p3 + p2 + p1) return 1;
@@ -49,7 +50,7 @@ export function rollTier(stage: number): number {
 
 // Difficulty curves: exponential, never capped. Each point of danger (about one fight)
 // makes foes GROWTH times tougher, so every run ends eventually.
-export const GROWTH = 1.18;
+export const GROWTH = 1.16;
 export const HP_BASE = 1.3;
 export const DMG_BASE = 1.3;
 export function hpScale(d: number) {
@@ -57,6 +58,13 @@ export function hpScale(d: number) {
 }
 export function dmgScale(d: number) {
   return DMG_BASE * Math.pow(GROWTH, d - 1);
+}
+
+// Boss strength by fights cleared: lighter in the first few fights, full from BOSS_FULL on.
+export const BOSS_EASE_MIN = 0.45;
+export const BOSS_FULL = 6;
+export function bossEase(stage: number) {
+  return Math.min(1, BOSS_EASE_MIN + ((1 - BOSS_EASE_MIN) * stage) / BOSS_FULL);
 }
 
 export interface Foe {
@@ -139,7 +147,7 @@ export class Combat {
     this.cooldowns = run.skills.map(() => 0);
     this.hazard = opts.hazard;
     this.hazardIn = opts.hazard ? opts.hazard.every : 0;
-    foeIds.forEach((id, i) => this.addFoe(id, opts.elite && (i === 0 || Math.random() < 0.4), opts.tiers?.[i] ?? 0));
+    foeIds.forEach((id, i) => this.addFoe(id, opts.elite && (i === 0 || rand() < 0.4), opts.tiers?.[i] ?? 0));
   }
 
   // ---------------------------------------------------------------- setup
@@ -148,7 +156,9 @@ export class Combat {
     const def = enemies.get(id);
     if (!def) return null;
     const T = TIERS[def.boss ? 0 : tier];
-    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp);
+    // Bosses can hide as early as the second fight, so early ones come in lighter.
+    const ease = def.boss ? bossEase(this.stage) : 1;
+    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease);
     const f: Foe = {
       uid: uidSeq++,
       def,
@@ -158,7 +168,7 @@ export class Combat {
       status: {},
       intent: def.moves[0],
       moves: def.moves,
-      dmgMul: dmgScale(this.danger) * T.dmg,
+      dmgMul: dmgScale(this.danger) * T.dmg * (def.boss ? Math.sqrt(ease) : 1),
       armor: Math.round((def.armor ?? 0) * (1 + this.danger * 0.03)),
       regen: Math.round((def.regen ?? 0) * hpScale(this.danger)),
       tier: def.boss ? 0 : tier,
@@ -168,7 +178,7 @@ export class Combat {
     };
     // Higher tiers learn a trick.
     if (f.tier >= 2) {
-      const trick = Math.floor(Math.random() * 3);
+      const trick = Math.floor(rand() * 3);
       if (trick === 0) f.armor += 2 + Math.round(this.danger * 0.05);
       else if (trick === 1) f.regen += Math.round(f.maxHp * 0.05);
       else f.status.thorns = 2 + Math.round(this.danger * 0.05);
@@ -176,7 +186,7 @@ export class Combat {
     if (f.tier >= 3) f.regen += Math.round(f.maxHp * 0.04);
     if (elite && !def.boss) {
       const mods: EliteMod[] = ['tough', 'brutal', 'spiky', 'armored', 'swift'];
-      f.elite = mods[Math.floor(Math.random() * mods.length)];
+      f.elite = mods[Math.floor(rand() * mods.length)];
       f.maxHp = f.hp = Math.round(f.hp * (f.elite === 'tough' ? 2.2 : 1.6));
       if (f.elite === 'brutal') f.dmgMul *= 1.5;
     }
@@ -238,7 +248,7 @@ export class Combat {
       }
     }
     if (hasBlessing(this.run, 'friend') && this.alive().length) {
-      const t = this.alive()[Math.floor(Math.random() * this.alive().length)];
+      const t = this.alive()[Math.floor(rand() * this.alive().length)];
       this.ev.push({ t: 'act', who: 'p', name: 'CRITTER PAL BITES', kind: 'laser' });
       this.damageFoe(t, attackPower(this.run) * 0.6, false, false);
     }
@@ -299,10 +309,10 @@ export class Combat {
       const power = attackPower(this.run, e.scale ?? 'str');
       const hits = e.hits ?? 1;
       for (let h = 0; h < hits; h++) {
-        const list = def.target === 'random' ? this.alive().sort(() => Math.random() - 0.5).slice(0, 1) : targets();
+        const list = def.target === 'random' ? this.alive().sort(() => rand() - 0.5).slice(0, 1) : targets();
         if (!list.length) break;
         for (const f of list) {
-          const crit = !!e.crit || Math.random() < critChance(this.run) || (!!this.fx.firstCrit && !this.firstHitDone);
+          const crit = !!e.crit || rand() < critChance(this.run) || (!!this.fx.firstCrit && !this.firstHitDone);
           this.firstHitDone = true;
           const raw = power * e.dmg * this.outMul('p') * (crit ? 1.75 + computeBonus(this.run).bonus.critMult : 1);
           const dealt = this.damageFoe(f, raw, crit, true);
@@ -325,7 +335,7 @@ export class Combat {
       for (const f of this.alive()) this.damageFoe(f, this.fx.boomerang, false, false);
     }
     if (this.fx.flies && this.alive().length) {
-      const t = this.alive()[Math.floor(Math.random() * this.alive().length)];
+      const t = this.alive()[Math.floor(rand() * this.alive().length)];
       this.ev.push({ t: 'act', who: 'p', name: 'FLY SWARM', kind: 'flies' });
       this.damageFoe(t, this.fx.flies, false, false);
     }
@@ -431,7 +441,7 @@ export class Combat {
     });
     const list = pool.length ? pool : moves.filter((m) => (m.weight ?? 1) > 0);
     const total = list.reduce((a, m) => a + (m.weight ?? 1), 0);
-    let r = Math.random() * total;
+    let r = rand() * total;
     for (const m of list) {
       r -= m.weight ?? 1;
       if (r <= 0) return m;
@@ -455,7 +465,7 @@ export class Combat {
   }
 
   private foeHitsPlayer(f: Foe, base: number) {
-    if (Math.random() < dodgeChance(this.run)) {
+    if (rand() < dodgeChance(this.run)) {
       this.ev.push({ t: 'dodge', who: 'p' });
       if (this.fx.dodgeStrike) this.damageFoe(f, this.fx.dodgeStrike, false, false);
       return;
@@ -489,7 +499,7 @@ export class Combat {
   // Returns damage dealt to hp.
   damageFoe(f: Foe, raw: number, crit: boolean, dodgeable: boolean): number {
     if (f.dead) return 0;
-    if (dodgeable && f.def.dodge && Math.random() < Math.max(0, f.def.dodge - accuracy(this.run) * f.def.dodge)) {
+    if (dodgeable && f.def.dodge && rand() < Math.max(0, f.def.dodge - accuracy(this.run) * f.def.dodge)) {
       this.ev.push({ t: 'dodge', who: f.uid });
       return 0;
     }
@@ -534,7 +544,7 @@ export class Combat {
     if (!others.length) return;
     if (this.fx.splash) for (const o of others) this.damageFoe(o, (dealt * this.fx.splash) / 100, false, false);
     if (this.fx.chain) {
-      const o = others[Math.floor(Math.random() * others.length)];
+      const o = others[Math.floor(rand() * others.length)];
       if (!o.dead) {
         this.ev.push({ t: 'msg', who: o.uid, text: 'ZAP!', color: 0x73eff7 });
         this.damageFoe(o, (dealt * this.fx.chain) / 100, false, false);
@@ -648,10 +658,10 @@ export class Combat {
     const everyone: Who[] = ['p', ...this.alive().map((f) => f.uid)];
     const hitWho = (t: Who, n: number) => (t === 'p' ? this.hurtPlayerDirect(n) : this.damageFoe(this.foe(t)!, n, false, false));
     if (h.kind === 'pot') {
-      const t = everyone[Math.floor(Math.random() * everyone.length)];
+      const t = everyone[Math.floor(rand() * everyone.length)];
       hitWho(t, t === 'p' ? pow : pow * 2);
     } else if (h.kind === 'lightning') {
-      const t = everyone[Math.floor(Math.random() * everyone.length)];
+      const t = everyone[Math.floor(rand() * everyone.length)];
       hitWho(t, t === 'p' ? pow * 2 : pow * 3);
     } else if (h.kind === 'quake') {
       for (const t of everyone) hitWho(t, t === 'p' ? Math.ceil(pow * 0.6) : pow);

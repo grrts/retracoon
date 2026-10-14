@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { text, panel, measure } from '../ui';
-import type { RunState } from '../game/run';
+import { roll, type RunState } from '../game/run';
 
 export interface OverlayData {
   run: RunState;
@@ -17,6 +17,8 @@ export class Overlay<D extends OverlayData = OverlayData> extends Phaser.Scene {
 
   init(data: D) {
     this.d = data;
+    // Daily runs: every player gets the same cards, roads and shop on the same stage.
+    if (data?.run) roll(data.run, this.scene.key);
   }
 
   protected backdrop(alpha = 0.8) {

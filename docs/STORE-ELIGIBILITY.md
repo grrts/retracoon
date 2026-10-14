@@ -8,7 +8,7 @@ Checked October 2026 against Google Play, the App Store and Steam, for the build
 |---|---|
 | **AdMob: no interstitials on app load.** AdMob says "Do not place interstitial ads on app load" and recommends App Open ads for launch. | **Fixed.** The launch ad is now an App Open ad, shown after a note that an ad is coming. Create an *App open* ad unit (not Interstitial) in AdMob. |
 | **Account deletion.** Apps with accounts need an in-app deletion path *and* a web link where users can request deletion. | **Fixed.** In app: Scores > Account > Delete account. Web: `/account/delete` on the API server. **You:** set `SUPPORT_EMAIL` on the server and put `https://<api>/account/delete` in Play Console > Data safety. |
-| **Data safety form** must match what the app collects. | **You:** fill it in from the table in [privacy-policy.md](privacy-policy.md) (account ids, nickname, scores, purchase history, ad id). |
+| **Data safety form** must match what the app collects. | **You:** fill it in from the table in [privacy-policy.md](privacy-policy.md) (account ids, nickname, scores, purchase history, ad id, and app interactions for analytics, not linked to the user). |
 | **Payments for digital goods** use Google Play Billing. | Pass. RevenueCat uses Play Billing. |
 | **Target API level.** | Pass. `targetSdkVersion = 36`. |
 | **Families / children.** A cartoon raccoon can look aimed at kids; if Play decides the app targets children, only Families-certified ad SDKs and no personalized ads are allowed. | **You:** in Target audience choose 13+ and don't market to kids. The privacy policy already says the game isn't directed at children. |

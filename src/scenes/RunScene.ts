@@ -18,17 +18,20 @@ import {
   tickBlessings,
   capsForRun,
   BLESSING_INFO,
+  roll,
 } from '../game/run';
+import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
 import { text, panel, button, wait, Button, Floaters, BTN, LINE_H } from '../ui';
-import { sfx } from '../audio';
+import { sfx, areaTrack, bossTrack } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { ensureEnemy, enemyKey } from '../gfx/textures';
 import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
-import { submitBest } from '../platform/online';
+import { submitRun } from '../platform/online';
+import { track } from '../platform/track';
 
 const PX_PER_M = 6;
 const COON_X = 72;
@@ -104,7 +107,16 @@ export class RunScene extends Phaser.Scene {
   create(data: { run?: RunState }) {
     this.run = data.run ?? newRun();
     store.runs++;
+    if (this.run.mode === 'daily') {
+      if (store.dailyDay !== this.run.day) {
+        store.dailyDay = this.run.day!;
+        store.dailyBest = null;
+        store.dailyRuns = 0;
+      }
+      store.dailyRuns++;
+    }
     save();
+    track('run_start', { mode: this.run.mode, level: this.run.level });
     this.views.clear();
     this.ui = [];
     this.skillBtns = [];
@@ -130,7 +142,7 @@ export class RunScene extends Phaser.Scene {
     this.buildTip();
     this.applyLight();
 
-    sfx.playMusic('run');
+    sfx.playMusic(areaTrack(this.theme.id));
     const kb = this.input.keyboard!;
     kb.on('keydown', (e: KeyboardEvent) => this.onKey(e));
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.autoPause, this);
@@ -197,7 +209,8 @@ export class RunScene extends Phaser.Scene {
     g.fillStyle(0x333c57, 1).fillRect(lx + 1, 6, 32, 4);
     g.fillStyle(0xffcd75, 1).fillRect(lx + 1, 6, Math.round((32 * r.xp) / xpToLevel(r.level)), 4);
     this.distText.setText(`${Math.floor(r.distance)}M`);
-    this.stageText.setText(`STAGE ${r.stage + 1}  ${this.theme.name}`);
+    this.stageText.setText(`${r.mode === 'daily' ? 'DAILY  ' : ''}STAGE ${r.stage + 1}  ${this.theme.name}`);
+    this.stageText.setTint(r.mode === 'daily' ? COL.lime : COL.light);
     this.shinyText.setText(`${r.shinies}`);
     g.fillStyle(0x94b0c2, 1).fillRect(W - 11, 3, 3, 9).fillRect(W - 6, 3, 3, 9);
     // blessings and curses
@@ -301,13 +314,14 @@ export class RunScene extends Phaser.Scene {
 
   private arrive() {
     const r = this.run;
+    roll(r, 'arrive');
     if (r.areaStage + 1 >= r.bossAt) return this.approach('boss');
     // A road stop every two or three fights.
-    if (r.sinceStop >= 3 || (r.sinceStop >= 2 && Math.random() < 0.55)) {
+    if (r.sinceStop >= 3 || (r.sinceStop >= 2 && rand() < 0.55)) {
       r.sinceStop = 0;
       return this.runSteps([{ key: 'Fork', data: { run: this.run } }], () => this.walk(1.2));
     }
-    const elite = r.eliteNext || Math.random() < eliteChance(r);
+    const elite = r.eliteNext || rand() < eliteChance(r);
     this.approach(elite ? 'elite' : 'fight');
   }
 
@@ -322,10 +336,12 @@ export class RunScene extends Phaser.Scene {
     const r = this.run;
     r.area++;
     r.areaStage = 0;
-    r.bossAt = rollBossAt();
+    roll(r, 'area');
+    r.bossAt = rollBossAt(r.area);
     r.theme = nextTheme(r);
     r.themesVisited.push(r.theme);
     this.theme = themes.get(r.theme) ?? this.theme;
+    track('area_reached', { area: r.area + 1, theme: r.theme, stage: r.stage, mode: r.mode });
     this.cameras.main.fadeOut(400, 26, 28, 44);
     this.cameras.main.once('camerafadeoutcomplete', () => {
       this.world.setTheme(this.theme);
@@ -334,7 +350,7 @@ export class RunScene extends Phaser.Scene {
       this.refreshHud();
       this.cameras.main.fadeIn(400, 26, 28, 44);
       this.banner(this.theme.name, `AREA ${r.area + 1}  STAGE ${r.stage + 1}`);
-      sfx.playMusic('run');
+      sfx.playMusic(areaTrack(this.theme.id));
       this.time.delayedCall(700, () => this.walk());
     });
   }
@@ -356,6 +372,7 @@ export class RunScene extends Phaser.Scene {
     this.pendingBoss = boss;
     foes.forEach((id, i) => ensureEnemy(this, id, tiers[i] ?? 0));
 
+    roll(this.run, 'combat');
     this.combat = new Combat(this.run, foes, danger(this.run), {
       elite,
       boss,
@@ -368,7 +385,7 @@ export class RunScene extends Phaser.Scene {
     const newTier = Math.max(0, ...this.combat.foes.map((f) => f.tier));
     if (boss) {
       sfx.warn();
-      sfx.playMusic('boss');
+      sfx.playMusic(bossTrack(this.theme.id));
       this.cameras.main.shake(400, 0.006);
       this.floats.add(COON_X, GROUND_Y - 40, '?!', COL.red, true);
     }
@@ -419,11 +436,20 @@ export class RunScene extends Phaser.Scene {
     panel(g, px, py, pw, H - py - 3, 0x29366f, 0x1a1c2c, 0x3b5dc9);
     const caps = capsForRun(this.run);
     const lines = [
-      ['RETREAT AND END THIS RUN?', COL.yellow],
-      [`KEEP: LV ${this.run.level} AND YOUR STATS. +${caps} CAPS`, COL.lime],
-      ['LOSE: ITEMS, SKILLS AND SHINIES', COL.orange],
-      ['NEXT RUN STARTS FROM THE STREET', COL.light],
-    ] as const;
+      ...(this.run.mode === 'daily'
+        ? [
+            ['END YOUR DAILY RUN HERE?', COL.yellow],
+            [`STAGE ${this.run.stage} GOES ON TODAY'S BOARD`, COL.lime],
+            [`+${caps} CAPS`, COL.lime],
+            ['YOUR NORMAL RACCOON IS NOT AFFECTED', COL.light],
+          ]
+        : [
+            ['RETREAT AND END THIS RUN?', COL.yellow],
+            [`KEEP: LV ${this.run.level} AND YOUR STATS. +${caps} CAPS`, COL.lime],
+            ['LOSE: ITEMS, SKILLS AND SHINIES', COL.orange],
+            ['NEXT RUN STARTS FROM THE STREET', COL.light],
+          ]),
+    ] as [string, number][];
     const ts = lines.map(([s, c], i) => text(this, W / 2, py + 9 + i * LINE_H, s, { color: c, maxWidth: pw - 10, maxLines: 1 }).setDepth(51));
     const yes = button(this, W / 2 + pw / 4, H - 13, pw / 2 - 10, 18, 'RETREAT', () => this.retreat(), { depth: 52 });
     const no = button(
@@ -444,28 +470,40 @@ export class RunScene extends Phaser.Scene {
 
   private retreat() {
     this.clearCombatUi();
-    store.kept = { level: this.run.level, stats: { ...this.run.stats }, statPoints: this.run.statPoints };
+    // A daily run is its own fresh raccoon: it never banks or wipes the normal one.
+    if (this.run.mode !== 'daily') store.kept = { level: this.run.level, stats: { ...this.run.stats }, statPoints: this.run.statPoints };
     this.finish('retreat');
   }
 
   private finish(reason: 'death' | 'retreat') {
     const r = this.run;
     const d = Math.floor(r.distance);
-    const newBest = d > store.bestDistance;
-    if (newBest) store.bestDistance = d;
-    store.bestStage = Math.max(store.bestStage, r.stage);
-    store.bestLevel = Math.max(store.bestLevel, r.level);
-    if (reason === 'death') store.kept = null;
+    const daily = r.mode === 'daily';
+    const timeMs = Date.now() - r.startedAt;
+    let newBest = false;
+    if (daily) {
+      // Further, or as far and faster, beats this device's best daily run today.
+      const b = store.dailyBest;
+      newBest = !b || r.stage > b.stage || (r.stage === b.stage && timeMs < b.timeMs);
+      if (newBest) store.dailyBest = { stage: r.stage, timeMs };
+    } else {
+      newBest = d > store.bestDistance;
+      if (newBest) store.bestDistance = d;
+      store.bestStage = Math.max(store.bestStage, r.stage);
+      store.bestLevel = Math.max(store.bestLevel, r.level);
+      if (reason === 'death') store.kept = null;
+    }
     store.lastRunGear = Object.entries(r.gear)
       .filter(([, o]) => !!o)
       .map(([slot, o]) => ({ slot, id: o!.id, lvl: o!.lvl }));
     const caps = capsForRun(r);
     addCaps(caps);
     save();
-    void submitBest();
+    track('run_end', { mode: r.mode, reason, stage: r.stage, area: r.area + 1, level: r.level, bosses: r.bosses, theme: r.theme, time_s: Math.round(timeMs / 1000) });
+    const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin });
     sfx.stopMusic();
     this.scene.pause();
-    this.scene.launch('GameOver', { run: r, reason, newBest, caps });
+    this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent });
   }
 
   // ---------------------------------------------------------------- foes on screen
@@ -1022,6 +1060,7 @@ export class RunScene extends Phaser.Scene {
     r.hp = c.hp;
     const boss = this.pendingBoss;
     const elite = this.pendingElite;
+    roll(r, 'after');
     const { xp, shinies: sh } = fightRewards(r, c.killed);
     r.shinies += sh;
     r.shiniesEarned += sh;
@@ -1034,6 +1073,7 @@ export class RunScene extends Phaser.Scene {
       r.bosses++;
       store.bossKills++;
       save();
+      track('boss_beaten', { area: r.area + 1, stage: r.stage, mode: r.mode });
     }
     if (elite) {
       r.elites++;
@@ -1049,13 +1089,13 @@ export class RunScene extends Phaser.Scene {
     this.refreshHud();
     this.views.forEach((v) => (v.c.destroy(), v.shadow.destroy()));
     this.views.clear();
-    if (boss) sfx.playMusic('run');
+    if (boss) sfx.playMusic(areaTrack(this.theme.id));
     await wait(this, 900);
 
     const steps: { key: string; data: object }[] = [];
     if (boss) steps.push({ key: 'Reward', data: { run: r, title: 'BOSS LOOT', min: 2 } });
     else if (elite) steps.push({ key: 'Reward', data: { run: r, title: 'ELITE STASH', min: 2 } });
-    else if (Math.random() < 0.15) {
+    else if ((roll(r, 'drop'), rand() < 0.15)) {
       const it = randomItem(r, 0, 2);
       if (it) steps.push({ key: 'Reward', data: { run: r, title: 'A CRITTER DROPPED THIS', fixed: [it.id] } });
     }

@@ -1,7 +1,14 @@
 // Tiny chiptune synth: every sound is generated with WebAudio, no files.
+import type Phaser from 'phaser';
 import { save, store } from './save';
+import { activeSeason } from './world/calendar';
+import { MusicPlayer } from './music/player';
+import { normalizeTrack, resolveTrack } from './music/tracks';
 
 type Wave = OscillatorType;
+
+// Music sits well under the sound effects (sfxBus is 0.55).
+const MUSIC_LEVEL = 0.3;
 
 class Synth {
   ctx: AudioContext | null = null;
@@ -12,9 +19,9 @@ class Synth {
   muted = store.muted;
   private lastPlay: Record<string, number> = {};
   private musicTimer: number | undefined;
-  private step = 0;
-  private nextTime = 0;
-  private track: 'run' | 'boss' | null = null;
+  private player: MusicPlayer | null = null;
+  private track: string | null = null;
+  private wanted: string | null = null;
   tempo = 1;
 
   unlock() {
@@ -29,7 +36,7 @@ class Synth {
       this.sfxBus.gain.value = 0.55;
       this.sfxBus.connect(this.master);
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = 0.22;
+      this.musicBus.gain.value = MUSIC_LEVEL;
       this.musicBus.connect(this.master);
       const len = this.ctx.sampleRate * 0.5;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -37,6 +44,8 @@ class Synth {
       for (let i = 0; i < len; i++) d[i] = Math.random() * 2 - 1;
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+    // A track asked for before the first tap starts now.
+    if (this.wanted && !this.player) this.playMusic(this.wanted);
   }
 
   setMuted(m: boolean) {
@@ -157,62 +166,69 @@ class Synth {
     this.noise(0.5, 0.4, 1200);
   }
 
-  // ---- music: a 32-step loop with bass, arp and hats ----
-  playMusic(track: 'run' | 'boss') {
+  // ---- music: data-driven songs (src/music), one per area plus a title theme ----
+
+  /**
+   * Play a track: 'title', 'area:<themeId>' or 'boss:<themeId>' (see areaTrack /
+   * bossTrack; the old 'run' / 'boss' mean the street tracks). Asking for the track
+   * that is already playing does nothing; another track fades the current one out.
+   * Before the audio is unlocked by a tap, the wish is remembered and starts on unlock().
+   */
+  playMusic(id: string) {
+    id = normalizeTrack(id);
+    this.wanted = id;
     if (!this.ctx) return;
-    if (this.track === track && this.musicTimer !== undefined) return;
-    this.stopMusic();
-    this.track = track;
-    this.step = 0;
-    this.nextTime = this.ctx.currentTime + 0.05;
-    this.musicTimer = window.setInterval(() => this.schedule(), 40);
+    if (this.track === id && this.player) return;
+    this.fadeOutMusic();
+    this.track = id;
+    const season = id === 'title' ? activeSeason()?.id : null;
+    const ctx = this.ctx;
+    this.player = new MusicPlayer(ctx, this.musicBus, resolveTrack(id, season), this.noiseBuf, () => this.tempo);
+    this.player.pump(ctx.currentTime + 0.15);
+    if (this.musicTimer === undefined) this.musicTimer = window.setInterval(() => this.player?.pump(ctx.currentTime + 0.15), 40);
   }
 
   stopMusic() {
+    this.fadeOutMusic();
     if (this.musicTimer !== undefined) window.clearInterval(this.musicTimer);
     this.musicTimer = undefined;
     this.track = null;
+    this.wanted = null;
   }
 
-  private schedule() {
-    if (!this.ctx || !this.track) return;
-    const boss = this.track === 'boss';
-    const stepDur = (boss ? 0.105 : 0.125) / this.tempo;
-    while (this.nextTime < this.ctx.currentTime + 0.15) {
-      const s = this.step % 32;
-      const when = this.nextTime - this.ctx.currentTime;
-      // A minor-ish progression: Am F C G (boss: Am Bb Am E)
-      const roots = boss ? [110, 116.5, 110, 82.4] : [110, 87.3, 130.8, 98];
-      const root = roots[Math.floor(s / 8)];
-      if (s % 2 === 0) this.tone(root, stepDur * 1.6, 'triangle', 0.5, undefined, when, this.musicBus);
-      const arp = [1, 1.5, 2, 2.5198, 2, 1.5, 3, 2];
-      if (!boss || s % 2 === 1) this.tone(root * 2 * arp[s % 8], stepDur * 0.9, 'square', 0.12, undefined, when, this.musicBus);
-      if (s % 4 === 2 || (boss && s % 2 === 1)) this.hat(when);
-      if (s % 8 === 0) this.kick(when);
-      this.nextTime += stepDur;
-      this.step++;
-    }
+  /** The track currently playing (normalised id), if any. */
+  get currentTrack() {
+    return this.track;
   }
 
-  private hat(when: number) {
-    if (!this.ctx) return;
-    const t = this.ctx.currentTime + when;
-    const src = this.ctx.createBufferSource();
-    src.buffer = this.noiseBuf;
-    const f = this.ctx.createBiquadFilter();
-    f.type = 'highpass';
-    f.frequency.value = 6000;
-    const g = this.ctx.createGain();
-    g.gain.setValueAtTime(0.15, t);
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.04);
-    src.connect(f).connect(g).connect(this.musicBus);
-    src.start(t);
-    src.stop(t + 0.05);
+  private fadeOutMusic() {
+    const p = this.player;
+    if (!p) return;
+    this.player = null;
+    p.fade(0.3);
+    window.setTimeout(() => p.dispose(), 800);
   }
+}
 
-  private kick(when: number) {
-    this.tone(150, 0.12, 'sine', 0.7, 40, when, this.musicBus);
-  }
+/**
+ * For menu scenes: play the title theme (a no-op if it is already on) and unlock
+ * audio on the first tap or key press, so the music can start before PLAY is hit.
+ */
+export function menuMusic(scene: Phaser.Scene) {
+  sfx.playMusic('title');
+  const unlock = () => sfx.unlock();
+  scene.input.once('pointerup', unlock);
+  scene.input.keyboard?.once('keydown', unlock);
+}
+
+/** Track id for an area theme's music. */
+export function areaTrack(themeId: string) {
+  return `area:${themeId}`;
+}
+
+/** Track id for the boss fight in an area theme. */
+export function bossTrack(themeId: string) {
+  return `boss:${themeId}`;
 }
 
 export const sfx = new Synth();

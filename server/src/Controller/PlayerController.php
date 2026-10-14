@@ -5,13 +5,21 @@ namespace App\Controller;
 use App\Dto\ProfileInput;
 use App\Dto\RunResult;
 use App\Dto\Spend;
+use App\Entity\DailyScore;
 use App\Entity\Player;
+use App\Entity\Prize;
+use App\Entity\SeasonScore;
 use App\Entity\Purchase;
 use App\Entity\Session;
+use App\Repository\DailyScoreRepository;
 use App\Repository\PlayerRepository;
+use App\Repository\PrizeRepository;
+use App\Repository\SeasonScoreRepository;
 use App\Service\AppleTokens;
 use App\Service\Names;
-use App\Service\Present;
+use App\Service\Periods;
+use App\Service\Prizes;
+use App\Service\Standing;
 use App\Service\Tags;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -33,14 +41,18 @@ final class PlayerController extends AbstractController
         private readonly EntityManagerInterface $em,
         private readonly PlayerRepository $players,
         private readonly Tags $tags,
+        private readonly Standing $standing,
+        private readonly Periods $periods,
     ) {
     }
 
     #[Route('/me', methods: ['GET'])]
     #[IsGranted('ROLE_PLAYER')]
-    public function me(#[CurrentUser] Player $me): JsonResponse
+    public function me(#[CurrentUser] Player $me, Prizes $prizes): JsonResponse
     {
-        return $this->json(['player' => Present::me($me, $this->players->rankOf($me))]);
+        $prizes->settle();
+
+        return $this->json(['player' => $this->standing->me($me)]);
     }
 
     #[Route('/me', methods: ['PATCH'])]
@@ -59,26 +71,66 @@ final class PlayerController extends AbstractController
         }
         $this->em->flush();
 
-        return $this->json(['player' => Present::me($me, $this->players->rankOf($me))]);
+        return $this->json(['player' => $this->standing->me($me)]);
     }
 
     /**
      * End of a run. Bests only go up, so sending an old or worse result is harmless.
+     * A normal run also counts for this season; a daily run only for its day's board,
+     * and only while that day is open (today, or yesterday within the grace period).
      */
     #[Route('/me/runs', methods: ['POST'])]
     #[IsGranted('ROLE_PLAYER')]
-    public function run(#[CurrentUser] Player $me, #[MapRequestPayload] RunResult $run, RateLimiterFactoryInterface $runLimiter): JsonResponse
+    public function run(#[CurrentUser] Player $me, #[MapRequestPayload] RunResult $run, RateLimiterFactoryInterface $runLimiter, DailyScoreRepository $daily, SeasonScoreRepository $seasons): JsonResponse
     {
         if (!$runLimiter->create($me->getId())->consume()->isAccepted()) {
             throw new TooManyRequestsHttpException(null, 'Slow down.');
         }
-        $improved = $me->recordRun($run->stage, $run->level, $run->distance);
+        $now = $this->periods->now();
+        $improved = false;
+        $counted = true;
+        if ('daily' === $run->mode) {
+            $day = $run->day ?? $this->periods->today();
+            $counted = \in_array($day, [$this->periods->today(), $this->periods->lateDay()], true);
+            if ($counted) {
+                $score = $daily->forPlayer($me, $day);
+                if (!$score) {
+                    $score = new DailyScore($me, $day);
+                    $this->em->persist($score);
+                }
+                $improved = $score->record($run->stage, $run->level, $run->distance, $run->timeMs, $now);
+            }
+        } elseif ('best' === $run->mode) {
+            $improved = $me->recordRun($run->stage, $run->level, $run->distance);
+        } else {
+            $improved = $me->recordRun($run->stage, $run->level, $run->distance);
+            $season = $this->periods->season();
+            $score = $seasons->forPlayer($me, $season);
+            if (!$score) {
+                $score = new SeasonScore($me, $season);
+                $this->em->persist($score);
+            }
+            $improved = $score->record($run->stage, $run->level, $run->distance, $now) || $improved;
+        }
         if (null !== $run->skin) {
             $me->setSkin($run->skin);
         }
         $this->em->flush();
 
-        return $this->json(['improved' => $improved, 'player' => Present::me($me, $this->players->rankOf($me))]);
+        return $this->json(['improved' => $improved, 'counted' => $counted, 'player' => $this->standing->me($me)]);
+    }
+
+    /** The game showed these prizes ("YOU WON YESTERDAY'S DAILY RUN"). */
+    #[Route('/me/prizes/seen', methods: ['POST'])]
+    #[IsGranted('ROLE_PLAYER')]
+    public function prizesSeen(#[CurrentUser] Player $me, PrizeRepository $prizes): JsonResponse
+    {
+        foreach ($prizes->unseen($me) as $p) {
+            $p->markSeen($this->periods->now());
+        }
+        $this->em->flush();
+
+        return $this->json(['player' => $this->standing->me($me)]);
     }
 
     /**
@@ -94,7 +146,7 @@ final class PlayerController extends AbstractController
         }
         $this->em->flush();
 
-        return $this->json(['player' => Present::me($me, $this->players->rankOf($me))]);
+        return $this->json(['player' => $this->standing->me($me)]);
     }
 
     /** Deletes the player, their scores, friendships, purchases and sign-ins. */
@@ -107,7 +159,7 @@ final class PlayerController extends AbstractController
             $apple->revoke($t);
         }
         // Explicit as well as ON DELETE CASCADE, for databases that don't enforce it.
-        foreach ([Session::class, Purchase::class] as $class) {
+        foreach ([Session::class, Purchase::class, DailyScore::class, SeasonScore::class, Prize::class] as $class) {
             $this->em->createQuery("DELETE FROM $class x WHERE x.player = :p")->setParameter('p', $me)->execute();
         }
         $this->em->remove($me);

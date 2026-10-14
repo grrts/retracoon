@@ -30,6 +30,23 @@ export interface Store {
   // online scoreboard
   playerName: string;
   bestSubmitted: number; // best stage already sent to the scoreboard
+  pendingRuns: PendingRun[]; // finished runs waiting to be sent (phone was offline)
+  // daily run
+  dailyDay: string; // the UTC day of dailyBest
+  dailyBest: { stage: number; timeMs: number } | null; // this device's best daily run that day
+  dailyRuns: number; // attempts that day
+  // gameplay tracking (see platform/track.ts)
+  trackingOff: boolean;
+}
+
+export interface PendingRun {
+  mode: 'normal' | 'daily';
+  day: string | null;
+  stage: number;
+  level: number;
+  distance: number;
+  timeMs: number;
+  skin: string;
 }
 
 const KEY = 'retracoon.v3';
@@ -59,6 +76,11 @@ function base(): Store {
     tipsSeen: [],
     playerName: '',
     bestSubmitted: 0,
+    pendingRuns: [],
+    dailyDay: '',
+    dailyBest: null,
+    dailyRuns: 0,
+    trackingOff: false,
   };
 }
 
