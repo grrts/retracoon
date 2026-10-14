@@ -15,6 +15,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
   private rows: { k: StatKey; val: Phaser.GameObjects.BitmapText; plus: ReturnType<typeof button>; minus: ReturnType<typeof button> }[] = [];
   private pointsText!: Phaser.GameObjects.BitmapText;
   private derived!: Phaser.GameObjects.BitmapText;
+  private ok: ReturnType<typeof button> | null = null;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private taken = false;
   // What keys and the pad do on the current step.
@@ -69,8 +70,9 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     });
     this.derived = text(this, W / 2, top + rowH * 5 + 10, '', { color: COL.ice, maxWidth: W - 16, maxLines: 1 });
     this.layer.push(this.derived);
-    const ok = button(this, W / 2, H - 16, 120, 22, 'CONFIRM', () => this.confirmStats(), { ...BTN.red, depth: 5 });
-    this.layer.push(ok.c);
+    // Every point must be spent: CONFIRM only unlocks at zero.
+    this.ok = button(this, W / 2, H - 16, 120, 22, 'CONFIRM', () => this.confirmStats(), { ...BTN.red, depth: 5 });
+    this.layer.push(this.ok.c);
     this.keys = { confirm: () => this.confirmStats() };
     this.refresh();
   }
@@ -88,7 +90,8 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
 
   private refresh() {
     const r = this.d.run;
-    this.pointsText.setText(r.statPoints > 0 ? `${r.statPoints} POINTS TO SPEND` : 'ALL POINTS SPENT');
+    this.pointsText.setText(r.statPoints > 0 ? `SPEND ${r.statPoints} MORE POINT${r.statPoints > 1 ? 'S' : ''}` : 'ALL POINTS SPENT');
+    this.ok?.setEnabled(r.statPoints <= 0);
     for (const row of this.rows) {
       const bonus = totalStat(r, row.k) - r.stats[row.k];
       row.val.setText(`${r.stats[row.k]}${bonus ? `+${bonus}` : ''}`);
@@ -102,7 +105,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
   }
 
   private confirmStats() {
-    if (!this.pointsText?.active) return;
+    if (!this.pointsText?.active || this.d.run.statPoints > 0) return;
     sfx.upgrade();
     this.clearLayer();
     this.rows = [];
