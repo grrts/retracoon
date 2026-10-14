@@ -23,7 +23,8 @@ import {
 import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
-import { text, panel, button, wait, Button, Floaters, BTN, LINE_H } from '../ui';
+import { text, panel, button, wait, Button, Floaters, BTN, LINE_H, shake } from '../ui';
+import { onAction } from '../input';
 import { sfx, areaTrack, bossTrack } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
@@ -90,7 +91,6 @@ export class RunScene extends Phaser.Scene {
   private arrow!: Phaser.GameObjects.Image;
   private ui: Phaser.GameObjects.GameObject[] = [];
   private skillBtns: SkillBtn[] = [];
-  private endBtn: Button | null = null;
   private apG: Phaser.GameObjects.Graphics | null = null;
   private hazardText: Phaser.GameObjects.BitmapText | null = null;
   private busy = false;
@@ -143,8 +143,10 @@ export class RunScene extends Phaser.Scene {
     this.applyLight();
 
     sfx.playMusic(areaTrack(this.theme.id));
-    const kb = this.input.keyboard!;
-    kb.on('keydown', (e: KeyboardEvent) => this.onKey(e));
+    onAction(this, ['pause', 'back'], () => this.pause());
+    onAction(this, 'bag', () => this.inspect());
+    onAction(this, ['slot1', 'slot2', 'slot3', 'slot4'], (a) => this.useSkill(Number(a.slice(4)) - 1));
+    onAction(this, ['targetPrev', 'targetNext'], (a) => this.cycleTarget(a === 'targetPrev' ? -1 : 1));
     this.game.events.on(Phaser.Core.Events.HIDDEN, this.autoPause, this);
     this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.game.events.off(Phaser.Core.Events.HIDDEN, this.autoPause, this));
     this.events.on(Phaser.Scenes.Events.RESUME, () => {
@@ -386,7 +388,7 @@ export class RunScene extends Phaser.Scene {
     if (boss) {
       sfx.warn();
       sfx.playMusic(bossTrack(this.theme.id));
-      this.cameras.main.shake(400, 0.006);
+      shake(this, 400, 0.006);
       this.floats.add(COON_X, GROUND_Y - 40, '?!', COL.red, true);
     }
     this.time.delayedCall(boss ? 1000 : 700, () => {
@@ -658,7 +660,7 @@ export class RunScene extends Phaser.Scene {
   private beginFight() {
     this.clearCombatUi();
     this.foeLabels(true);
-    this.hint('combat', 'TAP SKILLS TO SPEND AP. THE ICON OVER A FOE SHOWS ITS NEXT MOVE.');
+    this.hint('combat', 'SPEND ALL YOUR AP ON SKILLS. THE ICON OVER A FOE SHOWS ITS NEXT MOVE.');
     this.run.fights++;
     const c = this.combat!;
     this.layoutFoes(false);
@@ -676,9 +678,8 @@ export class RunScene extends Phaser.Scene {
     this.apG = this.add.graphics().setDepth(50);
     this.ui.push(this.apG, text(this, 12, BAR_Y + 18, 'AP', { color: COL.ice }).setDepth(50));
     const n = this.run.skills.length;
-    const endW = 60;
     const left = 26;
-    const avail = W - left - endW - 10;
+    const avail = W - left - 6;
     const bw = Math.min(76, Math.floor((avail - 3 * 3) / 4));
     const bh = 34;
     const y = H - bh / 2 - 3;
@@ -707,8 +708,6 @@ export class RunScene extends Phaser.Scene {
       this.skillBtns.push({ b, i, cd });
       this.ui.push(b.c);
     }
-    this.endBtn = button(this, W - endW / 2 - 4, y, endW, bh, 'END TURN', () => this.endTurn(), { ...BTN.green, depth: 50 });
-    this.ui.push(this.endBtn.c);
     if (this.theme.hazard) {
       this.hazardText = text(this, W - 4, 32, '', { origin: 1, color: COL.orange }).setDepth(50);
       this.ui.push(this.hazardText);
@@ -724,10 +723,6 @@ export class RunScene extends Phaser.Scene {
       s.b.setEnabled(usable);
       s.cd.setText(c.cooldowns[s.i] > 0 ? `${c.cooldowns[s.i]}` : '');
     }
-    this.endBtn?.setEnabled(!this.busy);
-    const stuck = !this.busy && !this.skillBtns.some((s) => c.canUse(s.i));
-    if (stuck) this.endBtn?.setColors(BTN.red.fill, 0x1a1c2c, BTN.red.light);
-    else this.endBtn?.setColors(BTN.green.fill, 0x1a1c2c, BTN.green.light);
     if (this.apG) {
       const g = this.apG;
       g.clear();
@@ -752,7 +747,6 @@ export class RunScene extends Phaser.Scene {
     this.ui.forEach((o) => o.destroy());
     this.ui = [];
     this.skillBtns = [];
-    this.endBtn = null;
     this.apG = null;
     this.hazardText = null;
     this.arrow?.setVisible(false);
@@ -784,21 +778,23 @@ export class RunScene extends Phaser.Scene {
     if (!this.skillBtns.length) this.buildCombatUi();
     this.refreshCombatUi();
     this.refreshHud();
+    // Out of AP (or nothing left it can buy): the turn ends by itself, after a beat.
+    if (!c.canSpend()) {
+      this.busy = true;
+      this.refreshCombatUi();
+      this.time.delayedCall(320, () => {
+        this.busy = false;
+        this.endTurn();
+      });
+    }
   }
 
-  private onKey(e: KeyboardEvent) {
-    if (e.key === 'Escape' || e.key === 'p' || e.key === 'P') return this.pause();
+  private cycleTarget(d: 1 | -1) {
     if (!this.combat || this.busy) return;
-    if (e.key >= '1' && e.key <= '4') this.useSkill(Number(e.key) - 1);
-    else if (e.key === ' ' || e.key === 'Enter') {
-      if (this.skillBtns.length) this.endTurn();
-    } else if (e.key === 'Tab' || e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-      e.preventDefault();
-      const alive = this.combat.alive();
-      const idx = alive.findIndex((f) => f.uid === this.target);
-      const next = alive[(idx + (e.key === 'ArrowLeft' ? alive.length - 1 : 1)) % alive.length];
-      if (next) this.setTarget(next.uid, true);
-    }
+    const alive = this.combat.alive();
+    const idx = alive.findIndex((f) => f.uid === this.target);
+    const next = alive[(idx + (d < 0 ? alive.length - 1 : 1)) % alive.length];
+    if (next) this.setTarget(next.uid, true);
   }
 
   // ---------------------------------------------------------------- event playback
@@ -838,7 +834,7 @@ export class RunScene extends Phaser.Scene {
             if (e.dmg > 0) {
               this.coon.play('hurt', 0.3);
               sfx.hurt();
-              this.cameras.main.shake(140, e.dmg >= c.maxHp * 0.2 ? 0.016 : 0.008);
+              shake(this, 140, e.dmg >= c.maxHp * 0.2 ? 0.016 : 0.008);
               this.flashCoon();
             } else sfx.thud();
             this.floats.add(COON_X, GROUND_Y - 30, e.dmg > 0 ? `-${e.dmg}` : 'BLOCKED', e.dmg > 0 ? COL.red : COL.sky, e.dmg >= c.maxHp * 0.2);
@@ -855,7 +851,7 @@ export class RunScene extends Phaser.Scene {
             this.tweens.add({ targets: v.spr, x: 3, yoyo: true, duration: 50 });
             if (e.crit) {
               sfx.crit();
-              this.cameras.main.shake(120, 0.008);
+              shake(this, 120, 0.008);
               this.hitStop(70);
               const sl = this.add.image(v.c.x, GROUND_Y - v.h / 2, 'slash').setDepth(20).setScale(2);
               this.tweens.add({ targets: sl, alpha: 0, scale: 3, duration: 220, onComplete: () => sl.destroy() });
@@ -935,7 +931,7 @@ export class RunScene extends Phaser.Scene {
               this.burst(v.c.x, GROUND_Y - v.h / 2, f.def.boss ? 48 : 16, f.def.colors);
               if (f.def.boss) {
                 sfx.bossDie();
-                this.cameras.main.shake(500, 0.015);
+                shake(this, 500, 0.015);
                 this.cameras.main.flash(200, 255, 255, 255);
                 this.hitStop(200);
               }
@@ -961,7 +957,7 @@ export class RunScene extends Phaser.Scene {
           const v = e.who === 'p' ? undefined : this.views.get(e.who);
           const f = e.who === 'p' ? undefined : c.foe(e.who);
           sfx.warn();
-          this.cameras.main.shake(400, 0.012);
+          shake(this, 400, 0.012);
           this.cameras.main.flash(150, 177, 62, 83);
           if (v && f && f.def.phase2?.frames?.length) {
             const key = `anim_${f.def.id}_p2`;
@@ -1126,7 +1122,7 @@ export class RunScene extends Phaser.Scene {
     sfx.die();
     this.coon.play('hurt', 99);
     this.tweens.add({ targets: this.coon, angle: -90, y: GROUND_Y - 4, duration: 500, ease: 'Bounce.out' });
-    this.cameras.main.shake(300, 0.01);
+    shake(this, 300, 0.01);
     await wait(this, 1300);
     this.finish('death');
   }

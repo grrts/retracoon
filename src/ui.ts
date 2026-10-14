@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { sfx } from './audio';
 import { FONT } from './gfx/font';
+import { store } from './save';
 
 export const LINE_H = 10; // pixel height of one line of text, including spacing
 
@@ -135,6 +136,7 @@ export function button(
   c.add([g, t]);
   c.setSize(w, h);
   c.setInteractive({ useHandCursor: true });
+  c.setData('button', true); // keys and pads start on a button (see input.ts)
   let pressed = false;
   c.on('pointerdown', () => {
     if (!enabled) return;
@@ -163,6 +165,7 @@ export function button(
     h,
     setEnabled(on: boolean) {
       enabled = on;
+      c.setData('disabled', !on);
       t.setAlpha(on ? 1 : 0.45);
       draw();
     },
@@ -176,6 +179,11 @@ export function button(
       t.setText(fmt(s));
     },
   };
+}
+
+// Camera shake, unless the player turned it off in Settings.
+export function shake(scene: Phaser.Scene, ms: number, intensity: number) {
+  if (store.shake !== false) scene.cameras.main.shake(ms, intensity);
 }
 
 export function wait(scene: Phaser.Scene, ms: number) {

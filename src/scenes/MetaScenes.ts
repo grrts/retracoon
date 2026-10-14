@@ -18,6 +18,7 @@ import { submitBest, flushRuns, needsSignIn, profile, prizesSeen, signedIn, onli
 import { startTracking, setTracking } from '../platform/track';
 import { addCaps } from '../meta/economy';
 import { continueBoot } from './AccountScenes';
+import { onAction, padConnected } from '../input';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -109,10 +110,9 @@ export class PauseScene extends Phaser.Scene {
       this.scene.launch('Inspect', { run: data.run, from: 'Pause' });
     }, BTN.gold);
     button(this, W / 2 - bw - 4, H - 16, bw, 22, 'RESUME', resume, BTN.green);
-    const snd = button(this, W / 2, H - 16, bw, 22, sfx.muted ? 'SOUND OFF' : 'SOUND ON', () => {
-      sfx.resume();
-      sfx.setMuted(!sfx.muted);
-      snd.setLabel(sfx.muted ? 'SOUND OFF' : 'SOUND ON');
+    button(this, W / 2, H - 16, bw, 22, 'SETTINGS', () => {
+      this.scene.pause();
+      this.scene.launch('Settings', { from: 'Pause' });
     });
     let armed = false;
     const quit = button(this, W / 2 + bw + 4, H - 16, bw, 22, 'GIVE UP', () => {
@@ -130,8 +130,7 @@ export class PauseScene extends Phaser.Scene {
       this.scene.stop();
       this.scene.start('Title');
     }, BTN.red);
-    this.input.keyboard!.on('keydown-ESC', resume);
-    this.input.keyboard!.on('keydown-P', resume);
+    onAction(this, ['back', 'pause'], resume);
   }
 }
 
@@ -235,8 +234,7 @@ export class GameOverScene extends Phaser.Scene {
     if (daily) button(this, W / 2, H - 16, bw, 22, 'DAILY BOARD', () => leave('Scores', { back: 'Title', tab: 'daily' }), BTN.violet);
     else button(this, W / 2, H - 16, bw, 22, 'SKIN SHOP', () => leave('Store', { back: 'Title' }), BTN.gold);
     button(this, W / 2 + bw + 4, H - 16, bw, 22, 'MENU', () => leave('Title'));
-    this.input.keyboard!.on('keydown-SPACE', again);
-    this.input.keyboard!.on('keydown-ENTER', again);
+    onAction(this, 'confirm', again);
     // The title theme comes back once the game-over jingle has played.
     this.time.delayedCall(1400, () => menuMusic(this));
   }
@@ -298,8 +296,16 @@ export class TitleScene extends Phaser.Scene {
       sfx.unlock();
       this.scene.start('Scores', { back: 'Title' });
     }, BTN.violet);
+    const settings = () => {
+      sfx.unlock();
+      this.scene.pause();
+      this.scene.launch('Settings', { from: 'Title' });
+    };
     // Desktop (Steam) needs a way out; phones have their own.
-    if (isSteam()) button(this, mx, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
+    if (isSteam()) {
+      button(this, mx - 36, 164, 68, 18, 'SETTINGS', settings);
+      button(this, mx + 36, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
+    } else button(this, mx, 164, 68, 18, 'SETTINGS', settings);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0
@@ -315,6 +321,7 @@ export class TitleScene extends Phaser.Scene {
       sfx.setMuted(!sfx.muted);
       mute.setText(sfx.muted ? 'SOUND OFF' : 'SOUND ON');
     });
+    this.events.on(Phaser.Scenes.Events.RESUME, () => mute.setText(sfx.muted ? 'SOUND OFF' : 'SOUND ON'));
     // Anonymous play stats for the developer (see the privacy policy); one tap to turn off.
     if (onlineConfigured()) {
       const stats = text(this, W - 6, 22, store.trackingOff ? 'STATS OFF' : 'STATS ON', { origin: 1, color: COL.light });
@@ -325,9 +332,8 @@ export class TitleScene extends Phaser.Scene {
         stats.setText(store.trackingOff ? 'STATS OFF' : 'STATS ON');
       });
     }
-    text(this, W / 2, H - 10, IS_TOUCH ? 'TAP PLAY TO START' : 'PRESS SPACE TO PLAY', { color: COL.light });
-    this.input.keyboard?.on('keydown-SPACE', () => go());
-    this.input.keyboard?.on('keydown-ENTER', () => go());
+    text(this, W / 2, H - 10, padConnected() ? 'PRESS A TO PLAY' : IS_TOUCH ? 'TAP PLAY TO START' : 'PRESS SPACE TO PLAY', { color: COL.light });
+    onAction(this, 'confirm', () => go());
     this.cameras.main.fadeIn(250, 26, 28, 44);
     this.events.once('shutdown', () => this.world.destroy());
   }
@@ -408,7 +414,7 @@ export class AdScene extends Phaser.Scene {
     text(this, W / 2, 128, 'THANKS FOR SUPPORTING A SMALL GAME!', { color: COL.ice, maxWidth: bw - 16 });
     button(this, W / 2 + 70, H - 26, 120, 24, 'CONTINUE', () => this.play(), BTN.green);
     button(this, W / 2 - 70, H - 26, 120, 24, 'REMOVE ADS', () => this.scene.start('Store', { back: 'Title', tab: 'gems' }), BTN.gold);
-    this.input.keyboard!.once('keydown-ENTER', () => this.play());
+    onAction(this, 'confirm', () => this.play());
   }
 
   private playing = false;

@@ -1,6 +1,7 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { text, button, panel, wrapPx, BTN, Button } from '../ui';
+import { onAction } from '../input';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { items, skills, RARITY, SLOT_NAMES, TAGS } from '../content/registry';
@@ -46,7 +47,7 @@ export class InspectScene extends Phaser.Scene {
       this.tabs[t] = button(this, W / 2 + (i - 1) * (tw + 4), 32, tw, 18, t.toUpperCase(), () => this.show(t), { depth: 5 });
     });
     button(this, W / 2, H - 14, 120, 20, 'BACK', () => this.back(), { ...BTN.green, depth: 5 });
-    this.input.keyboard!.on('keydown-ESC', () => this.back());
+    onAction(this, 'back', () => this.back());
     this.show(this.tab);
   }
 

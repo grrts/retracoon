@@ -414,6 +414,11 @@ export function learnSkill(r: RunState, id: string) {
   if (r.skills.length < SKILL_SLOTS) r.skills.push({ id, lvl: 1 });
 }
 
+// Drop a skill to free its slot; the next level-ups can offer a new one there.
+export function forgetSkill(r: RunState, id: string) {
+  if (r.skills.length > 1) r.skills = r.skills.filter((s) => s.id !== id);
+}
+
 export function gainXp(r: RunState, n: number): number {
   r.xp += n;
   let ups = 0;

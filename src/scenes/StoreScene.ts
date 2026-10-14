@@ -5,7 +5,8 @@
 import Phaser from 'phaser';
 import { track } from '../platform/track';
 import { W, H } from '../config';
-import { text, button, panel, BTN, Button } from '../ui';
+import { text, button, panel, BTN, Button, shake } from '../ui';
+import { onAction } from '../input';
 import { sfx, menuMusic } from '../audio';
 import { store } from '../save';
 import { COL } from '../gfx/palette';
@@ -88,7 +89,7 @@ export class StoreScene extends Phaser.Scene {
     this.add.image(4 + LEFT_W / 2, BODY + 86, 'shadow').setScale(2);
     this.preview = new RaccoonView(this, 4 + LEFT_W / 2, BODY + 86, null, this.sel).setScale(2);
     this.preview.setGear(null, store.lastRunGear);
-    this.input.keyboard?.on('keydown-ESC', () => this.leave());
+    onAction(this, 'back', () => this.leave());
     this.draw();
   }
 
@@ -238,7 +239,7 @@ export class StoreScene extends Phaser.Scene {
         if (!this.scene.isActive()) return;
         if (res !== 'ok') {
           if (res === 'offline') this.toast('GEMS NEED A CONNECTION');
-          this.cameras.main.shake(80, 0.004);
+          shake(this, 80, 0.004);
           return;
         }
         sfx.upgrade();

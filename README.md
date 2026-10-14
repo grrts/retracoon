@@ -25,8 +25,8 @@ Sign in is offered first (Google, Apple or Steam), or play as a guest and sign i
 
 - **Stages.** Every fight cleared is a stage, and difficulty grows exponentially, forever: foes get about 16% tougher per fight (half from fights cleared, half from distance walked). A fresh raccoon that doesn't retreat around the fifth fight dies soon after. Foe health and damage keep compounding, and deeper foes come in **Mean**, **Feral** and **Mythic** tiers with armor, regeneration and thorns.
 - **Bosses.** Each area hides its boss at a random fight, and the window grows with how far you came: area 1 at fight 2-4, area 4 at 4-8, and on along the same line (area 7 at 6-12, area 10 at 8-16). Early bosses come in lighter. Beating the boss moves you to a new area with a new theme.
-- **Combat.** You get action points each turn and spend them on up to 4 skills. Foes show their intent above their heads. Areas add hazards (falling pots, fumes, sprinklers, quakes, spores, lightning).
-- **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 cards (tap a card to select it, then LEARN), or SKIP. Every stat point counts in full; crit, dodge and damage cut cap at 95%. New skills are offered only while one of the 4 slots is free; after that only upgrades for your own skills. **Passive skills** (+6% damage, +8 max health, +2% crit and more) fill the rest, and once every skill is maxed every card is a passive. Passives stack forever but last one run. The **BAG** button in a run shows your gear, skills and passives in full.
+- **Combat.** You get action points each turn and must spend them on up to 4 skills: the turn ends by itself once no skill that costs AP can be used (free skills don't hold it open). Foes show their intent above their heads. Areas add hazards (falling pots, fumes, sprinklers, quakes, spores, lightning).
+- **Level-ups.** Spend 3 points across STR, DEF, AGI, LCK and VIT, then pick 1 of 3 cards (tap a card to select it, then LEARN), or SKIP. Every stat point counts in full; crit, dodge and damage cut cap at 95%. New skills are offered only while one of the 4 slots is free; after that only upgrades for your own skills. **Passive skills** (+6% damage, +8 max health, +2% crit and more) fill the rest, and once every skill is maxed every card is a passive. With all 4 slots full, **FORGET** takes the place of a card: drop one of your skills to free its slot, so later level-ups offer new skills again. Passives stack forever but last one run. The **BAG** button in a run shows your gear, skills and passives in full.
 - **Road stops** every two or three fights: tap one of two roads (shop, event, camp or treasure), then GO. Healing is scarce.
 - **Rewards:** tap an item to try it on (the preview raccoon wears it and the card says what it replaces), then TAKE.
 - **Items** show up on the raccoon. Rarer and higher-level gear glows; a full kit shines; set bonuses fly a flag.
@@ -73,8 +73,10 @@ The `steam/` folder wraps the same game in Electron with Steamworks for Windows,
 
 ## Controls
 
-- **Touch:** tap a skill, tap a foe to target it, tap END TURN.
-- **Keyboard:** 1-4 skills, Space or Enter ends the turn, Tab or arrows switch target, P or Esc pauses.
+- **Touch:** tap a skill, tap a foe to target it. The turn ends by itself once your AP is spent.
+- **Keyboard:** arrows or WASD move a highlight over any button or card, Enter or Space presses it. In fights 1-4 use skills, Q and E (or Tab) switch target, I opens the bag, P or Esc pauses.
+- **Controller** (Xbox layout, Steam Deck): d-pad or left stick moves the highlight, A presses, B goes back, X uses skill 1, LB and RB switch target, Y opens the bag, Start pauses.
+- Every key and button can be remapped in **Settings** (title screen and pause screen), next to volume, full screen or windowed, window size (Steam) and screen shake. The input code is `src/input.ts`.
 
 ## Code map
 

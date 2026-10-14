@@ -26,6 +26,10 @@ function fight(c: Combat, bot: Bot) {
   c.start();
   let guard = 0;
   while (!c.outcome() && guard++ < 400) {
+    if (!c.canSpend()) {
+      c.endTurn();
+      continue;
+    }
     const incoming = c.alive().reduce((a, f) => a + c.intentDamage(f) * (f.intent.hits ?? 1), 0);
     let acted = false;
     for (let i = 0; i < c.run.skills.length; i++) {
@@ -42,7 +46,11 @@ function fight(c: Combat, bot: Bot) {
       acted = true;
       break;
     }
-    if (!acted) c.endTurn();
+    // Points must be spent: with nothing it wanted, the bot takes the first skill that costs AP.
+    if (!acted) {
+      const i = c.run.skills.findIndex((_, k) => (c.skillAt(k)?.def.cost ?? 0) > 0 && c.canUse(k));
+      c.use(i, c.alive().sort((a, b) => a.hp - b.hp)[0]?.uid);
+    }
   }
   return c.outcome() === 'win';
 }

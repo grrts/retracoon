@@ -2,11 +2,12 @@ import Phaser from 'phaser';
 import { W, H } from '../config';
 import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN } from '../ui';
+import { onAction } from '../input';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
-import { STAT_INFO } from '../content/registry';
+import { STAT_INFO, skills } from '../content/registry';
 import type { StatKey } from '../content/types';
-import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, levelUpChoices, learnSkill, addPassive, attackPower, LevelChoice } from '../game/run';
+import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, levelUpChoices, learnSkill, addPassive, forgetSkill, attackPower, LevelChoice } from '../game/run';
 
 // Level up: spend stat points, then pick a skill.
 export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }> {
@@ -16,6 +17,8 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
   private derived!: Phaser.GameObjects.BitmapText;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private taken = false;
+  // What keys and the pad do on the current step.
+  private keys: { confirm?: () => void; slot?: (i: number) => void; back?: () => void } = {};
 
   constructor() {
     super('LevelUp');
@@ -26,6 +29,10 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     this.rows = [];
     this.layer = [];
     this.taken = false;
+    this.keys = {};
+    onAction(this, 'confirm', () => this.keys.confirm?.());
+    onAction(this, 'back', () => this.keys.back?.());
+    onAction(this, ['slot1', 'slot2', 'slot3', 'slot4'], (a) => this.keys.slot?.(Number(a.slice(4)) - 1));
     this.backdrop();
     sfx.upgrade();
     if (this.d.run.statPoints > 0) this.statStep();
@@ -64,7 +71,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     this.layer.push(this.derived);
     const ok = button(this, W / 2, H - 16, 120, 22, 'CONFIRM', () => this.confirmStats(), { ...BTN.red, depth: 5 });
     this.layer.push(ok.c);
-    this.input.keyboard!.once('keydown-ENTER', () => this.confirmStats());
+    this.keys = { confirm: () => this.confirmStats() };
     this.refresh();
   }
 
@@ -105,25 +112,31 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
 
   // ---------------------------------------------------------------- skills
 
-  private skillStep() {
+  private skillStep(keep?: LevelChoice[]) {
     const r = this.d.run;
-    const choices = levelUpChoices(r, 3);
+    const choices = keep ?? levelUpChoices(r, 3);
     if (!choices.length) return this.close();
     const allPassive = choices.every((c) => c.kind === 'passive');
+    const full = r.skills.length >= SKILL_SLOTS;
     this.layer.push(
       ...this.title(
         allPassive ? 'PASSIVE SKILL' : 'NEW SKILL',
         allPassive ? COL.lime : COL.ice,
-        allPassive ? 'SKILLS MAXED. PASSIVES STACK FOREVER.' : r.skills.length >= SKILL_SLOTS ? 'SLOTS FULL: UPGRADE A SKILL OR TAKE A PASSIVE.' : 'TAP ONE, THEN LEARN. OWNED SKILLS GET STRONGER.',
+        allPassive ? 'SKILLS MAXED. PASSIVES STACK FOREVER.' : full ? 'SLOTS FULL: UPGRADE A SKILL OR TAKE A PASSIVE.' : 'TAP ONE, THEN LEARN. OWNED SKILLS GET STRONGER.',
       ),
     );
     let picked = -1;
     const cards: Phaser.GameObjects.Container[] = [];
     const ring = this.add.graphics();
     this.layer.push(ring);
-    const learn = button(this, W / 2 + 50, H - 14, 150, 20, 'LEARN', () => picked >= 0 && this.pickChoice(choices[picked]), { ...BTN.green, depth: 5 });
+    // Bottom row: SKIP, FORGET (once the slots are full) and LEARN.
+    const row = full ? [56, 76, 150] : [70, 0, 150];
+    const x0 = W / 2 - (row[0] + row[1] + row[2] + (full ? 12 : 60)) / 2;
+    const learnX = x0 + row[0] + row[1] + (full ? 12 : 60) + row[2] / 2;
+    const learn = button(this, learnX, H - 14, row[2], 20, 'LEARN', () => picked >= 0 && this.pickChoice(choices[picked]), { ...BTN.green, depth: 5 });
     learn.setEnabled(false);
     const select = (i: number) => {
+      if (i >= choices.length) return;
       if (picked === i) return this.pickChoice(choices[i]);
       picked = i;
       sfx.select();
@@ -169,11 +182,78 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
       this.tweens.add({ targets: c, scale: 1, alpha: 1, delay: i * 70, duration: 200, ease: 'Back.out' });
       this.layer.push(c);
     });
-    const skip = button(this, W / 2 - 80, H - 14, 70, 20, 'SKIP', () => this.close(), { depth: 5 });
+    const skip = button(this, x0 + row[0] / 2, H - 14, row[0], 20, 'SKIP', () => this.close(), { depth: 5 });
     this.layer.push(skip.c, learn.c);
-    const kb = this.input.keyboard!;
-    ['ONE', 'TWO', 'THREE'].forEach((k, i) => kb.on(`keydown-${k}`, () => i < choices.length && select(i)));
-    kb.on('keydown-ENTER', () => picked >= 0 && this.pickChoice(choices[picked]));
+    if (full) {
+      const forget = button(this, x0 + row[0] + 6 + row[1] / 2, H - 14, row[1], 20, 'FORGET', () => {
+        sfx.select();
+        this.clearLayer();
+        this.forgetStep(choices);
+      }, { ...BTN.red, depth: 5 });
+      this.layer.push(forget.c);
+    }
+    this.keys = { slot: select, confirm: () => picked >= 0 && this.pickChoice(choices[picked]) };
+  }
+
+  // Instead of a card: drop one of your skills. Its slot opens, so later level-ups can
+  // offer new skills again. Uses up this level-up's pick.
+  private forgetStep(choices: LevelChoice[]) {
+    const r = this.d.run;
+    this.layer.push(...this.title('FORGET A SKILL', COL.orange, 'USES THIS PICK. THE FREE SLOT BRINGS NEW SKILLS LATER.'));
+    let picked = -1;
+    const cards: Phaser.GameObjects.Container[] = [];
+    const ring = this.add.graphics();
+    this.layer.push(ring);
+    const forget = button(this, W / 2 + 50, H - 14, 150, 20, 'FORGET', () => picked >= 0 && this.forget(r.skills[picked].id), { ...BTN.red, depth: 5 });
+    forget.setEnabled(false);
+    const select = (i: number) => {
+      const s = r.skills[i];
+      if (!s) return;
+      if (picked === i) return this.forget(s.id);
+      picked = i;
+      sfx.select();
+      const c = cards[i];
+      ring.clear().lineStyle(2, 0xef7d57, 1).strokeRect(c.x - c.width / 2 - 3, c.y - c.height / 2 - 3, c.width + 6, c.height + 6);
+      cards.forEach((k, j) => k.setAlpha(j === i ? 1 : 0.6));
+      forget.setEnabled(true);
+      forget.setLabel(`FORGET ${skills.get(s.id)?.name ?? ''}`);
+    };
+    const n = r.skills.length;
+    const cw = Math.min(110, Math.floor((W - 16 - (n - 1) * 6) / n));
+    const ch = 140;
+    r.skills.forEach((o, i) => {
+      const s = skills.get(o.id);
+      if (!s) return;
+      const c = this.add.container(W / 2 + (i - (n - 1) / 2) * (cw + 6), TITLE_BAND + 12 + ch / 2);
+      const g = this.add.graphics();
+      panel(g, -cw / 2, -ch / 2, cw, ch, 0x3b1f2c, 0xef7d57, 0xb13e53);
+      c.add(g);
+      c.add(this.add.image(0, -ch / 2 + 16, `skill_${s.id}`).setScale(2));
+      c.add(text(this, 0, -ch / 2 + 36, s.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
+      c.add(text(this, 0, -ch / 2 + 47, `LEVEL ${o.lvl}`, { color: COL.yellow }));
+      c.add(text(this, 0, -ch / 2 + 56, s.desc(o.lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
+      c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
+      c.setSize(cw, ch).setInteractive({ useHandCursor: true });
+      c.on('pointerup', () => select(i));
+      cards.push(c);
+      this.layer.push(c);
+    });
+    const back = () => {
+      sfx.select();
+      this.clearLayer();
+      this.skillStep(choices);
+    };
+    const bb = button(this, W / 2 - 80, H - 14, 70, 20, 'BACK', back, { depth: 5 });
+    this.layer.push(bb.c, forget.c);
+    this.keys = { slot: select, confirm: () => picked >= 0 && this.forget(r.skills[picked].id), back };
+  }
+
+  private forget(id: string) {
+    if (this.taken) return;
+    this.taken = true;
+    forgetSkill(this.d.run, id);
+    sfx.thud();
+    this.close();
   }
 
   private pickChoice(c: LevelChoice) {

@@ -131,6 +131,16 @@ for (const [w, h] of SIZES) {
     window.__game.scene.getScene('Title').showPrizes({ prizes: [{ id: 1, kind: 'daily', period: '2026-11-14', place: 1, gems: 10 }, { id: 2, kind: 'season', period: '2026-10', place: 1, gems: 300 }] }),
   );
   await shot('title-prizes');
+  for (const tab of ['sound', 'display', 'keys', 'pad']) {
+    await start('Title');
+    await sleep(200);
+    await page.evaluate((t) => {
+      const g = window.__game;
+      g.scene.getScene('Title').scene.pause();
+      g.scene.start('Settings', { from: 'Title', tab: t });
+    }, tab);
+    await shot(`settings-${tab}`);
+  }
   for (const tab of ['sale', 'holiday', 'fur', 'outfit', 'owned', 'gems']) {
     await start('Store', { tab });
     await shot(`store-${tab}`);
@@ -175,6 +185,13 @@ for (const [w, h] of SIZES) {
     s.scene.restart(s.d);
   });
   await shot('levelup-passives');
+  // Slots full: the FORGET button, then the forget screen.
+  await page.evaluate(() => {
+    const s = window.__game.scene.getScene('LevelUp');
+    s.clearLayer();
+    s.forgetStep([]);
+  });
+  await shot('levelup-forget');
   for (const tab of ['gear', 'skills', 'passives']) {
     await overlay('Inspect', { from: 'Run', tab });
     await shot(`inspect-${tab}`);

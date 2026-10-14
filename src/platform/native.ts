@@ -8,6 +8,8 @@ export interface SteamBridge {
   name(): Promise<string>; // Steam persona name
   quit(): void;
   setFullscreen(on: boolean): void;
+  setWindowSize?(w: number, h: number): void; // newer builds of the Steam app
+  onFullscreen?(cb: (on: boolean) => void): void;
 }
 
 export const steam = (): SteamBridge | null => (globalThis as { retracoonSteam?: SteamBridge }).retracoonSteam ?? null;

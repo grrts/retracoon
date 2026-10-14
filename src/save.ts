@@ -37,6 +37,13 @@ export interface Store {
   dailyRuns: number; // attempts that day
   // gameplay tracking (see platform/track.ts)
   trackingOff: boolean;
+  // settings
+  vol: { master: number; music: number; sfx: number }; // 0-10 each
+  shake: boolean;
+  fullscreen: boolean; // desktop
+  windowSize: number; // index into WINDOW_SIZES (Steam, windowed)
+  keys: Record<string, string[]>; // action -> KeyboardEvent.code; missing = default (see input.ts)
+  pad: Record<string, number[]>; // action -> gamepad button index
 }
 
 export interface PendingRun {
@@ -81,6 +88,12 @@ function base(): Store {
     dailyBest: null,
     dailyRuns: 0,
     trackingOff: false,
+    vol: { master: 10, music: 10, sfx: 10 },
+    shake: true,
+    fullscreen: true,
+    windowSize: 1,
+    keys: {},
+    pad: {},
   };
 }
 

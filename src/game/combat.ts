@@ -271,6 +271,13 @@ export class Combat {
     return this.ap >= s.def.cost && this.cooldowns[i] === 0;
   }
 
+  // Spending AP is mandatory: the turn goes on while some skill that costs AP can be
+  // used, and ends by itself once none can (free skills don't keep it going).
+  canSpend(): boolean {
+    if (this.outcome() || this.ap <= 0) return false;
+    return this.run.skills.some((_, i) => (this.skillAt(i)?.def.cost ?? 0) > 0 && this.canUse(i));
+  }
+
   // Damage a skill would do to one target right now (no crit), for the skill card.
   previewDamage(i: number): number {
     const s = this.skillAt(i);

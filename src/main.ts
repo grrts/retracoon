@@ -7,6 +7,9 @@ import { InspectScene } from './scenes/InspectScene';
 import { SignInScene, AccountScene } from './scenes/AccountScenes';
 import { ScoresScene } from './scenes/ScoresScene';
 import { initNative } from './platform/native';
+import { initDisplay } from './platform/display';
+import { initInput } from './input';
+import { SettingsScene } from './scenes/SettingsScene';
 import { events } from './content/registry';
 import { store } from './save';
 import { forceSeason } from './world/calendar';
@@ -27,10 +30,12 @@ const game = new Phaser.Game({
   input: { activePointers: 3 },
   disableContextMenu: true,
   banner: false,
-  scene: [BootScene, SignInScene, AccountScene, AdScene, TitleScene, PrizeScene, StoreScene, TutorialScene, ScoresScene, RunScene, LevelUpScene, RewardScene, ForkScene, ShopScene, CampScene, EventScene, PauseScene, InspectScene, GameOverScene],
+  scene: [BootScene, SignInScene, AccountScene, AdScene, TitleScene, PrizeScene, StoreScene, TutorialScene, ScoresScene, RunScene, LevelUpScene, RewardScene, ForkScene, ShopScene, CampScene, EventScene, PauseScene, InspectScene, SettingsScene, GameOverScene],
 });
 
 void initNative();
+initInput(game);
+initDisplay(game);
 
 // Handy for debugging from the console, and used by tools/ui-check.mjs.
 Object.assign(window, { __game: game, __debug: { events, store, forceSeason, newRun } });
