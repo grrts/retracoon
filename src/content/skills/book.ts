@@ -8,7 +8,8 @@
 // Amounts are block, healing, lifesteal, poison, burn, bleed, thorns, regen and the like.
 // Durations, hits, AP and chances never scale: a level 100 raccoon still stuns for 1 turn.
 import type { SkillCtx, SkillDef, SkillEffect, SkillReq, StatKey, StatusKey, Target } from '../types';
-import { ICONS, ink } from './icons';
+import { ICONS } from './icons';
+import { skillIcon } from './looks';
 
 type N = number | [number, number];
 
@@ -194,16 +195,15 @@ export function describe(e: SkillEffect, target: Target): string {
   return p.join(', ');
 }
 
-// One line per skill: id, name, icon ('flame' or 'claw/fire'), AP cost, cooldown,
+// One line per skill: id, name, look ('flame' or 'claw/fire'; see looks.ts), AP cost, cooldown,
 // target, numbers, and what unlocks it.
 export function sk(id: string, name: string, look: string, cost: number, cooldown: number, target: Target, spec: Spec, req?: SkillReq, max = 3): SkillDef {
-  const [shape, theme] = look.split('/');
-  const base = ICONS[shape];
-  if (!base) throw new Error(`skill ${id}: no icon ${shape}`);
+  const shape = look.split('/')[0];
+  if (!ICONS[shape]) throw new Error(`skill ${id}: no icon ${shape}`);
   return {
     id,
     name,
-    icon: ink(base, theme),
+    icon: skillIcon(id, name, look),
     cost,
     cooldown,
     target,

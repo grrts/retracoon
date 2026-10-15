@@ -52,12 +52,29 @@ s.map(MY_SPRITE, 2, 2, PAL);
 s.save('preview.png', 8); // 8x zoom
 ```
 
-Run it with `npx tsx path/to/script.ts`.
+Run it with `npx tsx path/to/script.ts`. Ready-made sheets:
+
+- `npx tsx tools/preview-items.ts out.png head` every head item on the raccoon (or `skills`).
+- `npx tsx tools/preview-shapes.ts out.png paw` one slot's shape library in sample inks.
+- `npx tsx tools/preview-glyphs.ts out.png a` one batch of skill glyphs in sample inks.
+
+`npm run content:check` lints all content: unique ids, names and art, card text that fits,
+item power within its rarity's budget, risky items that really have a catch, and sets.
 
 ## Where content lives
 
 - Enemies and bosses: `src/content/enemies/` (one file per family, plus `bosses.ts`).
-- Items: `src/content/items/`. Skills: `src/content/skills.ts`. Events: `src/content/events/`.
+- Items: `src/content/items/`. The hand-made ones sit in one file per slot; the big
+  catalogue is one line per item in `items/forged/` and `items/sets.ts`, built by
+  `items/forge.ts`, which writes each card's text from its effects.
+- Item art for forged items: `items/sprites/`, one library of shapes per slot drawn in
+  paint channels (`1`-`4` main ink light to dark, `5`-`6` accent ink). The forge picks the
+  shape from words in the item's name (`sprites/match.ts`) and the inks from its effects,
+  and never draws two items alike.
+- Skills: `src/content/skills/` (`base.ts` the originals, `free.ts`, `levels.ts` and
+  `stats.ts` the big book, one `sk()` line each). Icons: `skills/glyphs/` in the same paint
+  channels; `skills/looks.ts` matches a glyph to the skill's name.
+- Passives: `src/content/passives.ts`. Events: `src/content/events/`.
 - Themes (backgrounds): `src/world/themes/`, built from painters in `src/world/painters.ts`.
   Holiday overlays: `src/world/seasons.ts`.
 - Skins: `src/meta/skins/`.

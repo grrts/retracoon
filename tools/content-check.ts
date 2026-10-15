@@ -4,6 +4,7 @@
 //   npx tsx tools/content-check.ts --list    also print every item's budget score
 import { loadContent } from '../src/content';
 import { items, skills, sets, RARITY } from '../src/content/registry';
+import { PAL } from '../src/gfx/palette';
 import { passives } from '../src/content/passives';
 import { FONT } from '../src/gfx/font';
 import { emptyBonus } from '../src/game/run';
@@ -178,7 +179,13 @@ for (const s of sets.values()) {
 const effSig = (e: SkillEffect) => JSON.stringify(Object.entries(e).sort());
 const skillSigs = new Map<string, string>();
 const reqKinds = { free: 0, level: 0, stat: 0, both: 0 };
+const icons = new Map<string, string>();
 for (const s of skills.values()) {
+  // icons: every skill drawn differently, 11x11, in palette keys only
+  const art = s.icon.join('|');
+  if (icons.has(art)) err(`skills ${icons.get(art)} and ${s.id} have the same icon`);
+  icons.set(art, s.id);
+  if (s.icon.length !== 11 || s.icon.some((r) => r.length !== 11 || [...r].some((ch) => ch !== '.' && !(ch in PAL)))) err(`skill ${s.id} icon is not an 11x11 palette map`);
   const req = s.req;
   const kind = !req ? 'free' : req.level && req.stat ? 'both' : req.level ? 'level' : 'stat';
   reqKinds[kind]++;
