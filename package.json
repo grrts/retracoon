@@ -14,6 +14,7 @@
     "ios": "npm run cap:sync && cap open ios",
     "icons": "tsx tools/make-icons.ts",
     "sim": "tsx tools/sim.ts",
+    "content:check": "tsx tools/content-check.ts",
     "assets:count": "tsx tools/count-assets.ts",
     "ui:check": "npm run build && node tools/ui-check.mjs",
     "build:steam": "tsc --noEmit && vite build --outDir steam/game --emptyOutDir",

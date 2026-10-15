@@ -1,10 +1,11 @@
-import type { EnemyDef, EventDef, ItemDef, SkillDef } from './types';
+import type { EnemyDef, EventDef, ItemDef, SetDef, SkillDef } from './types';
 import type { SeasonDef, ThemeDef } from '../world/types';
 import type { SkinDef } from '../meta/types';
 
 // Everything the game knows about, filled once at boot by content/index.ts.
 export const items = new Map<string, ItemDef>();
 export const skills = new Map<string, SkillDef>();
+export const sets = new Map<string, SetDef>();
 export const enemies = new Map<string, EnemyDef>();
 export const families = new Map<string, string[]>();
 export const events: EventDef[] = [];

@@ -7,7 +7,8 @@ import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { STAT_INFO, skills } from '../content/registry';
 import type { StatKey } from '../content/types';
-import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, levelUpChoices, learnSkill, addPassive, forgetSkill, attackPower, LevelChoice } from '../game/run';
+import { STAT_KEYS, SKILL_SLOTS, apPerTurn, critChance, dodgeChance, maxHp, totalStat, levelUpChoices, learnSkill, addPassive, forgetSkill, attackPower, skillCtx, LevelChoice } from '../game/run';
+import { reqLabel } from '../content/skills/book';
 
 // Level up: spend stat points, then pick a skill.
 export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }> {
@@ -165,8 +166,9 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
         panel(g, -cw / 2, -ch / 2, cw, ch, 0x29366f, owned ? 0xffcd75 : 0x73eff7, 0x3b5dc9);
         c.add(this.add.image(0, -ch / 2 + 16, `skill_${s.id}`).setScale(2));
         c.add(text(this, 0, -ch / 2 + 36, s.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
-        c.add(text(this, 0, -ch / 2 + 47, owned ? (lvl >= s.max ? `LEVEL ${lvl} (MAX)` : `LEVEL ${lvl}`) : 'NEW', { color: owned ? COL.yellow : COL.lime }));
-        c.add(text(this, 0, -ch / 2 + 56, s.desc(lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
+        const lock = reqLabel(s.req);
+        c.add(text(this, 0, -ch / 2 + 47, owned ? (lvl >= s.max ? `LEVEL ${lvl} (MAX)` : `LEVEL ${lvl}`) : lock ? `NEW ${lock}` : 'NEW', { color: owned ? COL.yellow : lock ? COL.orange : COL.lime, maxWidth: cw - 6, maxLines: 1 }));
+        c.add(text(this, 0, -ch / 2 + 56, s.desc(lvl, skillCtx(r)), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
         c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
       } else {
         const p = choice.def;
@@ -234,7 +236,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
       c.add(this.add.image(0, -ch / 2 + 16, `skill_${s.id}`).setScale(2));
       c.add(text(this, 0, -ch / 2 + 36, s.name, { color: COL.white, maxWidth: cw - 8, maxLines: 1 }));
       c.add(text(this, 0, -ch / 2 + 47, `LEVEL ${o.lvl}`, { color: COL.yellow }));
-      c.add(text(this, 0, -ch / 2 + 56, s.desc(o.lvl), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
+      c.add(text(this, 0, -ch / 2 + 56, s.desc(o.lvl, skillCtx(r)), { originY: 0, color: COL.light, maxWidth: cw - 10, maxLines: 6 }));
       c.add(text(this, 0, ch / 2 - 10, `${s.cost} AP${s.cooldown ? `  WAIT ${s.cooldown}` : ''}`, { color: COL.ice }));
       c.setSize(cw, ch).setInteractive({ useHandCursor: true });
       c.on('pointerup', () => select(i));

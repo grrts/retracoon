@@ -19,6 +19,7 @@ import {
   capsForRun,
   BLESSING_INFO,
   roll,
+  afterFight,
 } from '../game/run';
 import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
@@ -702,7 +703,7 @@ export class RunScene extends Phaser.Scene {
       const cd = text(this, 0, -2, '', { scale: 2, color: COL.white });
       b.c.add([icon, nm, cost, ...(dmgT ? [dmgT] : []), cd, ...(lv ? [lv] : [])]);
       // Pressing a skill shows what it does; releasing uses it.
-      const info = () => this.tip(`${s.def.name}: ${s.def.desc(s.lvl)}${s.def.cooldown ? `. COOLDOWN ${s.def.cooldown}` : ''}`, COL.ice);
+      const info = () => this.tip(`${s.def.name}: ${s.def.desc(s.lvl, c.ctx)}${s.def.cooldown ? `. COOLDOWN ${s.def.cooldown}` : ''}`, COL.ice);
       b.c.on('pointerdown', info);
       b.c.on('pointerover', info);
       this.skillBtns.push({ b, i, cd });
@@ -1077,11 +1078,16 @@ export class RunScene extends Phaser.Scene {
     }
     const ups = gainXp(r, xp);
     if (ups > 0) r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.1 * ups));
+    const after = afterFight(r);
     this.combat = null;
     sfx.clear();
     this.coon.play('idle');
     this.floats.add(COON_X, GROUND_Y - 40, `+${xp} XP`, COL.yellow);
     this.floats.add(COON_X + 30, GROUND_Y - 40, `+${sh}`, COL.yellow);
+    // Items that act between fights: a heal, the crash, the tax.
+    if (after.heal) this.floats.add(COON_X - 20, GROUND_Y - 52, `+${after.heal} HP`, COL.lime);
+    if (after.hurt) this.floats.add(COON_X - 20, GROUND_Y - 52, `-${after.hurt} HP`, COL.red);
+    if (after.tax) this.floats.add(COON_X + 30, GROUND_Y - 52, `-${after.tax}`, COL.orange);
     this.refreshHud();
     this.views.forEach((v) => (v.c.destroy(), v.shadow.destroy()));
     this.views.clear();

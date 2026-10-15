@@ -252,6 +252,13 @@ export const STATUS_ICONS: Record<string, string[]> = {
   rage: ['...k...', '..krk..', '.krrok.', 'krroyok', 'kroyyok', '.kooyk.', '..kkk..'],
   thorns: ['w.w.w.w', 'kkkkkkk', 'kdldldk', 'kdddddk', 'kdldldk', 'kkkkkkk', 'w.w.w.w'],
   block: ['kkkkkkk', 'klllllk', 'klwlllk', 'klllllk', '.klllk.', '..klk..', '...k...'],
+  burn: ['...k...', '..kok..', '.koyok.', 'koyyrok', 'koywyok', '.kooyk.', '..kkk..'],
+  bleed: ['...k...', '..krk..', '.krrrk.', 'krrwrrk', 'krrrrRk', '.kRRRk.', '..kkk..'],
+  mark: ['kk...kk', 'kr...rk', '...r...', '..rwr..', '...r...', 'kr...rk', 'kk...kk'],
+  chill: ['k..k..k', '.kiCik.', '.iCwCi.', 'kCwwwCk', '.iCwCi.', '.kiCik.', 'k..k..k'],
+  focus: ['..kkk..', '.kyyyk.', 'kyk.kyk', 'kykwkyk', 'kyk.kyk', '.kyyyk.', '..kkk..'],
+  evade: ['.....kk', '...kkCk', '..kCCk.', '.kCwk..', 'kCCk...', 'kCk....', '.k.....'],
+  regen: ['..kkk..', '..kLk..', 'kkkLkkk', 'kLLwLLk', 'kkkLkkk', '..kLk..', '..kkk..'],
 };
 
 // 7x7 intent icons shown over enemies

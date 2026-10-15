@@ -1,6 +1,6 @@
 // Turn-based combat rules. The engine mutates its own state and returns a list of events
 // that the scene plays back as animations. No Phaser in here.
-import type { AreaHazard, EnemyDef, Fx, MoveDef, SkillDef, StatusKey } from '../content/types';
+import type { AreaHazard, EnemyDef, Fx, MoveDef, SkillCtx, SkillDef, SkillEffect, StatusKey } from '../content/types';
 import { enemies, skills } from '../content/registry';
 import {
   RunState,
@@ -12,7 +12,9 @@ import {
   damageTaken,
   dodgeChance,
   hasBlessing,
+  healMul,
   maxHp,
+  skillCtx,
   totalStat,
 } from './run';
 import { rand } from './rng';
@@ -133,6 +135,11 @@ export class Combat {
   killed: Foe[] = [];
   killsThisTurn = 0;
   bestCombo = 0;
+  usedThisTurn = 0; // skills used this turn (combo)
+  uses: number[]; // times each skill was used this fight (stack)
+  cheated = false; // cheatDeath spent
+  apBonus = 0; // extra AP for the coming turn
+  ctx: SkillCtx;
   hooks: CombatHooks;
   private ev: Ev[] = [];
 
@@ -145,6 +152,8 @@ export class Combat {
     this.stage = run.stage;
     this.hooks = opts.hooks;
     this.cooldowns = run.skills.map(() => 0);
+    this.uses = run.skills.map(() => 0);
+    this.ctx = skillCtx(run);
     this.hazard = opts.hazard;
     this.hazardIn = opts.hazard ? opts.hazard.every : 0;
     foeIds.forEach((id, i) => this.addFoe(id, opts.elite && (i === 0 || rand() < 0.4), opts.tiers?.[i] ?? 0));
@@ -158,7 +167,7 @@ export class Combat {
     const T = TIERS[def.boss ? 0 : tier];
     // Bosses can hide as early as the second fight, so early ones come in lighter.
     const ease = def.boss ? bossEase(this.stage) : 1;
-    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease);
+    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease * (1 + (this.fx.foeHp ?? 0) / 100));
     const f: Foe = {
       uid: uidSeq++,
       def,
@@ -168,7 +177,7 @@ export class Combat {
       status: {},
       intent: def.moves[0],
       moves: def.moves,
-      dmgMul: dmgScale(this.danger) * T.dmg * (def.boss ? Math.sqrt(ease) : 1),
+      dmgMul: dmgScale(this.danger) * T.dmg * (def.boss ? Math.sqrt(ease) : 1) * (1 + (this.fx.foeDmg ?? 0) / 100),
       armor: Math.round((def.armor ?? 0) * (1 + this.danger * 0.03)),
       regen: Math.round((def.regen ?? 0) * hpScale(this.danger)),
       tier: def.boss ? 0 : tier,
@@ -220,25 +229,43 @@ export class Combat {
 
   start(): Ev[] {
     if (this.fx.stink) this.alive().forEach((f) => this.applyStatus(f.uid, 'poison', this.fx.stink!));
+    if (this.fx.markStart) this.alive().forEach((f) => this.applyStatus(f.uid, 'mark', this.fx.markStart!));
+    if (this.fx.selfPoison) this.applyStatus('p', 'poison', this.fx.selfPoison);
+    if (this.fx.focusStart) this.applyStatus('p', 'focus', this.fx.focusStart);
     if (this.fx.firstStrike) {
       this.ev.push({ t: 'act', who: 'p', name: 'FIRST STRIKE', kind: 'laser' });
       for (const f of this.alive()) this.damageFoe(f, this.fx.firstStrike, false, false);
     }
     if (hasBlessing(this.run, 'shield')) this.gainBlock('p', Math.round(10 * (1 + this.danger * 0.04)));
     this.startPlayerTurn();
+    if (this.hp > 0 && this.fx.evadeStart) this.applyStatus('p', 'evade', this.fx.evadeStart);
+    if (this.hp > 0 && this.fx.startAp) {
+      this.ap += this.fx.startAp;
+      this.ev.push({ t: 'ap', ap: this.ap });
+    }
     return this.flush();
   }
 
   private startPlayerTurn() {
     this.turn++;
     this.killsThisTurn = 0;
+    this.usedThisTurn = 0;
     this.ev.push({ t: 'turn', side: 'player' });
-    this.block = 0;
+    this.block = this.fx.blockKeep ? Math.floor((this.block * Math.min(100, this.fx.blockKeep)) / 100) : 0;
     this.status.thorns = 0;
+    this.status.evade = 0;
+    if (this.fx.turnHurt) {
+      this.hurtPlayerDirect(this.fx.turnHurt);
+      if (this.hp <= 0) return;
+    }
     const startBlock = (this.fx.startBlock ?? 0) + (this.fx.moneyArmor ? Math.floor(this.hooks.shinies() / 10) * this.fx.moneyArmor : 0);
     if (startBlock > 0) this.gainBlock('p', startBlock);
     if (this.fx.regen && this.hp < this.maxHp) this.healP(this.fx.regen);
+    this.tickRegen('p');
     this.tickPoison('p');
+    this.tickBurn('p');
+    if (this.hp <= 0) return;
+    if (this.fx.chaos) this.chaos();
     if (this.hp <= 0) return;
     if (this.fx.laser) {
       const t = this.alive().sort((a, b) => b.hp - a.hp)[0];
@@ -252,8 +279,10 @@ export class Combat {
       this.ev.push({ t: 'act', who: 'p', name: 'CRITTER PAL BITES', kind: 'laser' });
       this.damageFoe(t, attackPower(this.run) * 0.6, false, false);
     }
-    this.cooldowns = this.cooldowns.map((c) => Math.max(0, c - 1));
-    this.ap = Math.max(0, apPerTurn(this.run) - this.apDrain);
+    const tick = this.fx.quickCd && rand() < this.fx.quickCd / 100 ? 2 : 1;
+    this.cooldowns = this.cooldowns.map((c) => Math.max(0, c - tick));
+    this.ap = Math.max(0, apPerTurn(this.run) - this.apDrain + this.apBonus);
+    this.apBonus = 0;
     if (this.apDrain) this.ev.push({ t: 'msg', who: 'p', text: `-${this.apDrain} AP`, color: 0x94b0c2 });
     this.apDrain = 0;
     this.ev.push({ t: 'ap', ap: this.ap });
@@ -268,6 +297,8 @@ export class Combat {
   canUse(i: number): boolean {
     const s = this.skillAt(i);
     if (!s || this.outcome()) return false;
+    const cost = s.def.effect(s.lvl, this.ctx).shinyCost ?? 0;
+    if (cost > 0 && this.hooks.shinies() < cost) return false;
     return this.ap >= s.def.cost && this.cooldowns[i] === 0;
   }
 
@@ -282,21 +313,44 @@ export class Combat {
   previewDamage(i: number): number {
     const s = this.skillAt(i);
     if (!s) return 0;
-    const e = s.def.effect(s.lvl);
+    const e = s.def.effect(s.lvl, this.ctx);
     if (!e.dmg) return 0;
-    return Math.round(attackPower(this.run, e.scale ?? 'str') * e.dmg * this.outMul('p'));
+    const flat = (e.blockDmg ?? 0) * this.block + (e.maxHpDmg ?? 0) * this.maxHp + (e.shiny ?? 0) * this.hooks.shinies();
+    return Math.round((attackPower(this.run, e.scale ?? 'str') * e.dmg + flat) * this.outMul('p'));
   }
 
   use(i: number, targetUid?: number): Ev[] {
     const s = this.skillAt(i);
     if (!s || !this.canUse(i)) return [];
     const { def, lvl } = s;
-    const e = def.effect(lvl);
+    const e = def.effect(lvl, this.ctx);
     this.ap -= def.cost;
-    this.cooldowns[i] = def.id === 'trick' && lvl >= 3 ? 0 : def.cooldown;
+    const cd = def.id === 'trick' && lvl >= 3 ? 0 : def.cooldown;
+    this.cooldowns[i] = cd > 0 ? cd + (this.fx.cdPlus ?? 0) : 0;
+    if (e.shinyCost) this.hooks.addShinies(-e.shinyCost);
+    this.resolve(i, def, e, targetUid);
+    // Echo: the same skill again, free. Refund: the AP comes back.
+    if (this.fx.echo && !this.outcome() && rand() < this.fx.echo / 100) {
+      this.ev.push({ t: 'msg', who: 'p', text: 'ECHO!', color: 0xb05ccf });
+      this.resolve(i, def, { ...e, hpCost: 0, hpPct: 0, shinyCost: 0, allAp: false, ap: 0 }, targetUid);
+    }
+    if (this.fx.refund && def.cost > 0 && rand() < this.fx.refund / 100) {
+      this.ap += def.cost;
+      this.ev.push({ t: 'msg', who: 'p', text: 'REFUND!', color: 0x73eff7 });
+    }
+    this.usedThisTurn++;
+    this.uses[i]++;
+    this.ev.push({ t: 'ap', ap: this.ap });
+    return this.flush();
+  }
+
+  private resolve(i: number, def: SkillDef, e: SkillEffect, targetUid?: number) {
     this.ev.push({ t: 'act', who: 'p', name: def.name, kind: e.dmg ? 'attack' : 'self' });
 
     if (e.hpCost) this.hurtPlayerDirect(e.hpCost);
+    if (e.hpPct) this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * e.hpPct)));
+    if (this.hp <= 0) return;
+    if (e.cleanse) for (const k of ['poison', 'burn', 'bleed', 'weak', 'vuln'] as StatusKey[]) if (this.status[k]) this.setStatus('p', k, 0);
     if (e.ap) this.ap += e.ap;
     if (e.block) this.gainBlock('p', Math.round(e.block * (1 + this.danger * 0.03) + totalStat(this.run, 'def') * 1.5));
     if (e.heal) this.healP(Math.round(this.maxHp * e.heal));
@@ -311,28 +365,153 @@ export class Combat {
       }
       return [];
     };
+    const first = targets()[0];
+    if (e.shatter) for (const f of targets()) if (f.block) this.setBlock(f, 0);
+    if (e.steal && first) {
+      for (const k of ['rage', 'thorns', 'regen'] as StatusKey[]) {
+        const n = first.status[k] ?? 0;
+        if (n <= 0) continue;
+        this.setStatus(first.uid, k, 0);
+        this.applyStatus('p', k, n);
+      }
+    }
 
+    // Random skills put their statuses on every foe they struck, once per hit.
+    const struck: Foe[] = [];
     if (e.dmg) {
       const power = attackPower(this.run, e.scale ?? 'str');
-      const hits = e.hits ?? 1;
+      let hits = e.hits ?? 1;
+      if (hits > 1 && this.fx.multiHit) hits += this.fx.multiHit;
+      if (e.allAp && this.ap > 0) {
+        hits += this.ap;
+        this.ap = 0;
+      }
       for (let h = 0; h < hits; h++) {
         const list = def.target === 'random' ? this.alive().sort(() => rand() - 0.5).slice(0, 1) : targets();
         if (!list.length) break;
         for (const f of list) {
-          const crit = !!e.crit || rand() < critChance(this.run) || (!!this.fx.firstCrit && !this.firstHitDone);
-          this.firstHitDone = true;
-          const raw = power * e.dmg * this.outMul('p') * (crit ? 1.75 + computeBonus(this.run).bonus.critMult : 1);
-          const dealt = this.damageFoe(f, raw, crit, true);
-          if (dealt > 0 && def.target === 'one') this.afterSingleHit(f, dealt);
+          this.skillHit(i, def, e, f, power);
+          if (def.target === 'random') struck.push(f);
         }
       }
+      if (e.spendBlock && this.block > 0) {
+        this.block = 0;
+        this.ev.push({ t: 'block', who: 'p', amount: 0, block: 0 });
+      }
     }
+    const hitList = def.target === 'random' ? (struck.length ? struck : this.alive().slice(0, 1)) : targets();
     if (e.apply) {
-      for (const f of def.target === 'random' ? this.alive().slice(0, 1) : targets())
-        for (const [k, n] of Object.entries(e.apply)) this.applyStatus(f.uid, k as StatusKey, n!);
+      for (const f of hitList) {
+        if (f.dead) continue;
+        for (const [k, n] of Object.entries(e.apply)) this.applyStatus(f.uid, k as StatusKey, this.amp(k as StatusKey, n!));
+      }
     }
-    this.ev.push({ t: 'ap', ap: this.ap });
-    return this.flush();
+    if (e.detonate) {
+      for (const f of [...new Set(hitList)]) {
+        const n = f.status[e.detonate.key] ?? 0;
+        if (n <= 0) continue;
+        this.setStatus(f.uid, e.detonate.key, 0);
+        this.ev.push({ t: 'msg', who: f.uid, text: 'BOOM!', color: 0xffa300 });
+        this.damageFoe(f, n * e.detonate.mult, false, false, true);
+      }
+    }
+    if (e.spread && first && !first.dead) {
+      const n = first.status[e.spread] ?? 0;
+      if (n > 0) for (const o of this.alive()) if (o !== first) this.applyStatus(o.uid, e.spread, n);
+    }
+    if (e.blockMul && this.block > 0) this.gainBlock('p', Math.round(this.block * (e.blockMul - 1)));
+    if (e.refresh) this.cooldowns = this.cooldowns.map((c, k) => (k === i ? c : 0));
+  }
+
+  // One hit of a damaging skill on one foe, with everything that rides on it.
+  private skillHit(i: number, def: SkillDef, e: SkillEffect, f: Foe, power: number) {
+    if (f.dead) return;
+    const alive = this.alive().length;
+    let mult = e.dmg!;
+    mult += (e.combo ?? 0) * this.usedThisTurn;
+    mult += (e.stack ?? 0) * this.uses[i];
+    mult += (e.crowd ?? 0) * Math.max(0, alive - 1);
+    mult += (e.missing ?? 0) * (1 - this.hp / this.maxHp);
+    if (e.per) mult *= 1 + Math.min(3, e.per.mult * (f.status[e.per.key] ?? 0));
+    let raw = power * mult;
+    raw += (e.blockDmg ?? 0) * this.block + (e.maxHpDmg ?? 0) * this.maxHp + (e.shiny ?? 0) * this.hooks.shinies();
+    raw += ((this.fx.hpDmg ?? 0) / 100) * this.maxHp + ((this.fx.blockDmg ?? 0) / 100) * this.block;
+    if (e.pctHp) raw += f.hp * e.pctHp * (f.def.boss ? 1 / 3 : 1);
+    let crit = !!e.crit || rand() < critChance(this.run) || (!!this.fx.firstCrit && !this.firstHitDone);
+    if (!crit && (this.status.focus ?? 0) > 0) {
+      crit = true;
+      this.setStatus('p', 'focus', this.status.focus! - 1);
+    } else if (!crit && (f.status.mark ?? 0) > 0) {
+      crit = true;
+      this.setStatus(f.uid, 'mark', f.status.mark! - 1);
+    }
+    this.firstHitDone = true;
+    raw *= this.outMul('p') * this.fxMul(f, def) * (crit ? 1.75 + computeBonus(this.run).bonus.critMult : 1);
+    if (e.gamble) {
+      const win = rand() < e.gamble;
+      raw *= win ? 3 : 0.5;
+      this.ev.push({ t: 'msg', who: f.uid, text: win ? 'JACKPOT!' : 'BUST', color: win ? 0xffcd75 : 0x94b0c2 });
+    }
+    const dealt = this.damageFoe(f, raw, crit, true, !!e.pierce);
+    if (dealt <= 0) return;
+    if (def.target === 'one') this.afterSingleHit(f, dealt);
+    this.onHit(f, dealt, crit, e);
+    if (!f.dead && e.execute && !f.def.boss && f.hp < f.maxHp * e.execute) {
+      this.ev.push({ t: 'msg', who: f.uid, text: 'FINISHED!', color: 0xef7d57 });
+      this.ev.push({ t: 'hit', who: f.uid, src: 'p', dmg: f.hp, blocked: 0, hp: 0, block: f.block });
+      f.hp = 0;
+      this.killFoe(f);
+    }
+    if (f.dead) {
+      if (e.killAp) {
+        this.ap += e.killAp;
+        this.ev.push({ t: 'ap', ap: this.ap });
+      }
+      if (e.killHeal) this.healP(Math.round(this.maxHp * e.killHeal));
+    }
+  }
+
+  // Item and passive effects on every skill hit that landed.
+  private onHit(f: Foe, dealt: number, crit: boolean, e: SkillEffect) {
+    const fx = this.fx;
+    const steal = (e.lifesteal ?? 0) + (fx.lifesteal ?? 0) / 100;
+    if (steal > 0) this.healP(Math.max(1, Math.round(dealt * steal)));
+    if (crit && fx.critHeal) this.healP(fx.critHeal);
+    if (crit && fx.critBlock) this.gainBlock('p', fx.critBlock);
+    if (fx.goldHit) this.hooks.addShinies(fx.goldHit);
+    if (f.dead) return;
+    if (fx.poisonHit) this.applyStatus(f.uid, 'poison', this.amp('poison', fx.poisonHit));
+    if (fx.burnHit) this.applyStatus(f.uid, 'burn', this.amp('burn', fx.burnHit));
+    if (fx.bleedHit) this.applyStatus(f.uid, 'bleed', this.amp('bleed', fx.bleedHit));
+    if (fx.chillHit) this.applyStatus(f.uid, 'chill', fx.chillHit);
+    if (fx.stunChance && !f.def.boss && !f.status.stun && rand() < fx.stunChance / 100) this.applyStatus(f.uid, 'stun', 1);
+  }
+
+  // statusAmp makes poison, burn and bleed you apply stronger.
+  private amp(k: StatusKey, n: number) {
+    if (!this.fx.statusAmp || (k !== 'poison' && k !== 'burn' && k !== 'bleed')) return n;
+    return Math.round(n * (1 + this.fx.statusAmp / 100));
+  }
+
+  // Damage multipliers from items and passives, for a skill hit on this foe.
+  private fxMul(f: Foe, def: SkillDef) {
+    const fx = this.fx;
+    let m = 1;
+    if (fx.bossDmg && (f.def.boss || f.elite)) m *= 1 + fx.bossDmg / 100;
+    if (fx.aoeDmg && def.target === 'all') m *= 1 + fx.aoeDmg / 100;
+    if (fx.soloDmg && def.target === 'one') m *= 1 + fx.soloDmg / 100;
+    if (fx.stunDmg && f.status.stun) m *= 1 + fx.stunDmg / 100;
+    if (fx.debuffDmg) {
+      const n = (['poison', 'weak', 'vuln', 'stun', 'burn', 'bleed', 'mark', 'chill'] as StatusKey[]).filter((k) => (f.status[k] ?? 0) > 0).length;
+      m *= 1 + (fx.debuffDmg * n) / 100;
+    }
+    if (fx.ambush && this.turn === 1) m *= 1 + fx.ambush / 100;
+    if (fx.slowBurn && this.turn > 1) m *= 1 + (fx.slowBurn * (this.turn - 1)) / 100;
+    const alive = this.alive().length;
+    if (fx.crowd && alive > 1) m *= 1 + (fx.crowd * (alive - 1)) / 100;
+    if (fx.duel && alive === 1) m *= 1 + fx.duel / 100;
+    if (fx.richDmg) m *= 1 + Math.min(100, fx.richDmg * Math.floor(this.hooks.shinies() / 10)) / 100;
+    return m;
   }
 
   endTurn(): Ev[] {
@@ -370,8 +549,16 @@ export class Combat {
       f.hp += amt;
       this.ev.push({ t: 'heal', who: f.uid, amount: amt, hp: f.hp });
     }
+    this.tickRegen(f.uid);
     this.tickPoison(f.uid);
+    if (!f.dead) this.tickBurn(f.uid);
     if (f.dead) return;
+    if (!f.status.stun && this.fx.trip && !f.def.boss && rand() < this.fx.trip / 100) {
+      this.ev.push({ t: 'msg', who: f.uid, text: 'TRIPPED!', color: 0xffcd75 });
+      this.decay(f.uid);
+      f.intent = this.pickMove(f);
+      return;
+    }
     if (f.status.stun) {
       f.status.stun--;
       this.ev.push({ t: 'msg', who: f.uid, text: 'STUNNED!', color: 0xffcd75 });
@@ -472,9 +659,12 @@ export class Combat {
   }
 
   private foeHitsPlayer(f: Foe, base: number) {
-    if (rand() < dodgeChance(this.run)) {
+    const evade = (this.status.evade ?? 0) > 0;
+    if (evade) this.setStatus('p', 'evade', this.status.evade! - 1);
+    if (evade || rand() < dodgeChance(this.run)) {
       this.ev.push({ t: 'dodge', who: 'p' });
       if (this.fx.dodgeStrike) this.damageFoe(f, this.fx.dodgeStrike, false, false);
+      if (this.fx.dodgeHeal) this.healP(this.fx.dodgeHeal);
       return;
     }
     let amt = this.foeRaw(f, base);
@@ -482,11 +672,14 @@ export class Combat {
     this.block -= blocked;
     amt -= blocked;
     this.hp = Math.max(0, this.hp - amt);
+    this.cheat();
     this.ev.push({ t: 'hit', who: 'p', src: f.uid, dmg: amt, blocked, hp: this.hp, block: this.block });
     if (this.hp <= 0) {
       this.ev.push({ t: 'die', who: 'p' });
       return;
     }
+    if (this.fx.spikeBlock && blocked > 0) this.damageFoe(f, (blocked * this.fx.spikeBlock) / 100, false, false);
+    if (f.dead) return;
     if (this.fx.hurtBlock && amt > 0) this.gainBlock('p', this.fx.hurtBlock);
     const thorns = (this.fx.thorns ?? 0) + (this.status.thorns ?? 0);
     if (thorns > 0) this.damageFoe(f, thorns, false, false);
@@ -503,8 +696,8 @@ export class Combat {
     return m;
   }
 
-  // Returns damage dealt to hp.
-  damageFoe(f: Foe, raw: number, crit: boolean, dodgeable: boolean): number {
+  // Returns damage dealt to hp. Pierce ignores armor and block.
+  damageFoe(f: Foe, raw: number, crit: boolean, dodgeable: boolean, pierce = false): number {
     if (f.dead) return 0;
     if (dodgeable && f.def.dodge && rand() < Math.max(0, f.def.dodge - accuracy(this.run) * f.def.dodge)) {
       this.ev.push({ t: 'dodge', who: f.uid });
@@ -514,12 +707,14 @@ export class Combat {
     if (f.status.vuln) amt *= 1.5;
     // Armour shrugs off plain hits; crits go straight through.
     let armor = 0;
-    if (f.armor && !crit) {
+    if (f.armor && !crit && !pierce) {
       armor = Math.min(f.armor, Math.max(0, Math.round(amt) - 1));
       amt -= armor;
     }
+    // Bleeding foes lose extra on every attack that lands.
+    if (dodgeable && f.status.bleed) amt += f.status.bleed;
     amt = Math.max(1, Math.round(amt));
-    const blocked = Math.min(f.block, amt);
+    const blocked = pierce ? 0 : Math.min(f.block, amt);
     f.block -= blocked;
     amt -= blocked;
     f.hp = Math.max(0, f.hp - amt);
@@ -586,6 +781,12 @@ export class Combat {
       }
     }
     if (this.fx.killHeal) this.healP(this.fx.killHeal);
+    if (this.fx.killBlock) this.gainBlock('p', this.fx.killBlock);
+    if (this.fx.killFocus) this.applyStatus('p', 'focus', this.fx.killFocus);
+    if (this.fx.poisonSpread && f.status.poison) {
+      const n = Math.round((f.status.poison * this.fx.poisonSpread) / 100);
+      if (n > 0) for (const o of this.alive()) this.applyStatus(o.uid, 'poison', n);
+    }
     if (this.fx.killAp) {
       this.ap += this.fx.killAp;
       this.ev.push({ t: 'ap', ap: this.ap });
@@ -596,14 +797,75 @@ export class Combat {
   private hurtPlayerDirect(n: number, src: Who | 'env' = 'env') {
     if (n <= 0) return;
     this.hp = Math.max(0, this.hp - n);
+    this.cheat();
     this.ev.push({ t: 'hit', who: 'p', src, dmg: n, blocked: 0, hp: this.hp, block: this.block });
     if (this.hp <= 0) this.ev.push({ t: 'die', who: 'p' });
   }
 
+  // Once a fight, cheatDeath turns a lethal blow into 1 health.
+  private cheat() {
+    if (this.hp > 0 || !this.fx.cheatDeath || this.cheated) return;
+    this.cheated = true;
+    this.hp = 1;
+    this.ev.push({ t: 'msg', who: 'p', text: 'NOT TODAY!', color: 0xffcd75 });
+  }
+
   private healP(n: number) {
     const before = this.hp;
-    this.hp = Math.min(this.maxHp, this.hp + n);
+    const amt = Math.round(n * healMul(this.run));
+    this.hp = Math.min(this.maxHp, this.hp + amt);
     if (this.hp > before) this.ev.push({ t: 'heal', who: 'p', amount: this.hp - before, hp: this.hp });
+    const over = amt - (this.hp - before);
+    if (this.fx.overBlock && over > 0) this.gainBlock('p', Math.round((over * this.fx.overBlock) / 100));
+  }
+
+  private setBlock(f: Foe, n: number) {
+    f.block = n;
+    this.ev.push({ t: 'block', who: f.uid, amount: 0, block: n });
+  }
+
+  setStatus(who: Who, key: StatusKey, n: number) {
+    const st = who === 'p' ? this.status : this.foe(who as number)?.status;
+    if (!st) return;
+    st[key] = Math.max(0, n);
+    this.ev.push({ t: 'status', who, key, n: st[key]! });
+  }
+
+  // Chaos: something random every turn. Half of it helps.
+  private chaos() {
+    const foes = this.alive();
+    const foe = foes[Math.floor(rand() * foes.length)];
+    const roll = Math.floor(rand() * 8);
+    const say = (text: string, color: number) => this.ev.push({ t: 'msg', who: 'p', text, color });
+    if (roll === 0) {
+      say('CHAOS: +1 AP', 0x73eff7);
+      this.apBonus++;
+    } else if (roll === 1) {
+      say('CHAOS: SURE CRIT', 0xffcd75);
+      this.applyStatus('p', 'focus', 1);
+    } else if (roll === 2 && foe) {
+      say('CHAOS: FOE DAZED', 0xffcd75);
+      this.applyStatus(foe.uid, foe.def.boss ? 'weak' : 'stun', 1);
+    } else if (roll === 3) {
+      say('CHAOS: SNACK', 0x38b764);
+      this.healP(Math.round(this.maxHp * 0.08));
+    } else if (roll === 4) {
+      say('CHAOS: OUCH', 0xb13e53);
+      this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * 0.06)));
+    } else if (roll === 5 && foe) {
+      say('CHAOS: FOE ANGRY', 0xb13e53);
+      this.applyStatus(foe.uid, 'rage', 1);
+    } else if (roll === 6) {
+      say('CHAOS: SHIELD', 0x41a6f6);
+      this.gainBlock('p', Math.round(10 * (1 + this.danger * 0.04)));
+    } else if (foe) {
+      say('CHAOS: FOE HEALS', 0xb13e53);
+      const amt = Math.min(foe.maxHp - foe.hp, Math.round(foe.maxHp * 0.1));
+      if (amt > 0) {
+        foe.hp += amt;
+        this.ev.push({ t: 'heal', who: foe.uid, amount: amt, hp: foe.hp });
+      }
+    }
   }
 
   private gainBlock(who: Who, n: number) {
@@ -620,9 +882,53 @@ export class Combat {
 
   applyStatus(who: Who, key: StatusKey, n: number) {
     const st = who === 'p' ? this.status : this.foe(who as number)?.status;
-    if (!st) return;
+    if (!st || n <= 0) return;
     st[key] = (st[key] ?? 0) + n;
     this.ev.push({ t: 'status', who, key, n: st[key]! });
+    // Chill freezes at 5 stacks (8 for bosses): a stun, and the chill starts over.
+    if (key === 'chill' && who !== 'p') {
+      const f = this.foe(who as number)!;
+      if (st.chill! >= (f.def.boss ? 8 : 5)) {
+        st.chill = 0;
+        this.ev.push({ t: 'status', who, key: 'chill', n: 0 });
+        this.ev.push({ t: 'msg', who, text: 'FROZEN!', color: 0x73eff7 });
+        st.stun = (st.stun ?? 0) + 1;
+        this.ev.push({ t: 'status', who, key: 'stun', n: st.stun });
+      }
+    }
+  }
+
+  // Burn: a big hit at the start of the turn that halves each time.
+  private tickBurn(who: Who) {
+    const st = who === 'p' ? this.status : this.foe(who as number)?.status;
+    if (!st?.burn) return;
+    const n = st.burn;
+    st.burn = Math.floor(n / 2);
+    if (who === 'p') this.hurtPlayerDirect(n);
+    else {
+      const f = this.foe(who)!;
+      f.hp = Math.max(0, f.hp - n);
+      this.ev.push({ t: 'hit', who, src: 'env', dmg: n, blocked: 0, hp: f.hp, block: f.block });
+      if (f.hp <= 0) this.killFoe(f);
+    }
+    this.ev.push({ t: 'status', who, key: 'burn', n: st.burn });
+  }
+
+  private tickRegen(who: Who) {
+    const st = who === 'p' ? this.status : this.foe(who as number)?.status;
+    if (!st?.regen) return;
+    const n = st.regen;
+    st.regen--;
+    if (who === 'p') this.healP(n);
+    else {
+      const f = this.foe(who)!;
+      const amt = Math.min(n, f.maxHp - f.hp);
+      if (amt > 0) {
+        f.hp += amt;
+        this.ev.push({ t: 'heal', who, amount: amt, hp: f.hp });
+      }
+    }
+    this.ev.push({ t: 'status', who, key: 'regen', n: st.regen });
   }
 
   private tickPoison(who: Who) {
@@ -630,11 +936,8 @@ export class Combat {
     if (!st?.poison) return;
     const n = st.poison;
     st.poison--;
-    if (who === 'p') {
-      this.hp = Math.max(0, this.hp - n);
-      this.ev.push({ t: 'hit', who, src: 'env', dmg: n, blocked: 0, hp: this.hp, block: this.block });
-      if (this.hp <= 0) this.ev.push({ t: 'die', who: 'p' });
-    } else {
+    if (who === 'p') this.hurtPlayerDirect(n);
+    else {
       const f = this.foe(who)!;
       f.hp = Math.max(0, f.hp - n);
       this.ev.push({ t: 'hit', who, src: 'env', dmg: n, blocked: 0, hp: f.hp, block: f.block });
@@ -646,7 +949,7 @@ export class Combat {
   private decay(who: Who) {
     const st = who === 'p' ? this.status : this.foe(who as number)?.status;
     if (!st) return;
-    for (const k of ['weak', 'vuln', 'rage'] as StatusKey[]) {
+    for (const k of ['weak', 'vuln', 'rage', 'bleed', 'chill'] as StatusKey[]) {
       if (st[k]) {
         st[k]!--;
         this.ev.push({ t: 'status', who, key: k, n: st[k]! });

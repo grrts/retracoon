@@ -29,7 +29,8 @@ Sign in is offered first (Google, Apple or Steam), or play as a guest and sign i
 - **Level-ups.** Spend all 3 points across STR, DEF, AGI, LCK and VIT (CONFIRM unlocks once none are left), then pick 1 of 3 cards (tap a card to select it, then LEARN), or SKIP. Every stat point counts in full; crit, dodge and damage cut cap at 95%. New skills are offered only while one of the 4 slots is free; after that only upgrades for your own skills. **Passive skills** (+6% damage, +8 max health, +2% crit and more) fill the rest, and once every skill is maxed every card is a passive. With all 4 slots full, **FORGET** takes the place of a card: drop one of your skills to free its slot, so later level-ups offer new skills again. Passives stack forever but last one run. The **BAG** button in a run shows your gear, skills and passives in full.
 - **Road stops** every two or three fights: tap one of two roads (shop, event, camp or treasure), then GO. Healing is scarce.
 - **Rewards:** tap an item to try it on (the preview raccoon wears it and the card says what it replaces), then TAKE.
-- **Items** show up on the raccoon. Rarer and higher-level gear glows; a full kit shines; set bonuses fly a flag.
+- **Items** show up on the raccoon. Rarer and higher-level gear glows; a full kit shines; set bonuses fly a flag. There are about 1,000, each drawn differently. **Sets** (50 of them) pay a bonus from 2 pieces on that grows with each piece worn. **Risky** items and sets carry a real catch (foes hit harder, a few HP lost each turn, shinies taxed after fights) for an upside bigger than their rarity normally allows; levelling a risky item grows the upside but never the catch.
+- **Skills.** About 500, each with its own icon. Some are free from the start; most unlock with character level (modest at level 10, fight-ending at 100), with a stat (and grow with that stat), or both.
 
 ## Retreat and death
 

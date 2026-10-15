@@ -1,11 +1,12 @@
 import Phaser from 'phaser';
 import type { ItemDef, Slot } from '../content/types';
-import { items, skins, RARITY, SLOT_NAMES, TAGS } from '../content/registry';
-import { RunState, tagCounts } from './run';
+import { items, sets, skins, RARITY, SLOT_NAMES, TAGS } from '../content/registry';
+import { RunState, setCounts, tagCounts } from './run';
 import { text, panel, wrapPx, LINE_H } from '../ui';
 import { ANCHORS, ANCHOR_PART, COON_H, POSE_OFFSETS, Pose } from '../gfx/coon';
 import { coonKey, ensureCoon } from '../gfx/coonTex';
 import { mainColor } from '../gfx/pixels';
+import { ensureItem } from '../gfx/textures';
 import type { Gear } from '../content/types';
 
 type Anim = 'idle' | 'walk' | 'attack' | 'hurt';
@@ -82,6 +83,7 @@ export class RaccoonView extends Phaser.GameObjects.Container {
       const o = owned.find((x) => x.slot === slot);
       const def = o && items.get(o.id);
       if (!def) continue;
+      ensureItem(this.scene, def.id);
       if (slot === 'aura') {
         this.auraColors.push(def.icon ? mainColor(def.icon) : RARITY[def.rarity].color);
         continue;
@@ -121,17 +123,19 @@ export class RaccoonView extends Phaser.GameObjects.Container {
       this.addAt(sack, 0);
       this.extras.push(sack);
     }
-    // Set banners: a little flag per active set bonus.
+    // Set banners: a little flag per active tag or set bonus, a big one when it is maxed.
     if (run) {
-      const t = tagCounts(run);
-      let i = 0;
-      for (const [k, n] of Object.entries(t)) {
-        if (n < 2) continue;
-        const flag = this.scene.add.image(OX + 4 + i * 4, OY - 2, n >= 4 ? 'flag_big' : 'flag').setOrigin(0, 1).setTint(TAGS[k].color);
+      const flags: [number, boolean][] = [];
+      for (const [k, n] of Object.entries(tagCounts(run))) if (n >= 2) flags.push([TAGS[k].color, n >= 4]);
+      for (const [id, n] of Object.entries(setCounts(run))) {
+        const set = sets.get(id);
+        if (set && n >= 2) flags.push([set.color, n >= Math.max(...set.bonuses.map((b) => b.n))]);
+      }
+      flags.forEach(([color, big], i) => {
+        const flag = this.scene.add.image(OX + 4 + i * 4, OY - 2, big ? 'flag_big' : 'flag').setOrigin(0, 1).setTint(color);
         this.addAt(flag, 0);
         this.extras.push(flag);
-        i++;
-      }
+      });
     }
     // A full kit (every slot filled) makes the raccoon shine.
     this.fullKit = !!run && (['head', 'face', 'body', 'back', 'paw', 'tail', 'aura'] as Slot[]).every((s) => run.gear[s]);
@@ -227,15 +231,25 @@ export function itemCard(scene: Phaser.Scene, x: number, y: number, w: number, h
   const rar = RARITY[def.rarity];
   panel(g, -w / 2, -h / 2, w, h, 0x29366f, rar.color, 0x3b5dc9);
   c.add(g);
+  ensureItem(scene, def.id);
   const icon = scene.add.image(-w / 2 + 16, -h / 2 + 16, `item_${def.id}`);
   const s = Math.min(2, 24 / Math.max(icon.width, icon.height));
   icon.setScale(Math.max(1, Math.floor(s)));
   c.add(icon);
   const left = -w / 2 + 31;
   c.add(text(scene, left, -h / 2 + 10, def.name, { origin: 0, color: 0xf4f4f4, maxWidth: w - 36, maxLines: 1 }));
-  c.add(text(scene, left, -h / 2 + 20, `${rar.name}`, { origin: 0, color: rar.color }));
-  const lines = wrapPx(def.desc, w - 12).slice(0, 4);
+  const rarT = text(scene, left, -h / 2 + 20, `${rar.name}`, { origin: 0, color: rar.color });
+  c.add(rarT);
+  // Risky items say so up front: their text ends with the catch.
+  if (def.risky) c.add(text(scene, left + rarT.width + 4, -h / 2 + 20, 'RISKY', { origin: 0, color: 0xb13e53 }));
+  const set = def.set ? sets.get(def.set) : undefined;
+  const lines = wrapPx(def.desc, w - 12).slice(0, set ? 3 : 4);
   lines.forEach((ln, i) => c.add(text(scene, -w / 2 + 6, -h / 2 + 36 + i * LINE_H, ln, { origin: 0, color: 0xc9d1dd })));
+  // Set pieces: the set's name and how many of it you would wear with this one.
+  if (set) {
+    const worn = run ? set.pieces.filter((id) => id !== def.id && run.gear[items.get(id)!.slot]?.id === id).length + 1 : 1;
+    c.add(text(scene, -w / 2 + 6, -h / 2 + 36 + 3 * LINE_H, `${set.name} ${worn}/${set.pieces.length}`, { origin: 0, color: set.color, maxWidth: w - 12, maxLines: 1 }));
+  }
   let tx = -w / 2 + 6;
   for (const t of def.tags) {
     const tag = TAGS[t];
