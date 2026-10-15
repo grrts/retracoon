@@ -7,8 +7,11 @@ import { normalizeTrack, resolveTrack } from './music/tracks';
 
 type Wave = OscillatorType;
 
-// Music sits well under the sound effects (sfxBus is 0.55).
+// Music sits well under the sound effects. The volume settings (0-10) scale these down.
+const MASTER_LEVEL = 0.5;
+const SFX_LEVEL = 0.55;
 const MUSIC_LEVEL = 0.3;
+const level = (k: 'master' | 'music' | 'sfx') => (store.vol?.[k] ?? 10) / 10;
 
 class Synth {
   ctx: AudioContext | null = null;
@@ -30,13 +33,13 @@ class Synth {
       if (!Ctor) return;
       this.ctx = new Ctor();
       this.master = this.ctx.createGain();
-      this.master.gain.value = this.muted ? 0 : 0.5;
+      this.master.gain.value = this.muted ? 0 : MASTER_LEVEL * level('master');
       this.master.connect(this.ctx.destination);
       this.sfxBus = this.ctx.createGain();
-      this.sfxBus.gain.value = 0.55;
+      this.sfxBus.gain.value = SFX_LEVEL * level('sfx');
       this.sfxBus.connect(this.master);
       this.musicBus = this.ctx.createGain();
-      this.musicBus.gain.value = MUSIC_LEVEL;
+      this.musicBus.gain.value = MUSIC_LEVEL * level('music');
       this.musicBus.connect(this.master);
       const len = this.ctx.sampleRate * 0.5;
       this.noiseBuf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
@@ -52,7 +55,16 @@ class Synth {
     this.muted = m;
     store.muted = m;
     save();
-    if (this.ctx) this.master.gain.setTargetAtTime(m ? 0 : 0.5, this.ctx.currentTime, 0.02);
+    this.applyVolume();
+  }
+
+  /** Apply store.vol and the mute switch to the running mix. */
+  applyVolume() {
+    if (!this.ctx) return;
+    const t = this.ctx.currentTime;
+    this.master.gain.setTargetAtTime(this.muted ? 0 : MASTER_LEVEL * level('master'), t, 0.02);
+    this.sfxBus.gain.setTargetAtTime(SFX_LEVEL * level('sfx'), t, 0.02);
+    this.musicBus.gain.setTargetAtTime(MUSIC_LEVEL * level('music'), t, 0.02);
   }
 
   suspend() {

@@ -1,7 +1,8 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
-import { text, button, panel, BTN, LINE_H, wrapPx, measure, fmt, Button } from '../ui';
+import { text, button, panel, BTN, LINE_H, wrapPx, measure, fmt, Button, shake } from '../ui';
+import { onAction } from '../input';
 import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
@@ -80,9 +81,11 @@ export class RewardScene extends Overlay<RewardData> {
     this.take = button(this, W / 2 + 10, by, Math.min(170, W - 190), 22, 'TAKE', () => this.confirm(), { ...BTN.green, depth: 5 });
     this.take.setEnabled(false);
     button(this, W - 34, by, 56, 20, 'SKIP', () => this.close(), { depth: 5 });
-    const kb = this.input.keyboard!;
-    ['ONE', 'TWO', 'THREE'].forEach((k, i) => kb.on(`keydown-${k}`, () => i < n && this.pick(i)));
-    kb.on('keydown-ENTER', () => this.confirm());
+    onAction(this, ['slot1', 'slot2', 'slot3'], (a) => {
+      const i = Number(a.slice(4)) - 1;
+      if (i < n) this.pick(i);
+    });
+    onAction(this, 'confirm', () => this.confirm());
     if (n === 1) this.pick(0);
   }
 
@@ -194,12 +197,8 @@ export class ForkScene extends Overlay<OverlayData> {
       this.tweens.add({ targets: c, alpha: 1, scale: 1, delay: i * 80, duration: 200, ease: 'Back.out' });
       cards.push(c);
     });
-    const kb = this.input.keyboard!;
-    kb.on('keydown-LEFT', () => pick(0));
-    kb.on('keydown-RIGHT', () => pick(1));
-    kb.on('keydown-ONE', () => pick(0));
-    kb.on('keydown-TWO', () => pick(1));
-    kb.on('keydown-ENTER', () => picked >= 0 && this.go(picks[picked]));
+    onAction(this, ['slot1', 'slot2'], (a) => pick(a === 'slot1' ? 0 : 1));
+    onAction(this, 'confirm', () => picked >= 0 && this.go(picks[picked]));
   }
 
   private going = false;
@@ -315,7 +314,7 @@ export class ShopScene extends Overlay<OverlayData> {
     const r = this.d.run;
     const it = this.stock[i];
     if (!it || r.shinies < price) {
-      this.cameras.main.shake(80, 0.004);
+      shake(this, 80, 0.004);
       return;
     }
     r.shinies -= price;

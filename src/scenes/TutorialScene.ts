@@ -3,6 +3,7 @@ import Phaser from 'phaser';
 import { track } from '../platform/track';
 import { W, H } from '../config';
 import { text, button, panel, BTN } from '../ui';
+import { onAction } from '../input';
 import { sfx, menuMusic } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
@@ -36,7 +37,7 @@ const PAGES: Page[] = [
   {
     title: 'FIGHTING',
     color: COL.red,
-    lines: ['EACH TURN YOU GET ACTION POINTS (AP). TAP SKILLS TO SPEND THEM, THEN END YOUR TURN.', 'THE ICON ABOVE A FOE SHOWS WHAT IT WILL DO NEXT. BLOCK THE BIG HITS.'],
+    lines: ['EACH TURN YOU GET ACTION POINTS (AP). TAP SKILLS TO SPEND THEM. THE TURN ENDS WHEN THEY RUN OUT.', 'THE ICON ABOVE A FOE SHOWS WHAT IT WILL DO NEXT. BLOCK THE BIG HITS.'],
     art: (s, x, y) => {
       s.coon(x - 50, y);
       foe(s, 'rat', x + 40, y);
@@ -108,11 +109,9 @@ export class TutorialScene extends Phaser.Scene {
     menuMusic(this);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
     if (!this.forced) button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
-    this.input.keyboard?.on('keydown-RIGHT', () => this.go(1));
-    this.input.keyboard?.on('keydown-SPACE', () => this.go(1));
-    this.input.keyboard?.on('keydown-ENTER', () => this.go(1));
-    this.input.keyboard?.on('keydown-LEFT', () => this.go(-1));
-    if (!this.forced) this.input.keyboard?.on('keydown-ESC', () => this.finish());
+    onAction(this, ['right', 'confirm'], () => this.go(1));
+    onAction(this, 'left', () => this.go(-1));
+    if (!this.forced) onAction(this, 'back', () => this.finish());
     this.draw();
   }
 

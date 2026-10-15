@@ -4,6 +4,7 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { text, button, panel, BTN, type Button } from '../ui';
+import { onAction } from '../input';
 import { sfx, menuMusic } from '../audio';
 import { store } from '../save';
 import { COL } from '../gfx/palette';
@@ -77,7 +78,7 @@ export class ScoresScene extends Phaser.Scene {
         }),
       );
     });
-    this.input.keyboard?.on('keydown-ESC', () => this.leave());
+    onAction(this, 'back', () => this.leave());
     if (!this.demo) track('scores_open');
     this.drawLeft();
     if (this.demo) this.drawRight();

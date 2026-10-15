@@ -14,7 +14,7 @@ npm run steam          # builds the game into steam/game and opens it
 
 Without Steam running, the game opens but sign-in fails (when the build has an API address). For testing with Steam, start Steam first; until you have your own App ID the wrapper uses Valve's test app 480.
 
-Keys: **F11** or **Alt+Enter** toggles fullscreen. The title screen has a QUIT button.
+Keys: **F11** or **Alt+Enter** toggles fullscreen. The title screen has SETTINGS (full screen or windowed, window size, volume, key and controller bindings) and a QUIT button.
 
 ## Build for upload
 
@@ -52,4 +52,4 @@ Depot 1 is Windows, 2 macOS, 3 Linux. You set a build live from Steamworks > Ste
 
 - The macOS build isn't notarized. Steam runs it fine, but for Gatekeeper-friendly builds add a Developer ID certificate to electron-builder.
 - The macOS build is for the architecture of the machine that builds it (Apple Silicon on GitHub's `macos-latest`).
-- Steam Deck "Verified" needs full controller support, which the game doesn't have yet (it's tap and mouse). It can still be sold and played on Deck with the touch screen or trackpads.
+- Steam Deck: every screen works with the built-in controls through the Gamepad API (Steam Input presents the Deck as an Xbox controller): d-pad or stick moves a highlight, A presses, B goes back, and all buttons can be remapped in Settings. For "Verified", set the Steam Input default to "Gamepad" in Steamworks; text entry (friend codes) uses the Steam on-screen keyboard (Steam + X).

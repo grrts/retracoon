@@ -24,6 +24,15 @@ try {
 // Serve the game from app://game/ so module scripts and fetch work like on the web.
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
+let pendingSize = null;
+
+// Never bigger than the screen the window is on.
+function setSize(win, w, h) {
+  const { workAreaSize } = require('electron').screen.getDisplayMatching(win.getBounds());
+  win.setContentSize(Math.min(w, workAreaSize.width), Math.min(h, workAreaSize.height));
+  win.center();
+}
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 1280,
@@ -45,6 +54,13 @@ function createWindow() {
     if (input.type === 'keyDown' && (input.key === 'F11' || (input.key === 'Enter' && input.alt))) win.setFullScreen(!win.isFullScreen());
   });
   // Links (privacy policy and such) open in the player's browser, not in the game.
+  // Tell the game when full screen changes (F11, Alt+Enter), so its setting stays right.
+  win.on('enter-full-screen', () => win.webContents.send('steam:fullscreen-changed', true));
+  win.on('leave-full-screen', () => {
+    win.webContents.send('steam:fullscreen-changed', false);
+    if (pendingSize) setSize(win, ...pendingSize);
+    pendingSize = null;
+  });
   win.webContents.setWindowOpenHandler(({ url }) => {
     require('electron').shell.openExternal(url);
     return { action: 'deny' };
@@ -74,6 +90,14 @@ app.whenReady().then(() => {
   ipcMain.handle('steam:name', () => (steam ? steam.localplayer.getName() : ''));
   ipcMain.on('steam:quit', () => app.quit());
   ipcMain.on('steam:fullscreen', (e, on) => BrowserWindow.fromWebContents(e.sender)?.setFullScreen(!!on));
+  // Windowed size from the game's settings. Leaving full screen can take a moment, so a
+  // size asked for meanwhile is applied once the window is out of it.
+  ipcMain.on('steam:window-size', (e, w, h) => {
+    const win = BrowserWindow.fromWebContents(e.sender);
+    if (!win) return;
+    if (win.isFullScreen()) pendingSize = [w, h];
+    else setSize(win, w, h);
+  });
 
   createWindow();
 });
