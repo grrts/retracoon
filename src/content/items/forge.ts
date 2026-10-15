@@ -6,7 +6,10 @@
 // effects x1/x1.5/x2, and on/off effects (cheat death, chaos, +AP) don't grow.
 // Drawbacks never grow, so levelling up a risky item is how you outgrow its catch.
 import type { Bonus, FxKey, Fx, Gear, ItemDef, Rarity, SetDef, Slot, Tag } from '../types';
-import { ink } from '../skills/icons';
+import { INKS } from '../skills/icons';
+import { SHAPES } from './sprites';
+import { paint, type Shape } from './sprites/shape';
+import { fits } from './sprites/match';
 import { ITEMS_HEAD } from './head';
 import { ITEMS_FACE } from './face';
 import { ITEMS_BODY } from './body';
@@ -152,23 +155,10 @@ export function describeEff(e: Eff): string {
 const BASE: Record<string, ItemDef> = {};
 for (const it of [...ITEMS_HEAD, ...ITEMS_FACE, ...ITEMS_BODY, ...ITEMS_BACK, ...ITEMS_PAW, ...ITEMS_TAIL, ...ITEMS_AURA]) BASE[it.id] = it;
 
-// 'baseball_cap/fire': that item's gear (or aura icon), repainted.
-export function look(spec: string, slot: Slot): { gear?: Gear[]; icon?: string[] } {
-  const [id, theme] = spec.split('/');
-  const b = BASE[id];
-  if (!b) throw new Error(`no base look ${id}`);
-  if (b.slot !== slot) throw new Error(`look ${id} is a ${b.slot} item, not ${slot}`);
-  return {
-    gear: b.gear?.map((g) => ({ ...g, rows: ink(g.rows, theme), alt: g.alt && ink(g.alt, theme) })),
-    icon: b.icon && ink(b.icon, theme),
-  };
-}
-
 // ---------------------------------------------------------------- inks
 
-// Every item wears a unique look: one of its slot's base pieces in one ink. Unless a
-// line names its look, the ink follows what the item does (burn is fire, gold is gold)
-// and the base is the next one of that slot not yet worn in that ink.
+// An item's main ink follows what it does (burn is fire, gold is gold); a set's pieces
+// all wear the set's ink.
 const INK_OF: [string, string[]][] = [
   ['void', ['chaos', 'cheatDeath', 'turnHurt', 'foeHp', 'foeDmg', 'hpMul']],
   ['fire', ['burnHit', 'rage', 'ambush', 'firstStrike', 'killBurst']],
@@ -195,36 +185,60 @@ function inkFor(good: Eff, bad?: Eff): string {
   return 'earth';
 }
 
-// Two inks can paint a simple piece identically, so looks are compared as drawn.
-const used = new Set<string>();
-const drawn = new Set<string>(Object.values(BASE).map((b) => JSON.stringify(b.gear?.map((g) => g.rows) ?? b.icon)));
-const art = (spec: string, slot: Slot) => {
-  const a = look(spec, slot);
-  return JSON.stringify(a.gear?.map((g) => g.rows) ?? a.icon);
+// A forged item's accent ink: the ink of its next effect, else one that sets off the main.
+const FOIL: Record<string, string> = {
+  fire: 'gold', ice: 'holy', poison: 'void', blood: 'shadow', gold: 'blood', shadow: 'neon', holy: 'gold', earth: 'rust',
+  storm: 'gold', nature: 'earth', neon: 'void', void: 'neon', steel: 'blood', rose: 'holy', sea: 'steel', rust: 'steel',
 };
-
-function take(spec: string, slot: Slot) {
-  const a = art(spec, slot);
-  if (used.has(spec) || drawn.has(a)) return false;
-  used.add(spec);
-  drawn.add(a);
-  return true;
+function accentFor(main: string, good: Eff, bad?: Eff): string {
+  for (const k of [...Object.keys(good), ...Object.keys(bad ?? {})]) for (const [n, ks] of INK_OF) if (n !== main && ks.includes(k)) return n;
+  return FOIL[main];
 }
 
-function claim(slot: Slot, want: string): string {
-  const bases = Object.values(BASE).filter((b) => b.slot === slot).map((b) => b.id);
-  const order = [want, ...INK_NAMES.filter((n) => n !== want)];
-  for (const n of order) for (const b of bases) if (take(`${b}/${n}`, slot)) return `${b}/${n}`;
+// Every forged item is drawn as one of its slot's shapes (sprites/), picked to fit its
+// name, in a main and an accent ink. Two items never look the same, compared as drawn.
+const drawn = new Set<string>(Object.values(BASE).map((b) => JSON.stringify(b.gear?.map((g) => g.rows) ?? b.icon)));
+const worn = new Map<string, number>(); // slot/shape -> items drawn with it
+
+function render(sh: Shape, main: string, accent: string): { gear?: Gear[]; icon?: string[] } {
+  const m = INKS[main];
+  const a = INKS[accent];
+  if (sh.icon) return { icon: paint(sh.icon, m, a) };
+  return { gear: sh.parts.map((g) => ({ ...g, rows: paint(g.rows, m, a), alt: g.alt && paint(g.alt, m, a) })) };
+}
+
+// a stable spread for items no word places, so neighbours in a list differ
+const hash = (s: string) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+
+function dress(slot: Slot, id: string, name: string, main: string, accent: string): { gear?: Gear[]; icon?: string[] } {
+  const lib = SHAPES[slot]!;
+  const all = Object.keys(lib);
+  const n = (s: string) => worn.get(`${slot}/${s}`) ?? 0;
+  const fit = fits(slot, id, name, main).filter((s) => lib[s]);
+  const spread = [...all].sort((x, y) => n(x) - n(y) || (hash(id + x) % 997) - (hash(id + y) % 997));
+  const rest = spread.filter((s) => !fit.includes(s));
+  const mains = [main, ...INK_NAMES.filter((i) => i !== main)];
+  const accents = (m: string) => [accent, ...INK_NAMES.filter((i) => i !== accent && i !== m), m];
+  // a shape that fits the name in any ink beats one that doesn't in the right ink
+  const tries: [string, string][] = [
+    ...fit.sort((x, y) => n(x) - n(y)).flatMap((s) => mains.map((m): [string, string] => [s, m])),
+    ...mains.flatMap((m) => rest.map((s): [string, string] => [s, m])),
+  ];
+  for (const [s, mainInk] of tries)
+    for (const acc of accents(mainInk)) {
+      const out = render(lib[s], mainInk, acc);
+      const key = JSON.stringify(out.gear?.map((g) => g.rows) ?? out.icon);
+      if (drawn.has(key)) continue;
+      drawn.add(key);
+      worn.set(`${slot}/${s}`, n(s) + 1);
+      LOOKS.set(id, `${s}/${mainInk}/${acc}`);
+      return out;
+    }
   throw new Error(`no looks left for ${slot}`);
 }
 
-function pick(slot: Slot, spec: string | undefined, good: Eff, bad?: Eff) {
-  if (spec && spec.includes('/')) {
-    if (!take(spec, slot)) throw new Error(`look ${spec} is taken`);
-    return spec;
-  }
-  return claim(slot, spec || inkFor(good, bad));
-}
+// shape/main/accent of every forged item, for tools and previews
+export const LOOKS = new Map<string, string>();
 
 // ---------------------------------------------------------------- items
 
@@ -233,7 +247,7 @@ export interface Line {
   name: string;
   rarity: Rarity;
   tags: string; // 'crit trash'
-  look?: string; // 'base/ink', just 'ink', or nothing
+  look?: string; // a main ink, or nothing to follow the effects
   good: Eff;
   bad?: Eff;
 }
@@ -245,7 +259,8 @@ export function makeItem(slot: Slot, l: Line, set?: string): ItemDef {
   PARTS.set(l.id, { good: l.good, bad: l.bad });
   const good = l.good;
   const bad = l.bad;
-  const art = look(pick(slot, l.look, good, bad), slot);
+  const main = l.look || inkFor(good, bad);
+  const art = dress(slot, l.id, l.name, main, accentFor(main, good, bad));
   const desc = [describeEff(good), bad ? describeEff(bad) : ''].filter(Boolean).join(', ');
   return {
     id: l.id,
