@@ -1,7 +1,7 @@
 // Every piece of content the game ships with, loaded into the registry once at boot.
 // To add content, add it to the matching folder's list; nothing else needs to change.
-import { items, skills, enemies, families, events, themes, seasons, skins } from './registry';
-import { ITEMS } from './items';
+import { items, sets, skills, enemies, families, events, themes, seasons, skins } from './registry';
+import { ITEMS, SETS } from './items';
 import { SKILLS } from './skills';
 import { EVENTS } from './events';
 import { ENEMIES, FAMILIES } from './enemies';
@@ -22,6 +22,7 @@ export function loadContent() {
   if (done) return;
   done = true;
   put(items, ITEMS, 'item');
+  put(sets, SETS, 'set');
   put(skills, SKILLS, 'skill');
   put(enemies, ENEMIES, 'enemy');
   for (const [k, v] of Object.entries(FAMILIES)) families.set(k, v);

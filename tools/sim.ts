@@ -12,7 +12,7 @@ import { loadContent } from '../src/content';
 import { enemies, themes, items, skills, skins, events } from '../src/content/registry';
 import { Combat } from '../src/game/combat';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../src/game/encounters';
-import { roll, newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
+import { roll, newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, afterFight, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
 import { store } from '../src/save';
 import { rand } from '../src/game/rng';
 import type { RunMode } from '../src/game/run';
@@ -35,7 +35,7 @@ function fight(c: Combat, bot: Bot) {
     for (let i = 0; i < c.run.skills.length; i++) {
       const s = c.skillAt(i);
       if (!s || !c.canUse(i)) continue;
-      const e = s.def.effect(s.lvl);
+      const e = s.def.effect(s.lvl, c.ctx);
       if (bot === 'skilled') {
         if (e.block && !e.dmg && c.block >= incoming) continue;
         if (e.heal && c.hp > c.maxHp * 0.6) continue;
@@ -148,6 +148,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[]): 
     tickBlessings(r);
     const ups = gainXp(r, rw.xp);
     if (ups) r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.1 * ups));
+    afterFight(r);
     for (let u = 0; u < ups; u++) {
       spendPoints(r, bot);
       pickSkill(r, bot);

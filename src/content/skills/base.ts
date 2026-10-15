@@ -1,9 +1,9 @@
 // Every skill: the 18 originals plus new ones. Icons are 11x11 with a 'k' outline.
-import type { SkillDef } from './types';
+import type { SkillDef } from '../types';
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 
-const I = {
+export const I: Record<string, string[]> = {
   claw: [
     '.k...k...k.',
     'kwk.kwk.kwk',

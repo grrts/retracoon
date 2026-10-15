@@ -114,6 +114,19 @@ export function ensureEnemy(scene: Phaser.Scene, id: string, tier = 0) {
   def.phase2?.frames?.forEach((f, i) => mapTexture(scene, enemyKey(id, i, 0, 2), f));
 }
 
+// Item textures (icon, gear pieces, glow outlines), built the first time an item is shown:
+// with a thousand items, building them all at boot would stall a phone.
+export function ensureItem(scene: Phaser.Scene, id: string) {
+  const it = items.get(id);
+  if (!it || scene.textures.exists(`item_${id}`)) return;
+  it.gear?.forEach((g, i) => {
+    mapTexture(scene, `gear_${it.id}_${i}`, g.rows);
+    mapTexture(scene, `gearglow_${it.id}_${i}`, outlineMap(g.rows));
+    if (g.alt) mapTexture(scene, `gear_${it.id}_${i}_alt`, g.alt);
+  });
+  mapTexture(scene, `item_${it.id}`, it.icon ?? (it.gear?.length ? gearIcon(it.gear) : ['k']));
+}
+
 // Small particle shapes for auras, skins and weather.
 const PARTICLES: Record<string, string[]> = {
   heart: ['.w.w.', 'wwwww', '.www.', '..w..'],
@@ -152,14 +165,6 @@ export function buildTextures(scene: Phaser.Scene) {
   for (const [k, rows] of Object.entries(A.STATUS_ICONS)) mapTexture(scene, 'st_' + k, rows);
   for (const [k, rows] of Object.entries(A.INTENT_ICONS)) mapTexture(scene, 'in_' + k, rows);
 
-  for (const it of items.values()) {
-    it.gear?.forEach((g, i) => {
-      mapTexture(scene, `gear_${it.id}_${i}`, g.rows);
-      mapTexture(scene, `gearglow_${it.id}_${i}`, outlineMap(g.rows));
-      if (g.alt) mapTexture(scene, `gear_${it.id}_${i}_alt`, g.alt);
-    });
-    mapTexture(scene, `item_${it.id}`, it.icon ?? (it.gear?.length ? gearIcon(it.gear) : ['k']));
-  }
   for (const s of skills.values()) mapTexture(scene, `skill_${s.id}`, s.icon);
   for (const p of passives.values()) mapTexture(scene, `passive_${p.id}`, p.icon);
 

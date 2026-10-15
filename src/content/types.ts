@@ -5,7 +5,11 @@ export type Rarity = 0 | 1 | 2 | 3 | 4;
 export type Tag = 'speed' | 'tank' | 'scav' | 'crit' | 'trash';
 export type Slot = 'head' | 'face' | 'body' | 'back' | 'paw' | 'tail' | 'aura';
 export type StatKey = 'str' | 'def' | 'agi' | 'lck' | 'vit';
-export type StatusKey = 'poison' | 'weak' | 'vuln' | 'stun' | 'rage' | 'thorns';
+// poison: loses N at turn start, then N-1   burn: loses N at turn start, then N halves
+// bleed: loses N more every time it is hit, fades 1 a turn   chill: 5 stacks freeze (stun)
+// mark: hits on it always crit, one mark per hit   regen: heals N at turn start, then N-1
+// focus (raccoon): your next N hits crit   evade (raccoon): dodge the next N hits this round
+export type StatusKey = 'poison' | 'weak' | 'vuln' | 'stun' | 'rage' | 'thorns' | 'burn' | 'bleed' | 'mark' | 'chill' | 'focus' | 'evade' | 'regen';
 
 // ---------------------------------------------------------------- player
 
@@ -25,6 +29,10 @@ export interface Bonus {
   hp: number; // flat max health (passives)
   crit: number; // added to crit chance (passives)
   armor: number; // fraction of damage cut on top of DEF (passives)
+  taken: number; // +fraction damage taken (drawbacks; negative takes less)
+  healMul: number; // +fraction healing received (drawbacks use negative)
+  hpMul: number; // +fraction max health
+  xp: number; // +fraction XP from fights
 }
 
 // Mechanics items switch on. Values add up across items.
@@ -48,7 +56,59 @@ export type FxKey =
   | 'regen' // heal this much at the start of each turn
   | 'splash' // single-target hits also hit every other foe for this % of the damage
   | 'boomerang' // at the end of your turn, hit all foes for this much
-  | 'killBurst'; // kills deal this much to all other foes
+  | 'killBurst' // kills deal this much to all other foes
+  // ---- on-hit: your skill hits do this to whatever they hit
+  | 'lifesteal' // heal this % of damage dealt
+  | 'poisonHit' // poison this much
+  | 'burnHit' // burn this much
+  | 'bleedHit' // bleed this much
+  | 'chillHit' // chill this much
+  | 'stunChance' // % chance to stun (not bosses)
+  | 'goldHit' // gain this many shinies
+  | 'hpDmg' // add this % of your max health to the hit
+  | 'blockDmg' // add this % of your block to the hit
+  | 'critHeal' // heal this on a crit
+  | 'critBlock' // gain this much block on a crit
+  // ---- damage multipliers (%)
+  | 'bossDmg' // vs bosses and elites
+  | 'aoeDmg' // skills that hit every foe
+  | 'soloDmg' // single-target skills
+  | 'stunDmg' // vs stunned foes
+  | 'debuffDmg' // per kind of debuff on the target
+  | 'ambush' // during your first turn
+  | 'slowBurn' // per turn the fight has lasted (from turn 2)
+  | 'crowd' // per living foe beyond the first
+  | 'duel' // when only one foe is left
+  | 'richDmg' // per 10 shinies held (up to +100%)
+  | 'statusAmp' // poison, burn and bleed you apply
+  // ---- turn and fight flow
+  | 'multiHit' // skills that hit more than once hit this many more times
+  | 'echo' // % chance a skill fires a second time for free
+  | 'refund' // % chance a skill gives its AP back
+  | 'quickCd' // % chance each turn that cooldowns tick twice
+  | 'startAp' // extra AP on your first turn
+  | 'focusStart' // start fights with this many sure crits
+  | 'evadeStart' // dodge this many hits in the first round
+  | 'markStart' // every foe starts marked this many times
+  | 'blockKeep' // keep this % of your block into the next turn
+  | 'spikeBlock' // when block soaks a hit, the attacker takes this % of what was soaked
+  | 'overBlock' // healing beyond full health becomes block (this % of it)
+  | 'dodgeHeal' // heal this when you dodge
+  | 'killBlock' // gain this much block on a kill
+  | 'killFocus' // a kill gives this many sure crits
+  | 'poisonSpread' // when a poisoned foe dies, this % of its poison jumps to the others
+  | 'cheatDeath' // once a fight, a lethal hit leaves you at 1 health
+  | 'trip' // % chance a foe trips and loses its turn
+  | 'chaos' // every turn something random happens, good or bad
+  | 'fightHeal' // heal this % of max health after each fight
+  // ---- drawbacks
+  | 'turnHurt' // lose this much health at the start of each turn
+  | 'selfPoison' // you start each fight poisoned this much
+  | 'foeHp' // foes have this % more health
+  | 'foeDmg' // foes deal this % more damage
+  | 'cdPlus' // every skill waits this many more turns
+  | 'fightTax' // lose this % of your shinies after each fight
+  | 'fightHurt'; // lose this % of max health after each fight
 
 export type Fx = Partial<Record<FxKey, number>>;
 
@@ -75,7 +135,27 @@ export interface ItemDef {
   bonus?: (b: Bonus, lvl: number) => void;
   fx?: (lvl: number) => Fx;
   needsBoss?: boolean; // only appears after the player has ever beaten a boss
+  set?: string; // id of the SetDef this piece belongs to
+  risky?: boolean; // has a real drawback; the card says so
   pack?: string;
+}
+
+// A themed set: wearing at least `n` of its pieces switches on each bonus (2 is always
+// the first step; bigger sets add more steps).
+export interface SetBonus {
+  n: number;
+  desc: string;
+  bonus?: (b: Bonus) => void;
+  fx?: Fx;
+}
+
+export interface SetDef {
+  id: string;
+  name: string;
+  color: number;
+  risky?: boolean; // its bonuses come with drawbacks
+  pieces: string[]; // item ids, one per slot
+  bonuses: SetBonus[];
 }
 
 // ---------------------------------------------------------------- skills
@@ -93,18 +173,59 @@ export interface SkillEffect {
   ap?: number; // gain AP
   hpCost?: number; // lose hp
   scale?: StatKey; // which stat scales the damage (default str)
+  // ---- added with the big skill book
+  hpPct?: number; // lose this fraction of max health
+  pierce?: boolean; // ignores armor and block
+  lifesteal?: number; // heal this fraction of the damage dealt
+  blockDmg?: number; // add this fraction of your block to the damage
+  spendBlock?: boolean; // and the block is used up
+  missing?: number; // +this much damage at 0 health, in step with health missing
+  per?: { key: StatusKey; mult: number }; // +mult damage per stack of key on the target
+  detonate?: { key: StatusKey; mult: number }; // removes key from the target: mult damage per stack, like poison it ignores armor
+  execute?: number; // a hit foe (not a boss) left under this fraction of health dies
+  shiny?: number; // add this many damage per shiny held
+  shinyCost?: number; // costs this many shinies (cannot be used without them)
+  cleanse?: boolean; // clears poison, burn, bleed, weak and vuln from you
+  refresh?: boolean; // every other skill comes off cooldown
+  allAp?: boolean; // spends all AP left: one more hit for each
+  combo?: number; // +this much damage per skill already used this turn
+  gamble?: number; // chance the damage triples; otherwise it halves
+  stack?: number; // +this much damage every time it was used this fight
+  pctHp?: number; // + this fraction of the target's current health (a third vs bosses)
+  crowd?: number; // +this much damage per other living foe
+  spread?: StatusKey; // after the hit, copy the target's stacks of this to every foe
+  shatter?: boolean; // strips the target's block first
+  maxHpDmg?: number; // add this fraction of your max health to the damage
+  killAp?: number; // AP back if this kills
+  killHeal?: number; // heal this fraction of max health if this kills
+  blockMul?: number; // multiply your block after the skill
+  steal?: boolean; // single target: take its buffs (rage, thorns, regen)
+}
+
+// What a skill can scale with besides its own rank: the raccoon's level and stats.
+export interface SkillCtx {
+  level: number;
+  stats: Record<StatKey, number>;
+}
+
+// Level-locked skills ask for a character level, stat-locked ones for a stat, some both.
+export interface SkillReq {
+  level?: number;
+  stat?: StatKey;
+  min?: number;
 }
 
 export interface SkillDef {
   id: string;
   name: string;
-  desc: (lvl: number) => string;
+  desc: (lvl: number, ctx?: SkillCtx) => string;
   icon: string[];
   cost: number; // action points
   cooldown: number; // turns
   target: Target;
   max: number;
-  effect: (lvl: number) => SkillEffect;
+  effect: (lvl: number, ctx?: SkillCtx) => SkillEffect;
+  req?: SkillReq;
   pack?: string;
 }
 

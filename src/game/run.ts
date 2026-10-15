@@ -1,6 +1,6 @@
 // Everything about the current run. Pure data and rules, no rendering.
-import type { BlessingId, Bonus, Fx, FxKey, ItemDef, SkillDef, Slot, StatKey, Tag } from '../content/types';
-import { items, skills, RARITY, themesByTier, themes } from '../content/registry';
+import type { BlessingId, Bonus, Fx, FxKey, ItemDef, SkillCtx, SkillDef, Slot, StatKey, Tag } from '../content/types';
+import { items, skills, sets, RARITY, themesByTier, themes } from '../content/registry';
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
@@ -170,7 +170,7 @@ export function xpToLevel(level: number) {
 }
 
 export function emptyBonus(): Bonus {
-  return { str: 0, def: 0, agi: 0, lck: 0, vit: 0, ap: 0, critMult: 0, shinyMult: 0, discount: 0, dodge: 0, dmg: 0, hp: 0, crit: 0, armor: 0 };
+  return { str: 0, def: 0, agi: 0, lck: 0, vit: 0, ap: 0, critMult: 0, shinyMult: 0, discount: 0, dodge: 0, dmg: 0, hp: 0, crit: 0, armor: 0, taken: 0, healMul: 0, hpMul: 0, xp: 0 };
 }
 
 export function equipped(r: RunState): { def: ItemDef; lvl: number }[] {
@@ -182,6 +182,13 @@ export function equipped(r: RunState): { def: ItemDef; lvl: number }[] {
 export function tagCounts(r: RunState) {
   const c: Record<Tag, number> = { speed: 0, tank: 0, scav: 0, crit: 0, trash: 0 };
   for (const { def } of equipped(r)) for (const t of def.tags) c[t]++;
+  return c;
+}
+
+// Pieces worn per set id.
+export function setCounts(r: RunState): Record<string, number> {
+  const c: Record<string, number> = {};
+  for (const { def } of equipped(r)) if (def.set) c[def.set] = (c[def.set] ?? 0) + 1;
   return c;
 }
 
@@ -218,6 +225,15 @@ export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
   if (t.crit >= 4) add({ execute: 30 });
   if (t.trash >= 2) b.str += 2;
   if (t.trash >= 4) add({ killBurst: 6 });
+  for (const [id, n] of Object.entries(setCounts(r))) {
+    const set = sets.get(id);
+    if (!set) continue;
+    for (const sb of set.bonuses) {
+      if (n < sb.n) continue;
+      sb.bonus?.(b);
+      if (sb.fx) add(sb.fx);
+    }
+  }
   cacheKey = key;
   cacheVal = { bonus: b, fx };
   return cacheVal;
@@ -237,12 +253,13 @@ export function totalStat(r: RunState, k: StatKey) {
 export const HARD_CAP = 0.95;
 
 export function maxHp(r: RunState) {
-  return Math.round(18 + totalStat(r, 'vit') * 6 + r.level * 2 + computeBonus(r).bonus.hp);
+  const b = computeBonus(r).bonus;
+  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul)));
 }
 
 export function apPerTurn(r: RunState) {
   const agi = rawStat(r, 'agi');
-  return 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0);
+  return Math.max(1, 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0));
 }
 
 export function critChance(r: RunState) {
@@ -266,7 +283,12 @@ export function attackPower(r: RunState, scale: StatKey = 'str') {
 export function damageTaken(r: RunState) {
   const def = totalStat(r, 'def');
   const cut = 1 - (1 - def * 0.03) * (1 - computeBonus(r).bonus.armor);
-  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1);
+  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken);
+}
+
+// Healing received: drawbacks can cut it, never below nothing.
+export function healMul(r: RunState) {
+  return Math.max(0, 1 + computeBonus(r).bonus.healMul);
 }
 
 export function shinyMult(r: RunState) {
@@ -330,11 +352,22 @@ export function rollRarity(r: RunState, min = 0, max = 4): number {
   return min;
 }
 
+export const SET_PULL = 0.3;
+
 export function itemPool(r: RunState, rarity: number): ItemDef[] {
   return [...items.values()].filter((it) => it.rarity === rarity && (!it.needsBoss || store.bossKills > 0) && !(r.gear[it.slot]?.id === it.id && r.gear[it.slot]!.lvl >= 3));
 }
 
 export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []): ItemDef | null {
+  // Sets pull: wearing a piece makes the rest of its set turn up far more often.
+  const worn = Object.keys(setCounts(r));
+  if (worn.length && rand() < SET_PULL) {
+    const missing = worn
+      .flatMap((id) => sets.get(id)?.pieces ?? [])
+      .map((id) => items.get(id)!)
+      .filter((it) => it && it.rarity >= min && it.rarity <= max && r.gear[it.slot]?.id !== it.id && !exclude.includes(it.id) && (!it.needsBoss || store.bossKills > 0));
+    if (missing.length) return missing[Math.floor(rand() * missing.length)];
+  }
   for (let tries = 0; tries < 12; tries++) {
     const rar = rollRarity(r, min, max);
     const pool = itemPool(r, rar).filter((i) => !exclude.includes(i.id));
@@ -364,6 +397,19 @@ export function equip(r: RunState, def: ItemDef): 'new' | 'level' | 'replace' {
   return res;
 }
 
+// After every won fight: item effects that heal, hurt or tax between fights.
+export function afterFight(r: RunState): { heal: number; hurt: number; tax: number } {
+  const fx = computeBonus(r).fx;
+  const mh = maxHp(r);
+  const heal = fx.fightHeal ? Math.min(mh - r.hp, Math.round(((mh * fx.fightHeal) / 100) * healMul(r))) : 0;
+  r.hp += Math.max(0, heal);
+  const hurt = fx.fightHurt ? Math.min(r.hp - 1, Math.round((mh * fx.fightHurt) / 100)) : 0;
+  r.hp -= Math.max(0, hurt);
+  const tax = fx.fightTax ? Math.floor((r.shinies * Math.min(100, fx.fightTax)) / 100) : 0;
+  r.shinies -= tax;
+  return { heal: Math.max(0, heal), hurt: Math.max(0, hurt), tax };
+}
+
 export function itemPrice(r: RunState, def: ItemDef) {
   const base = RARITY[def.rarity].price * (1 + r.stage * 0.04);
   return Math.max(1, Math.round(base * (1 - discount(r))));
@@ -371,19 +417,40 @@ export function itemPrice(r: RunState, def: ItemDef) {
 
 // ---------------------------------------------------------------- skills
 
+// What skills scale with besides their rank: the raccoon's level and stats (gear included).
+export function skillCtx(r: RunState): SkillCtx {
+  return { level: r.level, stats: { str: totalStat(r, 'str'), def: totalStat(r, 'def'), agi: totalStat(r, 'agi'), lck: totalStat(r, 'lck'), vit: totalStat(r, 'vit') } };
+}
+
+// Level- and stat-locked skills: the level is the raccoon's, the stat counts gear too.
+export function meetsReq(r: RunState, def: SkillDef) {
+  const q = def.req;
+  if (!q) return true;
+  if (q.level && r.level < q.level) return false;
+  if (q.stat && totalStat(r, q.stat) < (q.min ?? 0)) return false;
+  return true;
+}
+
 // Skills on offer: upgrades for what you own, and new skills only while a slot is free.
-// A full bar never gets new skills, so picking (and skipping) matters.
+// A full bar never gets new skills, so picking (and skipping) matters. Unlocked skills
+// (level or stat) come up twice as often as plain ones, so reaching them shows.
 export function skillChoices(r: RunState, n = 3) {
   const owned = new Map(r.skills.map((s) => [s.id, s]));
   const room = r.skills.length < SKILL_SLOTS;
   const pool = [...skills.values()].filter((s) => {
     const o = owned.get(s.id);
     if (o) return o.lvl < s.max;
-    return room && s.id !== 'claw';
+    return room && s.id !== 'claw' && meetsReq(r, s);
   });
-  const out = [];
+  const weight = (s: SkillDef) => (s.req && !owned.has(s.id) ? 2 : 1);
+  const out: SkillDef[] = [];
   const copy = [...pool];
-  while (out.length < n && copy.length) out.push(copy.splice(Math.floor(rand() * copy.length), 1)[0]);
+  while (out.length < n && copy.length) {
+    let roll = rand() * copy.reduce((a, s) => a + weight(s), 0);
+    let k = 0;
+    while (k < copy.length - 1 && (roll -= weight(copy[k])) > 0) k++;
+    out.push(copy.splice(k, 1)[0]);
+  }
   return out;
 }
 
@@ -393,7 +460,7 @@ export type LevelChoice = { kind: 'skill'; def: SkillDef } | { kind: 'passive'; 
 // maxed, every card is a passive.
 export function levelUpChoices(r: RunState, n = 3): LevelChoice[] {
   const out: LevelChoice[] = skillChoices(r, n).map((def) => ({ kind: 'skill', def }));
-  const pool = [...passives.values()];
+  const pool = [...passives.values()].filter((p) => !p.max || (r.passives[p.id] ?? 0) < p.max);
   while (out.length < n && pool.length) out.push({ kind: 'passive', def: pool.splice(Math.floor(rand() * pool.length), 1)[0] });
   return out;
 }

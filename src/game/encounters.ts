@@ -64,7 +64,8 @@ export function fightRewards(r: RunState, killed: Foe[]) {
     xp += Math.round(f.def.xp * (1 + 0.06 * r.stage) * mul);
     sh += f.def.shinies * mul * (0.7 + rand() * 0.6) * (1 + r.stage * 0.03);
   }
-  const fx = computeBonus(r).fx;
+  const { fx, bonus } = computeBonus(r);
+  xp = Math.round(xp * Math.max(0, 1 + bonus.xp));
   sh = Math.round(sh * shinyMult(r));
   if (fx.interest) sh += Math.floor((r.shinies * fx.interest) / 100);
   return { xp, shinies: sh };
