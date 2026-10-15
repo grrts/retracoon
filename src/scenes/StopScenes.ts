@@ -187,9 +187,8 @@ export class ForkScene extends Overlay<OverlayData> {
       const g = this.add.graphics();
       panel(g, -cw / 2, -ch / 2, cw, ch, 0x29366f, 0x73eff7, 0x3b5dc9);
       c.add(g);
-      c.add(this.add.image(0, -ch / 2 + 30, 'sign').setScale(2).setOrigin(0.5, 1));
-      c.add(this.add.image(0, -ch / 2 + 46, STOPS[k].icon).setScale(2));
-      c.add(text(this, 0, -ch / 2 + 70, STOPS[k].label, { scale: 2, color: COL.white }));
+      c.add(this.add.image(0, -ch / 2 + 32, STOPS[k].icon).setScale(3));
+      c.add(text(this, 0, -ch / 2 + 66, STOPS[k].label, { scale: 2, color: COL.white }));
       c.add(text(this, 0, -ch / 2 + 92, STOPS[k].desc, { color: COL.yellow, maxWidth: cw - 10, maxLines: 2 }));
       c.setSize(cw, ch).setInteractive({ useHandCursor: true });
       c.on('pointerup', () => pick(i));
