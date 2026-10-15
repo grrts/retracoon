@@ -17,6 +17,8 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npm run content:check
+      # The website's wiki is generated from the content: re-export it and fail if it changed.
+      - run: npm run wiki && git diff --exit-code -- server/wiki server/public/wiki-sprites
       - run: npm run build
       - run: npx tsx tools/sim.ts --quick
       - run: npx tsx tools/sim.ts --daily
@@ -45,6 +47,7 @@ jobs:
       - run: composer install --no-interaction --no-progress
       - run: composer audit
       - run: php bin/console lint:container
+      - run: php bin/console lint:twig templates
       # The migration must build exactly the schema the entities describe.
       - run: php bin/console doctrine:migrations:migrate -n
         env:

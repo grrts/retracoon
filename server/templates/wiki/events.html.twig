@@ -1,0 +1,19 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Road events{% endblock %}
+{% block content %}
+<h1>Road events</h1>
+<p class="lead">Every two or three fights the road forks. Events are one kind of stop: a short scene with a choice.</p>
+<div class="grid" style="grid-template-columns:repeat(auto-fill,minmax(320px,1fr))">
+{% for e in events %}
+<div class="card" id="{{ e.id }}" style="align-items:flex-start">
+    {% if e.art starts with 'event:' %}{{ sprite('events', e.id, 2) }}{% elseif e.art starts with 'foe:' %}{{ sprite('foes', e.art|slice(4), 2) }}{% endif %}
+    <span class="t"><h3>{{ e.title }}</h3>
+    <small>{% if e.themes %}Only in {% for t in e.themes %}<a href="{{ path('wiki_area', {id: t}) }}">{{ areaNames[t] ?? t }}</a>{% if not loop.last %}, {% endif %}{% endfor %}{% else %}Anywhere{% endif %}{% if e.minDanger %} · from danger {{ e.minDanger }}{% endif %}</small>
+    <span class="desc muted">{{ e.text|join(' ') }}</span>
+    <table style="margin-top:6px">{% for o in e.options %}<tr><td style="color:var(--gold);white-space:nowrap">{{ o.label }}</td><td class="desc">{{ o.detail }}</td></tr>{% endfor %}</table>
+    </span>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,60 @@
+{% macro rarity(n) %}{% set r = wiki().rarities[n] %}<span class="pill" style="color:{{ r.color }}">{{ r.name }}</span>{% endmacro %}
+
+{% macro tags(list) %}{% for t in list %}{% set d = wiki().tags[t] %}<span class="pill" style="color:{{ d.color }}">{{ d.name }}</span>{% endfor %}{% endmacro %}
+
+{% macro item(i) %}
+<a class="card" href="{{ path('wiki_item', {id: i.id}) }}" style="border-left:4px solid {{ wiki().rarities[i.rarity].color }}">
+    {{ sprite('items', i.id, 2, i.name) }}
+    <span class="t"><h3 style="color:{{ wiki().rarities[i.rarity].color }}">{{ i.name }}</h3>
+    <small>{{ wiki().slots[i.slot] }}{% if i.risky %} · <span class="risky">risky</span>{% endif %}{% if i.set %} · set{% endif %}</small>
+    <span class="desc">{{ i.desc }}</span></span>
+</a>
+{% endmacro %}
+
+{% macro skill(s) %}
+<a class="card" href="{{ path('wiki_skill', {id: s.id}) }}">
+    {{ sprite('icons', s.id, 3, s.name) }}
+    <span class="t"><h3>{{ s.name }}</h3>
+    <small>{{ s.cost }} AP{% if s.cooldown %} · wait {{ s.cooldown }}{% endif %}{% if s.req %} · {{ _self.req(s.req) }}{% endif %}</small>
+    <span class="desc">{{ s.ranks[0] }}</span></span>
+</a>
+{% endmacro %}
+
+{% macro req(r) %}{% if r.level %}level {{ r.level }}{% endif %}{% if r.level and r.stat %} + {% endif %}{% if r.stat %}{{ r.min }} {{ wiki().stats[r.stat].short }}{% endif %}{% endmacro %}
+
+{% macro foe(e) %}
+<a class="card col" href="{{ path('wiki_foe', {id: e.id}) }}">
+    {{ sprite('foes', e.id, 2, e.name) }}
+    <span class="t"><h3>{{ e.name }}</h3><small>{{ e.hp }} HP{% if e.role %} · {{ e.role }}{% endif %}{% if e.minStage %} · stage {{ e.minStage }}+{% endif %}</small></span>
+</a>
+{% endmacro %}
+
+{% macro statuses(map) %}{% for k, v in map %}{{ k|upper }} {{ v }}{% if not loop.last %}, {% endif %}{% endfor %}{% endmacro %}
+
+{% macro moves(list) %}
+<table>
+    <tr><th>Move</th><th>Intent</th><th>Does</th></tr>
+    {% for m in list %}
+    <tr>
+        <td>{{ m.name }}{% if m.windup %} <span class="muted">(after a wind-up)</span>{% endif %}{% if m.once %} <span class="muted">(once)</span>{% endif %}</td>
+        <td>{{ m.intent|upper }}</td>
+        <td>{% apply spaceless %}
+            {% set parts = [] %}
+            {% if m.dmg %}{% set parts = parts|merge([m.dmg ~ ' damage' ~ (m.hits ? ' x' ~ m.hits : '')]) %}{% endif %}
+            {% if m.block %}{% set parts = parts|merge([m.block ~ ' block']) %}{% endif %}
+            {% if m.heal %}{% set parts = parts|merge(['heals ' ~ (m.heal * 100)|round ~ '%']) %}{% endif %}
+            {% if m.apply %}{% set parts = parts|merge(['you get ' ~ _self.statuses(m.apply)]) %}{% endif %}
+            {% if m.buff %}{% set parts = parts|merge(['gains ' ~ _self.statuses(m.buff)]) %}{% endif %}
+            {% if m.summon %}{% set parts = parts|merge(['calls ' ~ m.summon|replace({'_': ' '})|upper]) %}{% endif %}
+            {% if m.steal %}{% set parts = parts|merge(['steals ' ~ m.steal ~ ' shinies']) %}{% endif %}
+            {% if m.apDrain %}{% set parts = parts|merge(['-' ~ m.apDrain ~ ' AP next turn']) %}{% endif %}
+            {{ parts ? parts|join(', ') : '-' }}
+        {% endapply %}</td>
+    </tr>
+    {% endfor %}
+</table>
+{% endmacro %}
+
+{% macro filter(route, params, key, value, label, current) %}
+<a href="{{ path(route, params|merge({(key): value})|filter(v => v is not same as('') and v is not same as(false))) }}"{% if current == value %} class="on"{% endif %}>{{ label }}</a>
+{% endmacro %}

@@ -1,0 +1,27 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}{{ item.name }}{% endblock %}
+{% block description %}{{ item.name }}: {{ item.desc }}{% endblock %}
+{% block content %}
+<div class="hero">
+    {{ sprite('items', item.id, 5, item.name ~ ' on the raccoon') }}
+    <div class="info">
+        <h1 style="color:{{ wiki().rarities[item.rarity].color }}">{{ item.name }}</h1>
+        <p>{{ w.rarity(item.rarity) }}<span class="pill">{{ wiki().slots[item.slot] }}</span>{{ w.tags(item.tags) }}{% if item.risky %}<span class="pill risky">Risky</span>{% endif %}</p>
+        <p class="desc" style="font-size:15px">{{ item.desc }}</p>
+        {% if item.risky %}<p class="muted">Risky items carry a real catch for a bigger upside. Levelling one up grows the upside, never the catch.</p>{% endif %}
+        {% if item.needsBoss %}<p class="muted">Only turns up once you have beaten a boss.</p>{% endif %}
+    </div>
+</div>
+{% if item.tags %}
+<h2>Tags</h2>
+<table><tr><th>Tag</th><th>2 worn</th><th>4 worn</th></tr>
+{% for t in item.tags %}{% set d = wiki().tags[t] %}<tr><td style="color:{{ d.color }}">{{ d.name }}</td><td>{{ d.two }}</td><td>{{ d.four }}</td></tr>{% endfor %}
+</table>
+{% endif %}
+{% if set %}
+<h2>Part of the <a href="{{ path('wiki_set', {id: set.id}) }}" style="color:{{ set.color }}">{{ set.name }}</a> set</h2>
+<table>{% for b in set.bonuses %}<tr><td>{{ b.n }} pieces</td><td>{{ b.desc }}</td></tr>{% endfor %}</table>
+<div class="grid" style="margin-top:10px">{% for p in pieces %}{{ w.item(p) }}{% endfor %}</div>
+{% endif %}
+{% endblock %}
