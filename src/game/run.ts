@@ -72,9 +72,11 @@ export function bossWindow(areaNo: number): [number, number] {
 }
 
 // `area` is the number of areas already cleared, as in RunState.area.
-export function rollBossAt(area: number) {
+// BOSS RUSH (`rush`): always the earliest fight of the window.
+export function rollBossAt(area: number, rush = false) {
   const [lo, hi] = bossWindow(area + 1);
-  return lo + Math.floor(rand() * (hi - lo + 1));
+  const at = lo + Math.floor(rand() * (hi - lo + 1));
+  return rush ? lo : at;
 }
 
 // Today's daily run, the same for everyone: the UTC date picks the seed.
@@ -98,8 +100,10 @@ export function roll(r: RunState, what: string) {
 // run from the street, so it can push further next time. Skills and items are lost.
 // Dying wipes the bank and you start over at level 1.
 // A daily run is always a fresh level 1 raccoon and never touches the banked one.
-export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId): RunState {
+// `mutator` overrides the week's rule (null: none); the balance sim uses it.
+export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId | null): RunState {
   const daily = mode === 'daily';
+  const rule = daily ? (mutator === undefined ? weeklyMutator(day) : mutator) : null;
   const kept = daily ? null : store.kept;
   const seed = daily ? hash('retracoon-daily', day) : null;
   reseed(seed, 'start');
@@ -107,7 +111,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: Mut
     mode,
     day: daily ? day : null,
     seed,
-    mutator: daily ? mutator ?? weeklyMutator(day) : null,
+    mutator: rule,
     rollStage: 0,
     rollCounts: {},
     level: kept?.level ?? 1,
@@ -125,7 +129,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: Mut
     distance: 0,
     stage: 0,
     areaStage: 0,
-    bossAt: rollBossAt(0),
+    bossAt: rollBossAt(0, rule === 'bossrush'),
     area: 0,
     theme: 'street',
     themesVisited: ['street'],
@@ -262,16 +266,16 @@ export const HARD_CAP = 0.95;
 
 export function maxHp(r: RunState) {
   const b = computeBonus(r).bonus;
-  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul) * (hasMutator(r, 'goldrush') ? 0.75 : 1)));
+  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul) * (hasMutator(r, 'goldrush') ? 0.75 : hasMutator(r, 'lucky') ? 0.8 : 1)));
 }
 
 export function apPerTurn(r: RunState) {
   const agi = rawStat(r, 'agi');
-  return Math.max(1, 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0));
+  return Math.max(1, 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) + (hasMutator(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0));
 }
 
 export function critChance(r: RunState) {
-  return Math.min(HARD_CAP, 0.05 + totalStat(r, 'lck') * 0.03 + computeBonus(r).bonus.crit + (hasBlessing(r, 'lucky') ? 0.15 : 0));
+  return Math.min(HARD_CAP, 0.05 + totalStat(r, 'lck') * 0.03 + computeBonus(r).bonus.crit + (hasBlessing(r, 'lucky') ? 0.15 : 0) + (hasMutator(r, 'lucky') ? 0.2 : 0));
 }
 
 export function dodgeChance(r: RunState) {
@@ -291,7 +295,7 @@ export function attackPower(r: RunState, scale: StatKey = 'str') {
 export function damageTaken(r: RunState) {
   const def = totalStat(r, 'def');
   const cut = 1 - (1 - def * 0.03) * (1 - computeBonus(r).bonus.armor);
-  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken) * (hasMutator(r, 'glass') ? 1.5 : 1);
+  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken) * (hasMutator(r, 'glass') ? 1.5 : hasMutator(r, 'swift') ? 1.25 : 1);
 }
 
 // Healing received: drawbacks can cut it, never below nothing.
@@ -304,7 +308,7 @@ export function shinyMult(r: RunState) {
 }
 
 export function discount(r: RunState) {
-  return Math.min(0.6, computeBonus(r).bonus.discount);
+  return Math.min(0.6, computeBonus(r).bonus.discount + (hasMutator(r, 'flea') ? 0.5 : 0));
 }
 
 export function hasBlessing(r: RunState, id: BlessingId) {

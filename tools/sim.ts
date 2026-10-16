@@ -123,8 +123,7 @@ interface Result {
 // daily run here meets what a player would.
 // `mutator` null plays a daily run with no weekly rule, for comparison.
 function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], day = '2026-11-14', mutator?: MutatorId | null): Result {
-  const r = newRun(mode, day, mutator ?? undefined);
-  if (mutator === null) r.mutator = null;
+  const r = newRun(mode, day, mutator);
   let theme = themes.get(r.theme)!;
   for (let guard = 0; guard < 600; guard++) {
     if (bot === 'skilled' && r.stage >= 3 && (r.stage >= push || r.hp < maxHp(r) * 0.5)) return { stage: r.stage, level: r.level, reason: 'retreat', bosses: r.bosses, r };
@@ -163,7 +162,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], d
       const it = randomItem(r, 2);
       if (it) equip(r, it);
       if (boss) r.bosses++;
-    } else if ((roll(r, 'drop'), rand() < 0.15)) {
+    } else if ((roll(r, 'drop'), rand() < 0.15) && !hasMutator(r, 'flea')) {
       const it = randomItem(r, 0, 2);
       if (it) equip(r, it);
     }
@@ -171,7 +170,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], d
       r.area++;
       r.areaStage = 0;
       roll(r, 'area');
-      r.bossAt = rollBossAt(r.area);
+      r.bossAt = rollBossAt(r.area, hasMutator(r, 'bossrush'));
       r.theme = nextTheme(r);
       r.themesVisited.push(r.theme);
       theme = themes.get(r.theme)!;
