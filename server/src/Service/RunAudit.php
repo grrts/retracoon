@@ -6,18 +6,18 @@ use App\Dto\RunResult;
 
 /**
  * Checks that a finished run adds up before it counts on a board. The game sends a
- * logbook with each run (src/game/logbook.ts): the raccoon it started with, then one
- * line per fight with the raccoon going in and what came out. Here we check that the
- * logbook hangs together and matches the score, and that no part of it went faster
- * than the game can play.
+ * ledger with each run (src/game/ledger.ts): the raccoon it started with, a short
+ * entry for each fight and each gain (XP, stat points, meters), and the raccoon it
+ * ended with. Here we add the entries up and check they land exactly on the score that
+ * was sent, and that no fight went faster than the game can play.
  *
- * This catches a sent number that was edited, and a logbook that was made up without
- * care. It can't prove the fights went the way the logbook says: that takes replaying
- * the run, see docs/ONLINE.md#fair-scores.
+ * This catches an edited score, and a ledger made up without care. It can't prove the
+ * fights went the way the ledger says: that takes replaying the run, see
+ * docs/ONLINE.md#fair-scores.
  *
  * Verdicts:
- *   ok        the logbook checks out
- *   unlogged  no logbook (older game versions, and bests made while signed out)
+ *   ok        the ledger adds up
+ *   unlogged  no ledger (older game versions, and bests made while signed out)
  *   suspect   possible but unusual; counts, and shows up in `app:runs`
  *   rejected  impossible; doesn't count on any board
  */
@@ -28,22 +28,19 @@ final class RunAudit
     public const SUSPECT = 'suspect';
     public const REJECTED = 'rejected';
 
+    public const LEDGER_VERSION = 2;
     // Before every fight the raccoon walks for at least 1.2 s, and a fight takes at
     // least a moment per turn. Kept well under what the game actually takes.
     public const MIN_FIGHT_MS = 1000;
     public const MIN_TURN_MS = 200;
-    // A raccoon going in can't have more stat points than its levels gave (3 each) plus
-    // the few that road stops hand out (TRAIN, events). Generous on purpose.
-    public const STAT_SLACK_PER_FIGHT = 3;
-    // The daily run is always a fresh level 1 raccoon. Bots in `npm run sim` reach
-    // about one level per fight; this is double that.
-    public const DAILY_START = ['l' => 1, 'st' => [3, 2, 2, 2, 3], 'p' => 0];
+    // The daily run is always a fresh level 1 raccoon.
+    public const FRESH = ['l' => 1, 'st' => [3, 2, 2, 2, 3], 'p' => 0];
     // A best this many times the player's previous best (and past MIN_JUMP_STAGE) is
     // flagged for a look.
     public const JUMP = 3;
     public const MIN_JUMP_STAGE = 30;
-    // The game logs at most 500 fights (src/game/logbook.ts).
-    public const MAX_FIGHTS = 500;
+    // The game writes at most 2000 entries (src/game/ledger.ts).
+    public const MAX_ENTRIES = 2000;
 
     /**
      * @return array{0: string, 1: list<string>} verdict and reasons
@@ -62,7 +59,7 @@ final class RunAudit
             $odd[] = 'big_jump';
         }
         if (null !== $run->log) {
-            $bad = [...$bad, ...$this->checkLog($run, $run->log)];
+            $bad = [...$bad, ...$this->checkLedger($run, $run->log)];
         }
         $bad = array_values(array_unique($bad));
         if ($bad) {
@@ -75,93 +72,113 @@ final class RunAudit
         return [null === $run->log ? self::UNLOGGED : self::OK, []];
     }
 
+    /** XP from one level to the next, as xpToLevel in src/game/run.ts. */
+    public static function xpToLevel(int $level): int
+    {
+        return 10 + ($level - 1) * 7;
+    }
+
+    // Bots in `npm run sim` reach about one level per fight; this is double that.
     public static function maxDailyLevel(int $stage): int
     {
         return 5 + 2 * $stage;
     }
 
     /**
-     * @param array<mixed> $log
+     * @param array<mixed> $book
      *
      * @return list<string> what doesn't add up
      */
-    private function checkLog(RunResult $run, array $log): array
+    private function checkLedger(RunResult $run, array $book): array
     {
-        if (1 !== ($log['v'] ?? null) || !\is_array($log['fights'] ?? null) || !array_is_list($log['fights']) || \count($log['fights']) > self::MAX_FIGHTS || !self::raccoon($log['start'] ?? null)) {
+        $entries = $book['e'] ?? null;
+        if (self::LEDGER_VERSION !== ($book['v'] ?? null) || !\is_array($entries) || !array_is_list($entries) || \count($entries) > self::MAX_ENTRIES
+            || !self::raccoon($book['open'] ?? null) || !self::raccoon($book['close'] ?? null)) {
             return ['log_malformed'];
         }
-        $mode = 'best' === $run->mode ? 'normal' : $run->mode;
-        if (($log['mode'] ?? null) !== $mode || ('daily' === $mode && ($log['day'] ?? null) !== $run->day)) {
-            return ['log_wrong_run'];
-        }
-        $start = $log['start'];
-        if ('daily' === $mode && ($start['l'] !== 1 || $start['st'] !== self::DAILY_START['st'] || 0 !== $start['p'])) {
-            return ['daily_not_fresh'];
-        }
-        $fights = $log['fights'];
-        foreach ($fights as $f) {
-            if (!self::fight($f)) {
+        foreach ($entries as $e) {
+            if (!self::entry($e)) {
                 return ['log_malformed'];
             }
         }
+        $mode = 'best' === $run->mode ? 'normal' : $run->mode;
+        if (($book['mode'] ?? null) !== $mode || ('daily' === $mode && ($book['day'] ?? null) !== $run->day)) {
+            return ['log_wrong_run'];
+        }
+        $open = $book['open'];
+        $close = $book['close'];
+        if ('daily' === $mode && $open !== self::FRESH) {
+            return ['daily_not_fresh'];
+        }
 
         $bad = [];
-        $n = \count($fights);
-        $last = $fights[$n - 1] ?? null;
-        // Every fight but the last was won; the last was won (then a retreat) or lost.
-        $died = null !== $last && 0 === $last['w'];
-        if ($n !== $run->stage + ($died ? 1 : 0)) {
+        // Walk the ledger the way the game played it: levels come from XP exactly as
+        // gainXp hands them out, and every level gives 3 stat points.
+        $level = $open['l'];
+        $xp = 0;
+        $points = 0; // stat points gained along the way, levels included
+        $meters = 0;
+        $won = 0;
+        $dead = false;
+        $lastEnd = 0;
+        $lastTime = 0;
+        foreach ($entries as $e) {
+            switch ($e[0]) {
+                case 'f':
+                    [, $t0, $t1, $w, $turns, $m] = $e;
+                    if ($dead) {
+                        $bad[] = 'fought_after_death';
+                    }
+                    if ($t0 < $lastEnd || $t1 < $t0) {
+                        $bad[] = 'time_order';
+                    }
+                    if (($won > 0 && $t0 - $lastEnd < self::MIN_FIGHT_MS) || $t1 - $t0 < $turns * self::MIN_TURN_MS) {
+                        $bad[] = 'too_fast';
+                    }
+                    if ($turns < 1) {
+                        $bad[] = 'no_turns';
+                    }
+                    $won += $w;
+                    $dead = 0 === $w;
+                    $meters += $m;
+                    $lastEnd = $t1;
+                    $lastTime = $t1;
+                    break;
+                case 'x':
+                    $xp += $e[1];
+                    while ($xp >= self::xpToLevel($level)) {
+                        $xp -= self::xpToLevel($level);
+                        ++$level;
+                        $points += 3;
+                    }
+                    break;
+                case 'p':
+                case 's':
+                    $points += $e[1];
+                    break;
+                case 'd':
+                    $meters += $e[1];
+                    break;
+            }
+        }
+        if ($won !== $run->stage) {
             $bad[] = 'fight_count';
         }
-        $prev = ['l' => $start['l'], 'st' => $start['st'], 'p' => $start['p'], 'd' => 0, 't2' => 0, 'w' => 1];
-        foreach ($fights as $i => $f) {
-            if ($f['s'] !== $i) {
-                $bad[] = 'fight_order';
-            }
-            if (0 === $prev['w']) {
-                $bad[] = 'fought_after_death';
-            }
-            if ($f['l'] < $prev['l']) {
-                $bad[] = 'level_dropped';
-            }
-            // Stat points only come from levels, plus a few from road stops.
-            $points = array_sum($f['st']) + $f['p'];
-            $before = array_sum($prev['st']) + $prev['p'];
-            if ($points - $before > 3 * ($f['l'] - $prev['l']) + self::STAT_SLACK_PER_FIGHT) {
-                $bad[] = 'stats_jump';
-            }
-            if ($f['h'] <= 0) {
-                $bad[] = 'fought_without_hp';
-            }
-            if (1 === $f['w'] ? $f['h2'] <= 0 : $f['h2'] > 0) {
-                $bad[] = 'hp_vs_outcome';
-            }
-            if ($f['d'] < $prev['d']) {
-                $bad[] = 'distance_dropped';
-            }
-            if ($f['n'] < 1) {
-                $bad[] = 'no_turns';
-            }
-            if ($f['t'] - $prev['t2'] < self::MIN_FIGHT_MS * ($i > 0 ? 1 : 0) || $f['t2'] - $f['t'] < $f['n'] * self::MIN_TURN_MS) {
-                $bad[] = 'too_fast';
-            }
-            $prev = $f;
-        }
-        $finalLevel = $last['l'] ?? $start['l'];
-        if ($run->level < $finalLevel) {
+        if ($level !== $close['l'] || $level !== $run->level) {
             $bad[] = 'level_mismatch';
         }
-        if ('daily' === $mode && $run->level > self::maxDailyLevel($run->stage)) {
-            $bad[] = 'level_too_high';
+        if (array_sum($close['st']) + $close['p'] !== array_sum($open['st']) + $open['p'] + $points) {
+            $bad[] = 'stats_mismatch';
         }
-        if ($run->level - $start['l'] > self::maxDailyLevel($run->stage)) {
-            $bad[] = 'level_gain_too_high';
-        }
-        if (null !== $last && $run->distance < $last['d']) {
+        // The game never sends a negative distance.
+        if (max(0, $meters) !== $run->distance) {
             $bad[] = 'distance_mismatch';
         }
-        if (null !== $last && 'best' !== $run->mode && $run->timeMs < $last['t2']) {
+        if ('best' !== $run->mode && $run->timeMs < $lastTime) {
             $bad[] = 'time_mismatch';
+        }
+        if ($level - $open['l'] > self::maxDailyLevel($run->stage)) {
+            $bad[] = 'level_gain_too_high';
         }
 
         return array_values(array_unique($bad));
@@ -169,15 +186,10 @@ final class RunAudit
 
     private static function raccoon(mixed $r): bool
     {
-        return \is_array($r) && self::int($r['l'] ?? null, 1) && self::int($r['p'] ?? null) && self::stats($r['st'] ?? null);
-    }
-
-    private static function stats(mixed $st): bool
-    {
-        if (!\is_array($st) || !array_is_list($st) || 5 !== \count($st)) {
+        if (!\is_array($r) || !self::int($r['l'] ?? null, 1) || !self::int($r['p'] ?? null) || !\is_array($r['st'] ?? null) || !array_is_list($r['st']) || 5 !== \count($r['st'])) {
             return false;
         }
-        foreach ($st as $v) {
+        foreach ($r['st'] as $v) {
             if (!self::int($v)) {
                 return false;
             }
@@ -186,18 +198,19 @@ final class RunAudit
         return true;
     }
 
-    private static function fight(mixed $f): bool
+    private static function entry(mixed $e): bool
     {
-        if (!\is_array($f) || !self::raccoon($f) || !\in_array($f['w'] ?? null, [0, 1], true)) {
+        if (!\is_array($e) || !array_is_list($e)) {
             return false;
         }
-        foreach (['s', 'h', 'm', 'd', 't', 'n', 't2'] as $k) {
-            if (!self::int($f[$k] ?? null, $k === 'h' ? \PHP_INT_MIN : 0)) {
-                return false;
-            }
-        }
 
-        return \is_int($f['h2'] ?? null);
+        return match ($e[0] ?? null) {
+            // meters can go back: some road stops cost distance
+            'f' => 6 === \count($e) && self::int($e[1]) && self::int($e[2]) && \in_array($e[3], [0, 1], true) && self::int($e[4]) && \is_int($e[5]),
+            'x', 'p' => 2 === \count($e) && self::int($e[1]),
+            's', 'd' => 2 === \count($e) && \is_int($e[1]),
+            default => false,
+        };
     }
 
     private static function int(mixed $v, int $min = 0): bool

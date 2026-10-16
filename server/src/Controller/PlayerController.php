@@ -80,7 +80,7 @@ final class PlayerController extends AbstractController
      * End of a run. Bests only go up, so sending an old or worse result is harmless.
      * A normal run also counts for this season; a daily run only for its day's board,
      * and only while that day is open (today, or yesterday within the grace period).
-     * A run whose logbook doesn't add up counts nowhere (see RunAudit); the answer
+     * A run whose ledger doesn't add up counts nowhere (see RunAudit); the answer
      * looks the same apart from `counted`, so the game drops it and moves on.
      */
     #[Route('/me/runs', methods: ['POST'])]

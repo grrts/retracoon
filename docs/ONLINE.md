@@ -116,7 +116,7 @@ All responses are JSON; errors use `application/problem+json` with a `detail` me
 | `PATCH /api/me` `{name?, skin?}` 🔒 | Changes name (3-16 letters, digits, spaces; gets a new free tag) or shown skin. |
 | `POST /api/me/spend` `{gems, item}` 🔒 | Spends gems on a skin. The same item twice only charges once; 409 when short. |
 | `DELETE /api/me` 🔒 | Deletes your player, scores, run logs, friendships, purchases and sign-ins, and revokes Sign in with Apple. |
-| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?, log?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed, and for a run that fails the [fair-score checks](#fair-scores). `log` is the run's logbook. |
+| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?, log?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed, and for a run that fails the [fair-score checks](#fair-scores). `log` is the run's ledger. |
 | `POST /api/me/prizes/seen` 🔒 | The game showed the prizes in `GET /api/me`'s `prizes`; don't list them again. |
 | `GET /api/me/friends` 🔒 | You and your friends, ranked. |
 | `POST /api/me/friends` `{code}` 🔒 | Adds a friend by code; both of you see each other. 30 tries per hour. |
@@ -137,20 +137,23 @@ Players registered before accounts existed stay on the board as `legacy` players
 
 ## Fair scores
 
-The game runs on the player's device, so the server can't watch a run. Instead the game keeps a **logbook** of each run and sends it with the score: the raccoon it started with, then one line per fight with the raccoon going in (level, stats, HP, shinies, distance, time) and what came out (won or lost, turns, skills used, XP, HP after). See `src/game/logbook.ts`. A 30-fight run is about 6 KB.
+The game runs on the player's device, so the server can't watch a run. Instead the game keeps a **ledger** of each run and sends it with the score. It is not a full log of the run, only how the score was earned: the raccoon it started with (level, stats, points), one short entry per fight (start and end time, won or lost, turns, meters walked) and per gain (XP, stat points from road stops, stat changes from events, meters), and the raccoon it ended with. See `src/game/ledger.ts`. A 30-fight run is about 1.2 KB.
 
-`RunAudit` (`server/src/Service/RunAudit.php`) checks every run before it counts:
+`RunAudit` (`server/src/Service/RunAudit.php`) adds the ledger up and checks it lands exactly on the score:
 
 | Check | Catches |
 |---|---|
-| The logbook matches the score: fight count, final level, distance, time | an edited number in the request |
-| Fights numbered in order, nothing after a death, level never drops | a made-up or spliced logbook |
-| Stat points only grow by 3 a level, plus a little for road stops | stats edited mid-run |
-| At least 1 s between fights and 0.2 s a turn; at least 1 s a fight overall, even without a logbook | runs faster than the game can play |
-| A daily run starts as a fresh level 1 raccoon, and gains at most 5 + 2 a fight in levels | an edited daily run |
+| Won fights = stage; meters add up to the distance | an edited stage or distance |
+| XP, turned into levels the way the game does (10 + 7 per level), lands on the level sent | an edited level, or XP from nowhere |
+| Stats and points at the end = at the start + 3 per level + road-stop gains | stats edited mid-run |
+| At least 1 s between fights and 0.2 s a turn; at least 1 s a fight overall, even without a ledger | runs faster than the game can play |
+| Nothing after a lost fight; times in order | a made-up or spliced ledger |
+| A daily run starts as a fresh level 1 raccoon, and gains at most 5 + 2 levels a fight | an edited daily run |
 | A best over 3x the player's last best (past stage 30) | flagged, still counts |
 
-Each run gets a verdict: `ok`, `unlogged` (older game versions, and bests made while signed out), `suspect` (counts, flagged) or `rejected` (counts nowhere; the game sees `counted: false` and moves on). Runs that set a best, and every suspect or rejected run, are kept with their logbook in `run_log`; other runs are not, so the table stays small.
+Every change to level, XP, stats, stat points or distance in the game has to write a ledger entry (`note()` in `src/game/ledger.ts`, already called from `gainXp`, TRAIN and event stat changes). A new way to gain any of these without an entry would make honest runs fail the check.
+
+Each run gets a verdict: `ok`, `unlogged` (older game versions, and bests made while signed out), `suspect` (counts, flagged) or `rejected` (counts nowhere; the game sees `counted: false` and moves on). Runs that set a best, and every suspect or rejected run, are kept with their ledger in `run_log`; other runs are not, so the table stays small.
 
 ```sh
 php bin/console app:runs                 # newest suspect and rejected runs
@@ -165,9 +168,9 @@ The game also counts a normal run that never ended (the app was closed mid-run) 
 
 ### What this doesn't stop yet
 
-These checks prove a logbook hangs together, not that the fights in it went that way. Someone who studies the code can still write a logbook that passes. Planned next, in order:
+These checks prove a ledger adds up, not that the fights in it went that way. Someone who studies the code can still write a ledger that passes. Planned next, in order:
 
 1. **Run tickets.** `POST /api/me/runs/start` hands out a run id, a seed and the starting raccoon from the server's own record of the banked raccoon, so editing local storage gains nothing. One result per ticket; a ticket that never comes back counts as a death. Only ticketed runs rank; guests still play offline. Cost: one small row per run start, same server.
-2. **Replay.** Seed every normal run from its ticket (the daily run already is), and add every decision to the logbook: skill and target each turn, stat points, picks, road stops, shop buys, retreat. A verifier reruns the logbook through the game's own engine in `src/game/` (as `npm run sim` already does, headless) and checks it ends at the same score. This needs the run flow that lives in `RunScene`/`StopScenes` moved into `src/game/` first, and every logic roll on `rand()`, not `Math.random()`. Replay is a few milliseconds of CPU a run, but it needs Node, which plain PHP hosting doesn't have. To keep hosting free, only board-relevant runs (top 100, and every prize winner before it's paid) get replayed, by a scheduled GitHub Actions job that reads unverified runs from an admin endpoint and writes back verdicts. On a VPS the same verifier can run next to Symfony instead.
+2. **Replay.** Seed every normal run from its ticket (the daily run already is), and record every decision: skill and target each turn, stat points, picks, road stops, shop buys, retreat. A verifier reruns those decisions through the game's own engine in `src/game/` (as `npm run sim` already does, headless) and checks it ends at the same score. This needs the run flow that lives in `RunScene`/`StopScenes` moved into `src/game/` first, and every logic roll on `rand()`, not `Math.random()`. Replay is a few milliseconds of CPU a run, but it needs Node, which plain PHP hosting doesn't have. To keep hosting free, only board-relevant runs (top 100, and every prize winner before it's paid) get replayed, by a scheduled GitHub Actions job that reads unverified runs from an admin endpoint and writes back verdicts. On a VPS the same verifier can run next to Symfony instead.
 3. **Platform attestation** (Play Integrity, App Attest) on ticket requests, if bots show up.
 

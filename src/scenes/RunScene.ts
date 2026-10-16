@@ -34,7 +34,7 @@ import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
 import { submitRun } from '../platform/online';
 import { track, VERSION } from '../platform/track';
-import { startLog, logFightStart, logFightEnd, type Logbook } from '../game/logbook';
+import { openLedger, fightStarts, fightEnds, closeLedger } from '../game/ledger';
 import { skills } from '../content/registry';
 import { FxDirector } from '../fx/Fx';
 import { Element, LOOKS, skillElement, skillTier } from '../fx/elements';
@@ -110,8 +110,6 @@ export class RunScene extends Phaser.Scene {
   private fxTier = 1;
   private fxSt = new Map<Who, Partial<Record<StatusKey, number>>>();
 
-  private log!: Logbook;
-
   constructor() {
     super('Run');
   }
@@ -122,7 +120,7 @@ export class RunScene extends Phaser.Scene {
     if (!data.run && store.runOpen) store.kept = null;
     this.run = data.run ?? newRun();
     if (this.run.mode !== 'daily') store.runOpen = true;
-    this.log = startLog(this.run, VERSION);
+    openLedger(this.run, VERSION);
     store.runs++;
     if (this.run.mode === 'daily') {
       if (store.dailyDay !== this.run.day) {
@@ -410,7 +408,7 @@ export class RunScene extends Phaser.Scene {
       hazard: this.theme.hazard,
       hooks: { shinies: () => this.run.shinies, addShinies: (n) => (this.run.shinies = Math.max(0, this.run.shinies + n)) },
     });
-    logFightStart(this.log, this.run, boss ? 'b' : elite ? 'e' : 'f', foes, tiers);
+    fightStarts(this.run);
     this.layoutFoes(true);
     for (const f of this.combat.foes) if (!store.foesSeen.includes(f.def.id)) store.foesSeen.push(f.def.id);
     const newTier = Math.max(0, ...this.combat.foes.map((f) => f.tier));
@@ -532,7 +530,7 @@ export class RunScene extends Phaser.Scene {
     addCaps(caps);
     save();
     track('run_end', { mode: r.mode, reason, stage: r.stage, area: r.area + 1, level: r.level, bosses: r.bosses, theme: r.theme, time_s: Math.round(timeMs / 1000) });
-    const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin, log: this.log });
+    const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin, log: closeLedger(r) });
     sfx.stopMusic();
     this.scene.pause();
     this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent });
@@ -1144,7 +1142,7 @@ export class RunScene extends Phaser.Scene {
     const elite = this.pendingElite;
     roll(r, 'after');
     const { xp, shinies: sh } = fightRewards(r, c.killed);
-    logFightEnd(this.log, r, c, true, xp);
+    fightEnds(r, c, true);
     r.shinies += sh;
     r.shiniesEarned += sh;
     r.bestCombo = Math.max(r.bestCombo, c.bestCombo);
@@ -1209,7 +1207,7 @@ export class RunScene extends Phaser.Scene {
   }
 
   private async defeat() {
-    logFightEnd(this.log, this.run, this.combat!, false, 0);
+    fightEnds(this.run, this.combat!, false);
     this.clearCombatUi();
     this.run.hp = 0;
     sfx.die();

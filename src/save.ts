@@ -1,4 +1,4 @@
-import type { Logbook } from './game/logbook';
+import type { Ledger } from './game/ledger';
 
 // Small persistent store. Storage can be unavailable (private mode), so never assume it works.
 export interface Kept {
@@ -57,7 +57,7 @@ export interface PendingRun {
   distance: number;
   timeMs: number;
   skin: string;
-  log?: Logbook; // what happened in the run, for the server's checks
+  log?: Ledger; // how the score added up, for the server's checks
 }
 
 const KEY = 'retracoon.v3';

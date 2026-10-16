@@ -7,6 +7,7 @@ import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
 import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
+import { note } from '../game/ledger';
 import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
 import { itemCard, RaccoonView } from '../game/views';
 import { store } from '../save';
@@ -349,6 +350,7 @@ export class CampScene extends Overlay<OverlayData> {
       }, BTN.green],
       ['TRAIN', '+1 STAT POINT', () => {
         r.statPoints += 1;
+        note(r, ['p', 1]);
         sfx.upgrade();
         this.close({ key: 'LevelUp', data: { statsOnly: true } });
       }, BTN.blue],
@@ -501,7 +503,9 @@ export class EventScene extends Overlay<OverlayData> {
       hurt: (n) => (r.hp = Math.max(1, r.hp - Math.round(n))),
       heal: (n) => (r.hp = Math.min(maxHp(r), r.hp + Math.round(n))),
       addStat: (k: StatKey, n: number) => {
+        const was = r.stats[k];
         r.stats[k] = Math.max(0, r.stats[k] + n);
+        note(r, ['s', r.stats[k] - was]);
         r.hp = Math.min(r.hp, maxHp(r));
       },
       giveRandomItem: (min, max) => {

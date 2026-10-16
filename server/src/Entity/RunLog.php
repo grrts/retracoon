@@ -7,7 +7,7 @@ use Doctrine\DBAL\Types\Types;
 use Doctrine\ORM\Mapping as ORM;
 
 /**
- * A finished run that matters for the boards, with its logbook and what RunAudit made
+ * A finished run that matters for the boards, with its ledger and what RunAudit made
  * of it. Kept for runs that set a best, and for every suspect or rejected run, so a
  * winner can be looked at (or replayed, later) before anyone asks. Plain runs that
  * changed nothing are not kept.
