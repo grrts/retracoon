@@ -34,6 +34,9 @@ import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
 import { submitRun } from '../platform/online';
 import { track } from '../platform/track';
+import { skills } from '../content/registry';
+import { FxDirector } from '../fx/Fx';
+import { Element, LOOKS, skillElement, skillTier } from '../fx/elements';
 
 const PX_PER_M = 6;
 const COON_X = 72;
@@ -100,6 +103,11 @@ export class RunScene extends Phaser.Scene {
   private pendingElite = false;
   private pendingBoss = false;
   private tiersSeen = new Set<number>();
+  // PROTOTYPE combat VFX
+  fx!: FxDirector;
+  private fxEl: Element = 'steel';
+  private fxTier = 1;
+  private fxSt = new Map<Who, Partial<Record<StatusKey, number>>>();
 
   constructor() {
     super('Run');
@@ -138,6 +146,9 @@ export class RunScene extends Phaser.Scene {
     this.arrow = this.add.image(0, 0, 'arrow').setDepth(30).setVisible(false);
     this.tweens.add({ targets: this.arrow, y: '+=2', yoyo: true, repeat: -1, duration: 300 });
     this.floats = new Floaters(this);
+    this.fx = new FxDirector(this);
+    this.fxSt.clear();
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.fx.destroy());
 
     this.buildHud();
     this.buildTip();
@@ -304,6 +315,14 @@ export class RunScene extends Phaser.Scene {
     for (const v of this.views.values()) {
       v.shadow.setPosition(v.c.x, GROUND_Y + 1);
       if (v.glow) v.glow.setAlpha(0.5 + 0.4 * Math.sin(_t / 200));
+    }
+    if (this.combat) {
+      const c = this.combat;
+      this.fx.ambient('p', COON_X, GROUND_Y - 30, 30, c.status, dt);
+      for (const v of this.views.values()) {
+        const f = c.foe(v.uid);
+        if (f && !f.dead) this.fx.ambient(String(v.uid), v.c.x, GROUND_Y - v.h, v.h, f.status, dt);
+      }
     }
   }
 
@@ -818,6 +837,7 @@ export class RunScene extends Phaser.Scene {
               this.tweens.add({ targets: this.coon, x: COON_X + 12, yoyo: true, duration: 90 });
             }
             this.floats.add(COON_X, GROUND_Y - 44, e.name, COL.ice);
+            await this.fxCast(e.skill, e.target);
             await wait(this, 170);
           } else {
             const v = this.views.get(e.who);
@@ -837,6 +857,8 @@ export class RunScene extends Phaser.Scene {
               sfx.hurt();
               shake(this, 140, e.dmg >= c.maxHp * 0.2 ? 0.016 : 0.008);
               this.flashCoon();
+              if (e.src === 'env') this.fxTick('p', COON_X, GROUND_Y - 16);
+              else this.fx.impact(COON_X + 4, GROUND_Y - 16, 'steel', e.dmg >= c.maxHp * 0.2 ? 3 : e.dmg >= c.maxHp * 0.08 ? 2 : 1, false);
             } else sfx.thud();
             this.floats.add(COON_X, GROUND_Y - 30, e.dmg > 0 ? `-${e.dmg}` : 'BLOCKED', e.dmg > 0 ? COL.red : COL.sky, e.dmg >= c.maxHp * 0.2);
             this.refreshHud();
@@ -857,7 +879,9 @@ export class RunScene extends Phaser.Scene {
               const sl = this.add.image(v.c.x, GROUND_Y - v.h / 2, 'slash').setDepth(20).setScale(2);
               this.tweens.add({ targets: sl, alpha: 0, scale: 3, duration: 220, onComplete: () => sl.destroy() });
             } else sfx.hit();
-            this.burst(v.c.x, GROUND_Y - v.h / 2, e.crit ? 12 : 5, e.crit ? [0xffcd75, 0xf4f4f4] : [0xf4f4f4]);
+            if (!this.fx.enabled) this.burst(v.c.x, GROUND_Y - v.h / 2, e.crit ? 12 : 5, e.crit ? [0xffcd75, 0xf4f4f4] : [0xf4f4f4]);
+            else if (e.src === 'env') this.fxTick(e.who, v.c.x, GROUND_Y - v.h / 2);
+            else this.fx.impact(v.c.x, GROUND_Y - v.h / 2, e.src === 'p' ? this.fxEl : 'steel', this.fxTier, !!e.crit);
             const label = e.dmg > 0 ? `${e.dmg}${e.crit ? '!' : ''}` : e.armor ? 'ARMOR' : 'BLOCKED';
             this.floats.add(v.c.x, GROUND_Y - v.h - 8, label, e.crit ? COL.yellow : e.dmg > 0 ? COL.white : COL.sky, !!e.crit);
           }
@@ -867,6 +891,7 @@ export class RunScene extends Phaser.Scene {
         case 'dodge':
           if (e.who === 'p') {
             this.tweens.add({ targets: this.coon, x: COON_X - 14, yoyo: true, duration: 120 });
+            this.fx.dodge(COON_X, GROUND_Y, 1);
             this.floats.add(COON_X, GROUND_Y - 34, 'DODGE!', COL.ice);
           } else {
             const v = this.views.get(e.who);
@@ -882,6 +907,7 @@ export class RunScene extends Phaser.Scene {
           if (e.who === 'p') {
             this.drawCoonBars();
             if (e.amount > 0) this.floats.add(COON_X, GROUND_Y - 38, `+${e.amount} BLOCK`, COL.sky);
+            if (e.amount > 0) this.fx.block(COON_X, GROUND_Y);
           } else {
             const v = this.views.get(e.who);
             if (v) {
@@ -896,6 +922,7 @@ export class RunScene extends Phaser.Scene {
         case 'heal':
           if (e.who === 'p') {
             this.floats.add(COON_X, GROUND_Y - 38, `+${e.amount}`, COL.lime);
+            this.fx.heal(COON_X, GROUND_Y, e.amount / c.maxHp);
             this.refreshHud();
           } else {
             const v = this.views.get(e.who);
@@ -909,6 +936,7 @@ export class RunScene extends Phaser.Scene {
           await wait(this, 160);
           break;
         case 'status':
+          this.fxStatus(e.who, e.key, e.n);
           if (e.who === 'p') this.drawStatuses(this.coonStatus, c.status);
           else {
             const v = this.views.get(e.who);
@@ -929,7 +957,8 @@ export class RunScene extends Phaser.Scene {
             const f = c.foe(e.who);
             if (v && f) {
               sfx.kill();
-              this.burst(v.c.x, GROUND_Y - v.h / 2, f.def.boss ? 48 : 16, f.def.colors);
+              if (!this.fx.enabled) this.burst(v.c.x, GROUND_Y - v.h / 2, f.def.boss ? 48 : 16, f.def.colors);
+              this.fx.death(v.c.x, GROUND_Y, f.def.colors, !!f.def.boss, v.h);
               if (f.def.boss) {
                 sfx.bossDie();
                 shake(this, 500, 0.015);
@@ -1017,6 +1046,52 @@ export class RunScene extends Phaser.Scene {
       }
     }
     this.refreshHud();
+  }
+
+  // ---------------------------------------------------------------- PROTOTYPE combat VFX
+
+  private async fxCast(id?: string, target?: Who) {
+    const def = id ? skills.get(id) : undefined;
+    if (!def) return;
+    const lvl = this.run.skills.find((s) => s.id === id)?.lvl ?? 1;
+    const e = def.effect(lvl);
+    this.fxEl = skillElement(def, e);
+    this.fxTier = skillTier(e);
+    const L = LOOKS[this.fxEl];
+    const self = def.target === 'self' || !e.dmg;
+    this.fx.cast(COON_X, GROUND_Y, this.fxEl, this.fxTier, def.target === 'self');
+    if (def.target === 'self') return;
+    const foes = def.target === 'one' && target !== undefined ? [this.views.get(target as number)].filter(Boolean) : [...this.views.values()];
+    const y0 = GROUND_Y - 16;
+    if (def.target === 'random' || (self && def.target === 'all')) return;
+    if (L.travel === 'shot') await Promise.all(foes.map((v, i) => wait(this, i * 40).then(() => this.fx.shot(COON_X + 10, y0, v!.c.x, GROUND_Y - v!.h / 2, this.fxEl, this.fxTier))));
+    else if (L.travel === 'beam') foes.forEach((v) => this.fx.beam(COON_X + 10, y0, v!.c.x, GROUND_Y - v!.h / 2, L.ramp));
+    else if (L.travel === 'drop') foes.forEach((v, i) => this.time.delayedCall(i * 60, () => this.fx.drop(v!.c.x, GROUND_Y - v!.h / 2, this.fxEl, this.fxTier)));
+  }
+
+  private fxRow(who: Who) {
+    if (who === 'p') return { x: this.coonStatus.x, y: this.coonStatus.y, bx: COON_X, by: GROUND_Y - 16 };
+    const v = this.views.get(who as number);
+    return v ? { x: v.c.x, y: v.c.y + 24, bx: v.c.x, by: GROUND_Y - v.h / 2 } : null;
+  }
+
+  private fxStatus(who: Who, key: StatusKey, n: number) {
+    const prev = this.fxSt.get(who) ?? {};
+    const was = prev[key] ?? 0;
+    prev[key] = n;
+    this.fxSt.set(who, prev);
+    const r = this.fxRow(who);
+    if (!r) return;
+    if (was <= 0 && n > 0) this.fx.statusApply(r.bx, r.by, r.x, r.y, key);
+    else if (n > was) this.fx.statusStack(r.x, r.y, key);
+    else if (was > 0 && n <= 0) this.fx.statusEnd(r.x, r.y, false);
+  }
+
+  private fxTick(who: Who, x: number, y: number) {
+    const st = who === 'p' ? this.combat?.status : this.combat?.foe(who as number)?.status;
+    const key = (['burn', 'poison', 'bleed'] as StatusKey[]).find((k) => st?.[k]);
+    if (key) this.fx.statusTick(x, y, key);
+    else this.fx.impact(x, y, 'earth', 1, false); // hazards: pots, quakes
   }
 
   // A tiny freeze on big hits so they land with weight.
