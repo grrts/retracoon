@@ -4,16 +4,18 @@
 {% block description %}Retracoon press kit: a turn-based 8-bit roguelike where your raccoon wears every item it finds. Fact sheet, screenshots, capsules, raccoon renders and clips.{% endblock %}
 
 {% block content %}
-<h1>Press kit</h1>
-<blockquote>A turn-based 8-bit roguelike where your raccoon wears every item it finds.</blockquote>
-<p class="muted">Short version: <b>The raccoon roguelike where the loot is the look.</b></p>
-
+<div class="page"><div class="wrap">
+<span class="kicker">Press kit</span>
+<h1>Retracoon</h1>
 <div class="prose">
+<p class="quote">A turn-based 8-bit roguelike where your raccoon wears every item it finds.</p>
+<p>Short version: <b>The raccoon roguelike where the loot is the look.</b></p>
+
 <h2>About the game</h2>
 <p><b>Retracoon</b> is a turn-based 8-bit roguelike for phones and PC. A raccoon walks an endless road through {{ counts.areas }} areas, fighting foes that show their next move and hunting for the boss that hides somewhere in each area. Every one of its {{ counts.items|number_format }} items is drawn on the raccoon, so by stage 30 it might wear a lid crown, laser eyes and a trash mech. Retreat in time and your raccoon keeps its level for the next run; push too far and you start over.</p>
 
 <h2>Fact sheet</h2>
-<table>
+<table class="facts">
     <tr><th>Developer</th><td>Leroy, solo developer, the Netherlands</td></tr>
     <tr><th>Platforms</th><td>Android and iOS (free, one ad at launch, cosmetic skins). Steam for Windows, macOS, Linux and Steam Deck (paid, no ads)</td></tr>
     <tr><th>Release</th><td>Phones 1 December 2026, Steam 15 March 2027 (planned)</td></tr>
@@ -24,16 +26,17 @@
 </div>
 
 <h2>Downloads</h2>
-<p class="muted">Free to use in coverage of the game. Clips are silent; screenshots are real gameplay with no added text.</p>
+<p class="body">Free to use in coverage of the game. Clips are silent; screenshots are real gameplay with no added text.</p>
 {% for g in groups %}
-<h3 style="margin:18px 0 8px;color:var(--muted)">{{ g.label }}</h3>
+<h3>{{ g.label }}</h3>
 <div class="downloads">
     {% for f in g.files %}
     <a href="{{ f.url }}" download>
-        {% if f.image %}<img src="{{ f.url }}" alt="" loading="lazy">{% endif %}
-        <span>{{ f.name }}<br><span class="muted">{{ f.size >= 1048576 ? (f.size / 1048576)|round(1) ~ ' MB' : (f.size / 1024)|round ~ ' KB' }}</span></span>
+        <span class="thumb">{% if f.image %}<img class="pix" src="{{ f.url }}" alt="" loading="lazy">{% else %}<span class="px" style="font-size:10px;color:var(--mist)">MP4 clip</span>{% endif %}</span>
+        <span>{{ f.name }}<br><small>{{ f.size >= 1048576 ? (f.size / 1048576)|round(1) ~ ' MB' : (f.size / 1024)|round ~ ' KB' }}</small></span>
     </a>
     {% endfor %}
 </div>
 {% endfor %}
+</div></div>
 {% endblock %}

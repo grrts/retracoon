@@ -4,9 +4,9 @@
 {% block description %}What Retracoon stores about you, why, and how to delete it.{% endblock %}
 
 {% block content %}
-<div class="prose">
+<div class="page"><div class="wrap prose">
 <h1>Privacy policy</h1>
-<p class="muted">Last updated 16 October 2026.{% if support_email %} Questions: <a href="mailto:{{ support_email }}">{{ support_email }}</a>.{% endif %}</p>
+<p style="color:var(--mist)">Last updated 16 October 2026.{% if support_email %} Questions: <a href="mailto:{{ support_email }}">{{ support_email }}</a>.{% endif %}</p>
 
 <p>Retracoon is a game. You sign in with Google, Apple or Steam so your name, scores and purchases belong to you. It has no chat, and it does not ask for your real name, email or location.</p>
 
@@ -36,7 +36,7 @@
 <p>Retracoon is not directed at children under 13.</p>
 
 <h2>Data safety and App Privacy answers</h2>
-<div class="scroll"><table>
+<div class="scroll"><table class="facts">
     <tr><th>Data</th><th>Collected</th><th>Shared</th><th>Purpose</th><th>Why</th></tr>
     <tr><td>Advertising id / device id</td><td>Yes (AdMob)</td><td>Yes, with Google</td><td>Advertising</td><td>Launch ad</td></tr>
     <tr><td>Approximate location (from IP)</td><td>Yes (AdMob)</td><td>Yes, with Google</td><td>Advertising, fraud prevention</td><td>Launch ad</td></tr>
@@ -48,5 +48,5 @@
     <tr><td>Personal info (real name, email, contacts)</td><td>No</td><td></td><td></td><td></td></tr>
 </table></div>
 <p>Data is encrypted in transit. Users can delete their account and its data in the app or through the web page above.</p>
-</div>
+</div></div>
 {% endblock %}

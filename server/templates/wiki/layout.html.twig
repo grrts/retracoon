@@ -4,6 +4,12 @@
 
 {% block description %}Every item, skill, foe, area and skin in Retracoon, the 8-bit raccoon roguelike.{% endblock %}
 
+{% block stylesheets %}
+<style>
+{% include 'wiki/_style.css.twig' %}
+</style>
+{% endblock %}
+
 {% block body %}
 {% set here = app.request.attributes.get('_route') %}
 <header><div class="bar">

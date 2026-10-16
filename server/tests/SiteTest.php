@@ -52,19 +52,20 @@ final class SiteTest extends WebTestCase
         $this->client->request('GET', '/');
         self::assertSelectorTextContains('main', 'Nobody has walked today\'s road yet');
         // No store URLs are configured in tests, so no store buttons, only the wiki link.
-        self::assertSelectorNotExists('a.btn:not(.alt)');
+        self::assertSelectorNotExists('a.store');
+        self::assertSelectorExists('a.btn[href="/wiki"]');
         self::assertSelectorExists('a.teaser[href^="/wiki/items/"]');
 
         foreach (['ALPHA' => 9, 'BRAVO' => 4, 'CHARLIE' => 7, 'DELTA' => 3, 'ECHO' => 8, 'FOXTROT' => 2] as $i => $stage) {
             $this->dailyRun($i, $stage);
         }
         $crawler = $this->client->request('GET', '/');
-        $rows = $crawler->filter('table.board tr td:nth-child(2)')->each(fn ($td) => trim($td->text()));
+        $rows = $crawler->filter('ol.board li .name')->each(fn ($td) => trim($td->text()));
         self::assertCount(5, $rows);
         self::assertStringStartsWith('ALPHA#', $rows[0]);
         self::assertStringStartsWith('ECHO#', $rows[1]);
         self::assertStringNotContainsString('FOXTROT', implode(' ', $rows));
-        self::assertSelectorTextContains('main', '6 raccoons have run it so far');
+        self::assertSelectorTextContains('main', '6 runners');
     }
 
     public function testPressKitListsTheDownloads(): void

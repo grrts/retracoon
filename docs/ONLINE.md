@@ -84,7 +84,7 @@ STORE_APP_STORE_URL=https://apps.apple.com/app/...
 STORE_STEAM_URL=https://store.steampowered.com/app/...
 ```
 
-The clips, screenshots and press downloads in `server/public/site/` and `server/public/downloads/` come from the marketing kit, compressed for the web by `tools/site-media.sh /path/to/marketing` (needs ffmpeg). Rerun it when the kit changes.
+The clips, screenshots and press downloads in `server/public/site/` and `server/public/downloads/` come from the marketing kit, compressed for the web by `tools/site-media.sh /path/to/marketing` (needs ffmpeg). Rerun it when the kit changes. Headings use the game's own pixel font, turned into `server/public/site/retracoon-px.woff2` by `python3 tools/site-font.py` (needs `pip install fonttools brotli`); rerun it if `src/gfx/font.ts` changes. The design direction is in the page CSS, `server/templates/site/_site.css.twig`.
 
 ## Daily run, seasons and prizes
 

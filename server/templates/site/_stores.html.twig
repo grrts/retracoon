@@ -1,8 +1,7 @@
 {# The store buttons. Each one is hidden until its STORE_*_URL env var is set. #}
 <div class="btns">
     {% for name, url in stores %}
-        <a class="btn" href="{{ url }}" rel="noopener">{{ {'Google Play': 'Get it on Google Play', 'App Store': 'Download on the App Store', 'Steam': 'Wishlist on Steam'}[name] }}</a>
+        <a class="btn store" href="{{ url }}" rel="noopener">{{ {'Google Play': 'Get it on Google Play', 'App Store': 'Download on the App Store', 'Steam': 'Wishlist on Steam'}[name] }}</a>
     {% endfor %}
-    <a class="btn alt" href="{{ path('wiki') }}">Browse the wiki</a>
+    <a class="btn{% if stores %} ghost{% endif %}" href="{{ path('wiki') }}">Browse the wiki</a>
 </div>
-{% if not stores %}<p class="soon">Coming to Android, iPhone and Steam.</p>{% endif %}
