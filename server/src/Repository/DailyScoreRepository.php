@@ -36,14 +36,16 @@ class DailyScoreRepository extends ServiceEntityRepository
 
     public function countDay(string $day): int
     {
-        return (int) $this->createQueryBuilder('d')->select('COUNT(d.id)')->where('d.day = :day')->setParameter('day', $day)->getQuery()->getSingleScalarResult();
+        return (int) $this->createQueryBuilder('d')->select('COUNT(d.id)')->join('d.player', 'p')->where('d.day = :day')->andWhere('p.hidden = false')->setParameter('day', $day)->getQuery()->getSingleScalarResult();
     }
 
     public function rankOf(DailyScore $s): int
     {
         $ahead = (int) $this->createQueryBuilder('d')
             ->select('COUNT(d.id)')
+            ->join('d.player', 'p')
             ->where('d.day = :day')
+            ->andWhere('p.hidden = false')
             ->andWhere('d.stage > :s OR (d.stage = :s AND d.timeMs < :t) OR (d.stage = :s AND d.timeMs = :t AND d.scoredAt < :at)')
             ->setParameter('day', $s->getDay())
             ->setParameter('s', $s->getStage())
@@ -85,6 +87,7 @@ class DailyScoreRepository extends ServiceEntityRepository
             ->addSelect('p')
             ->join('d.player', 'p')
             ->where('d.day = :day')
+            ->andWhere('p.hidden = false')
             ->setParameter('day', $day)
             ->orderBy('d.stage', 'DESC')
             ->addOrderBy('d.timeMs', 'ASC')

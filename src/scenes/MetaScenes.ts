@@ -122,7 +122,10 @@ export class PauseScene extends Phaser.Scene {
         return;
       }
       // Giving up counts as dying: the banked character is gone (a daily run has none).
-      if (data.run.mode !== 'daily') store.kept = null;
+      if (data.run.mode !== 'daily') {
+        store.kept = null;
+        store.runOpen = false;
+      }
       save();
       sfx.resume();
       sfx.stopMusic();

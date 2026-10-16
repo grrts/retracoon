@@ -10,6 +10,7 @@ use App\Entity\Player;
 use App\Entity\Prize;
 use App\Entity\SeasonScore;
 use App\Entity\Purchase;
+use App\Entity\RunLog;
 use App\Entity\Session;
 use App\Repository\DailyScoreRepository;
 use App\Repository\PlayerRepository;
@@ -19,6 +20,7 @@ use App\Service\AppleTokens;
 use App\Service\Names;
 use App\Service\Periods;
 use App\Service\Prizes;
+use App\Service\RunAudit;
 use App\Service\Standing;
 use App\Service\Tags;
 use Doctrine\ORM\EntityManagerInterface;
@@ -78,10 +80,12 @@ final class PlayerController extends AbstractController
      * End of a run. Bests only go up, so sending an old or worse result is harmless.
      * A normal run also counts for this season; a daily run only for its day's board,
      * and only while that day is open (today, or yesterday within the grace period).
+     * A run whose logbook doesn't add up counts nowhere (see RunAudit); the answer
+     * looks the same apart from `counted`, so the game drops it and moves on.
      */
     #[Route('/me/runs', methods: ['POST'])]
     #[IsGranted('ROLE_PLAYER')]
-    public function run(#[CurrentUser] Player $me, #[MapRequestPayload] RunResult $run, RateLimiterFactoryInterface $runLimiter, DailyScoreRepository $daily, SeasonScoreRepository $seasons): JsonResponse
+    public function run(#[CurrentUser] Player $me, #[MapRequestPayload] RunResult $run, RateLimiterFactoryInterface $runLimiter, DailyScoreRepository $daily, SeasonScoreRepository $seasons, RunAudit $audit): JsonResponse
     {
         if (!$runLimiter->create($me->getId())->consume()->isAccepted()) {
             throw new TooManyRequestsHttpException(null, 'Slow down.');
@@ -89,7 +93,10 @@ final class PlayerController extends AbstractController
         $now = $this->periods->now();
         $improved = false;
         $counted = true;
-        if ('daily' === $run->mode) {
+        [$verdict, $reasons] = $audit->check($run, $me->getBestStage());
+        if (RunAudit::REJECTED === $verdict) {
+            $counted = false;
+        } elseif ('daily' === $run->mode) {
             $day = $run->day ?? $this->periods->today();
             $counted = \in_array($day, [$this->periods->today(), $this->periods->lateDay()], true);
             if ($counted) {
@@ -114,6 +121,9 @@ final class PlayerController extends AbstractController
         }
         if (null !== $run->skin) {
             $me->setSkin($run->skin);
+        }
+        if ($improved || \in_array($verdict, [RunAudit::SUSPECT, RunAudit::REJECTED], true)) {
+            $this->em->persist(new RunLog($me, $run->mode, 'daily' === $run->mode ? ($run->day ?? $this->periods->today()) : null, $run->stage, $run->level, $run->distance, $run->timeMs, $verdict, $reasons, $improved, \in_array('log_malformed', $reasons, true) ? null : $run->log, $now));
         }
         $this->em->flush();
 
@@ -149,7 +159,7 @@ final class PlayerController extends AbstractController
         return $this->json(['player' => $this->standing->me($me)]);
     }
 
-    /** Deletes the player, their scores, friendships, purchases and sign-ins. */
+    /** Deletes the player, their scores and run logs, friendships, purchases and sign-ins. */
     #[Route('/me', methods: ['DELETE'])]
     #[IsGranted('ROLE_PLAYER')]
     public function delete(#[CurrentUser] Player $me, AppleTokens $apple): Response
@@ -159,7 +169,7 @@ final class PlayerController extends AbstractController
             $apple->revoke($t);
         }
         // Explicit as well as ON DELETE CASCADE, for databases that don't enforce it.
-        foreach ([Session::class, Purchase::class, DailyScore::class, SeasonScore::class, Prize::class] as $class) {
+        foreach ([Session::class, Purchase::class, DailyScore::class, SeasonScore::class, Prize::class, RunLog::class] as $class) {
             $this->em->createQuery("DELETE FROM $class x WHERE x.player = :p")->setParameter('p', $me)->execute();
         }
         $this->em->remove($me);

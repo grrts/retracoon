@@ -115,8 +115,8 @@ All responses are JSON; errors use `application/problem+json` with a `detail` me
 | `GET /api/me` 🔒 | Your player, including friend code, gems, No Ads, gem unlocks, world rank, today's daily run and this season (`daily`, `season`: stage and rank, or null) and prizes won but not shown yet (`prizes`). |
 | `PATCH /api/me` `{name?, skin?}` 🔒 | Changes name (3-16 letters, digits, spaces; gets a new free tag) or shown skin. |
 | `POST /api/me/spend` `{gems, item}` 🔒 | Spends gems on a skin. The same item twice only charges once; 409 when short. |
-| `DELETE /api/me` 🔒 | Deletes your player, scores, friendships, purchases and sign-ins, and revokes Sign in with Apple. |
-| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed. |
+| `DELETE /api/me` 🔒 | Deletes your player, scores, run logs, friendships, purchases and sign-ins, and revokes Sign in with Apple. |
+| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?, log?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed, and for a run that fails the [fair-score checks](#fair-scores). `log` is the run's logbook. |
 | `POST /api/me/prizes/seen` 🔒 | The game showed the prizes in `GET /api/me`'s `prizes`; don't list them again. |
 | `GET /api/me/friends` 🔒 | You and your friends, ranked. |
 | `POST /api/me/friends` `{code}` 🔒 | Adds a friend by code; both of you see each other. 30 tries per hour. |
@@ -135,6 +135,39 @@ A player row looks like `{id, name, tag, skin, bestStage, bestLevel, bestDistanc
 
 Players registered before accounts existed stay on the board as `legacy` players; nobody can sign in to them.
 
-## Cheating
+## Fair scores
 
-Scores are sent by the game, so a determined player could send a fake one. The API caps values and rate-limits, which stops casual tampering but not someone who reads the code. If that becomes a problem, the next steps are removing obvious outliers from the board and having the game send a run log the server can check.
+The game runs on the player's device, so the server can't watch a run. Instead the game keeps a **logbook** of each run and sends it with the score: the raccoon it started with, then one line per fight with the raccoon going in (level, stats, HP, shinies, distance, time) and what came out (won or lost, turns, skills used, XP, HP after). See `src/game/logbook.ts`. A 30-fight run is about 6 KB.
+
+`RunAudit` (`server/src/Service/RunAudit.php`) checks every run before it counts:
+
+| Check | Catches |
+|---|---|
+| The logbook matches the score: fight count, final level, distance, time | an edited number in the request |
+| Fights numbered in order, nothing after a death, level never drops | a made-up or spliced logbook |
+| Stat points only grow by 3 a level, plus a little for road stops | stats edited mid-run |
+| At least 1 s between fights and 0.2 s a turn; at least 1 s a fight overall, even without a logbook | runs faster than the game can play |
+| A daily run starts as a fresh level 1 raccoon, and gains at most 5 + 2 a fight in levels | an edited daily run |
+| A best over 3x the player's last best (past stage 30) | flagged, still counts |
+
+Each run gets a verdict: `ok`, `unlogged` (older game versions, and bests made while signed out), `suspect` (counts, flagged) or `rejected` (counts nowhere; the game sees `counted: false` and moves on). Runs that set a best, and every suspect or rejected run, are kept with their logbook in `run_log`; other runs are not, so the table stays small.
+
+```sh
+php bin/console app:runs                 # newest suspect and rejected runs
+php bin/console app:runs --player ID     # one player's kept runs
+php bin/console app:runs --hide ID       # off every public board and out of prizes
+php bin/console app:runs --unhide ID
+```
+
+A hidden player still sees their own scores and rank, so nothing tells them.
+
+The game also counts a normal run that never ended (the app was closed mid-run) as a death the next time PLAY is pressed, so closing the app in a losing fight no longer keeps the banked raccoon.
+
+### What this doesn't stop yet
+
+These checks prove a logbook hangs together, not that the fights in it went that way. Someone who studies the code can still write a logbook that passes. Planned next, in order:
+
+1. **Run tickets.** `POST /api/me/runs/start` hands out a run id, a seed and the starting raccoon from the server's own record of the banked raccoon, so editing local storage gains nothing. One result per ticket; a ticket that never comes back counts as a death. Only ticketed runs rank; guests still play offline. Cost: one small row per run start, same server.
+2. **Replay.** Seed every normal run from its ticket (the daily run already is), and add every decision to the logbook: skill and target each turn, stat points, picks, road stops, shop buys, retreat. A verifier reruns the logbook through the game's own engine in `src/game/` (as `npm run sim` already does, headless) and checks it ends at the same score. This needs the run flow that lives in `RunScene`/`StopScenes` moved into `src/game/` first, and every logic roll on `rand()`, not `Math.random()`. Replay is a few milliseconds of CPU a run, but it needs Node, which plain PHP hosting doesn't have. To keep hosting free, only board-relevant runs (top 100, and every prize winner before it's paid) get replayed, by a scheduled GitHub Actions job that reads unverified runs from an admin endpoint and writes back verdicts. On a VPS the same verifier can run next to Symfony instead.
+3. **Platform attestation** (Play Integrity, App Attest) on ticket requests, if bots show up.
+

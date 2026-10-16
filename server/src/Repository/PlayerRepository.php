@@ -39,7 +39,7 @@ class PlayerRepository extends ServiceEntityRepository
      */
     public function top(int $limit, int $offset = 0): array
     {
-        return $this->ranked($this->createQueryBuilder('p')->where('p.bestStage > 0'))
+        return $this->ranked($this->createQueryBuilder('p')->where('p.bestStage > 0')->andWhere('p.hidden = false'))
             ->setMaxResults($limit)
             ->setFirstResult($offset)
             ->getQuery()
@@ -48,7 +48,7 @@ class PlayerRepository extends ServiceEntityRepository
 
     public function countRanked(): int
     {
-        return (int) $this->createQueryBuilder('p')->select('COUNT(p.id)')->where('p.bestStage > 0')->getQuery()->getSingleScalarResult();
+        return (int) $this->createQueryBuilder('p')->select('COUNT(p.id)')->where('p.bestStage > 0')->andWhere('p.hidden = false')->getQuery()->getSingleScalarResult();
     }
 
     /**
@@ -62,6 +62,7 @@ class PlayerRepository extends ServiceEntityRepository
         $ahead = (int) $this->createQueryBuilder('p')
             ->select('COUNT(p.id)')
             ->where('p.bestStage > :s OR (p.bestStage = :s AND p.bestDistance > :d)')
+            ->andWhere('p.hidden = false')
             ->setParameter('s', $p->getBestStage())
             ->setParameter('d', $p->getBestDistance())
             ->getQuery()
@@ -79,7 +80,7 @@ class PlayerRepository extends ServiceEntityRepository
     {
         $qb = $this->createQueryBuilder('p');
         $qb->where('p = :me')
-            ->orWhere($qb->expr()->in('p.id', 'SELECT IDENTITY(f.friend) FROM App\Entity\Friendship f WHERE f.player = :me'))
+            ->orWhere($qb->expr()->andX($qb->expr()->in('p.id', 'SELECT IDENTITY(f.friend) FROM App\Entity\Friendship f WHERE f.player = :me'), 'p.hidden = false'))
             ->setParameter('me', $p);
 
         return $this->ranked($qb)->getQuery()->getResult();

@@ -25,6 +25,8 @@ final class RunResult
         // how long the run took, for the daily board's tie-break
         #[Assert\Range(min: 0, max: 86400000)]
         public readonly int $timeMs = 0,
+        // what happened in the run (src/game/logbook.ts); checked by RunAudit
+        public readonly ?array $log = null,
     ) {
     }
 }
