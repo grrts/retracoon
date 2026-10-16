@@ -1,0 +1,17 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Sets{% endblock %}
+{% block content %}
+<h1>Sets</h1>
+<p class="lead">Wear 2 pieces of a set to switch on its first bonus; more pieces add more. Wearing a piece makes the rest of its set turn up more often. Risky sets pay well and bite back.</p>
+{% for s in sets %}
+<h2><a href="{{ path('wiki_set', {id: s.id}) }}" style="color:{{ s.color }}">{{ s.name }}</a>{% if s.risky %} <span class="pill risky">Risky</span>{% endif %}</h2>
+<div class="hero">
+    {{ sprite('items', 'set:' ~ s.id, 3, 'The full ' ~ s.name ~ ' set') }}
+    <div class="info">
+        <table>{% for b in s.bonuses %}<tr><td style="white-space:nowrap">{{ b.n }} pieces</td><td>{{ b.desc }}</td></tr>{% endfor %}</table>
+        <p class="desc">{% for p in s.items %}<a href="{{ path('wiki_item', {id: p.id}) }}">{{ p.name }}</a>{% if not loop.last %} · {% endif %}{% endfor %}</p>
+    </div>
+</div>
+{% endfor %}
+{% endblock %}

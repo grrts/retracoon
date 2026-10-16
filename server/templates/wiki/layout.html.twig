@@ -1,0 +1,71 @@
+{% extends 'base.html.twig' %}
+
+{% block title %}{% block heading %}Wiki{% endblock %} · Retracoon Wiki{% endblock %}
+
+{% block meta %}
+<meta name="description" content="{% block description %}Every item, skill, foe, area and skin in Retracoon, the 8-bit raccoon roguelike.{% endblock %}">
+{% endblock %}
+
+{% block stylesheets %}
+<style>
+:root{--bg:#1a1c2c;--panel:#29366f;--panel2:#333c57;--line:#566c86;--text:#f4f4f4;--muted:#94b0c2;--gold:#ffcd75;--cyan:#73eff7;--red:#ef7d57;--lime:#a7f070}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+a{color:var(--cyan);text-decoration:none}a:hover{text-decoration:underline}
+header{background:#0f1020;border-bottom:3px solid var(--panel);position:sticky;top:0;z-index:2}
+.bar{max-width:1100px;margin:0 auto;padding:8px 16px;display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center}
+.logo{color:var(--gold);font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-right:8px}
+nav{display:flex;flex-wrap:wrap;gap:4px 12px;font-size:13px;text-transform:uppercase}
+nav a{color:var(--muted)}nav a.on{color:var(--gold)}
+form.find{margin-left:auto}
+input,select,button{font:inherit;background:var(--panel2);color:var(--text);border:2px solid var(--line);padding:3px 8px}
+button{cursor:pointer;background:var(--panel)}
+main{max-width:1100px;margin:0 auto;padding:16px}
+h1{color:var(--gold);text-transform:uppercase;letter-spacing:1px;font-size:24px;margin:8px 0 4px}
+h2{color:var(--gold);text-transform:uppercase;font-size:17px;margin:24px 0 8px;border-bottom:2px solid var(--panel);padding-bottom:4px}
+h3{margin:0;font-size:14px;text-transform:uppercase}
+p.lead{color:var(--muted);margin:0 0 16px}
+.spr{display:inline-block;image-rendering:pixelated;image-rendering:crisp-edges;flex:none}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px}
+.grid.small{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}
+.card{display:flex;gap:10px;align-items:center;background:var(--panel2);border:2px solid var(--line);padding:8px;color:var(--text);min-width:0}
+a.card:hover{border-color:var(--gold);text-decoration:none}
+.card .t{min-width:0}
+.card small{display:block;color:var(--muted);font-size:12px;text-transform:uppercase}
+.card.col{flex-direction:column;text-align:center}
+.desc{font-size:12px;color:var(--text);text-transform:uppercase}
+.pill{display:inline-block;font-size:11px;padding:0 6px;border:1px solid currentColor;margin:2px 4px 2px 0;text-transform:uppercase;white-space:nowrap}
+.hero{display:flex;flex-wrap:wrap;gap:20px;align-items:flex-start;background:var(--panel2);border:2px solid var(--line);padding:16px}
+.hero .info{flex:1;min-width:220px}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);text-transform:uppercase;font-weight:400;font-size:12px}
+.filters{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 14px}
+.filters a{padding:2px 8px;border:2px solid var(--line);font-size:12px;text-transform:uppercase;color:var(--muted)}
+.filters a.on{border-color:var(--gold);color:var(--gold)}
+.muted{color:var(--muted)}
+.risky{color:var(--red)}
+.sky{height:48px;border:2px solid var(--line)}
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:6px;margin:10px 0}
+.stats div{background:var(--bg);padding:4px 8px}.stats b{display:block;color:var(--gold)}
+footer{max-width:1100px;margin:30px auto;padding:0 16px;color:var(--muted);font-size:12px}
+@media (max-width:600px){form.find{margin-left:0;width:100%}form.find input{width:100%}.hero{padding:10px}}
+</style>
+{% endblock %}
+
+{% block body %}
+{% set here = app.request.attributes.get('_route') %}
+<header><div class="bar">
+    <a class="logo" href="{{ path('wiki') }}">Retracoon Wiki</a>
+    <nav>
+        {% for r, label in {wiki_items: 'Items', wiki_sets: 'Sets', wiki_skills: 'Skills', wiki_passives: 'Passives', wiki_foes: 'Foes', wiki_areas: 'Areas', wiki_events: 'Events', wiki_skins: 'Skins'} %}
+            <a href="{{ path(r) }}"{% if here == r or here ~ 's' == r %} class="on"{% endif %}>{{ label }}</a>
+        {% endfor %}
+    </nav>
+    <form class="find" action="{{ path('wiki_search') }}" method="get"><input type="search" name="q" placeholder="Search" value="{{ q ?? '' }}" aria-label="Search the wiki"></form>
+</div></header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer>Generated from the game's content files. Numbers are what the game uses today.</footer>
+{% endblock %}
