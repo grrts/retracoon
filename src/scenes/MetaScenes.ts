@@ -136,12 +136,22 @@ export class PauseScene extends Phaser.Scene {
 
 // ---------------------------------------------------------------- run over
 
+// "BEATEN BY THE SWAMP KING. 2 STAGES SHORT OF YOUR RECORD."
+export function recap(r: RunState, dead: boolean, killer: string | undefined, best: number) {
+  const how = dead ? `BEATEN BY ${(killer || 'THE ROAD').toUpperCase()}.` : 'GOT OUT ALIVE.';
+  const rec = r.mode === 'daily' ? "TODAY'S BEST" : 'YOUR RECORD';
+  const gap = best - r.stage;
+  const far =
+    best <= 0 ? '' : gap < 0 ? ` ${-gap} PAST ${rec}!` : gap === 0 ? ` TIED ${rec}.` : ` ${gap} STAGE${gap > 1 ? 'S' : ''} SHORT OF ${rec}.`;
+  return how + far;
+}
+
 export class GameOverScene extends Phaser.Scene {
   constructor() {
     super('GameOver');
   }
 
-  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown> }) {
+  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown>; killer?: string; bestBefore?: number }) {
     const r = data.run;
     const daily = r.mode === 'daily';
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.92).setOrigin(0).setInteractive();
@@ -194,6 +204,8 @@ export class GameOverScene extends Phaser.Scene {
       text(this, x, 70 + i * LINE_H, k, { origin: 0, color: COL.light });
       text(this, x + pw - 10, 70 + i * LINE_H, v, { origin: 1, color: COL.white });
     });
+    // One line on how it ended and how close it came to the record.
+    text(this, W / 2, H - 50, recap(r, dead, data.killer, data.bestBefore ?? 0), { color: COL.white, maxWidth: W - 16, maxLines: 1 });
     const note = text(
       this,
       W / 2,
