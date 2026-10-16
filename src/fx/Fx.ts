@@ -8,7 +8,7 @@ import { W } from '../config';
 import { hex } from '../gfx/palette';
 import { store } from '../save';
 import { LOOKS, Element, Motion } from './elements';
-import { buildFxTextures, RINGS, SPARKS } from './textures';
+import { buildFxTextures, RINGS, SPARKS, OUTLINED } from './textures';
 
 type Range = [number, number];
 interface Spec {
@@ -74,6 +74,7 @@ export class FxDirector {
   private ambientT = new Map<string, number>();
   quality = 1; // 0.5 low, 1 normal: multiplies counts. A settings toggle in the real thing.
   enabled = true;
+  outline = true;
   stats = { bursts: 0, shed: 0, peak: 0 };
 
   constructor(private scene: Phaser.Scene, private depth = 22) {
@@ -143,6 +144,8 @@ export class FxDirector {
     this.stats.bursts++;
     const m = MOTION[motion];
     Object.assign(this.cur, m, { ramp, scale: opts.scale ?? 1, tx: x, ty: y });
+    // Ambient motes stay bare; anything an action spawns gets the dark outline.
+    if (this.outline && !opts.ambient && OUTLINED.includes(shape)) shape += '_o';
     const em = this.emitter(shape, motion === 'implode');
     const sp = opts.spread ?? 0;
     for (let i = 0; i < count; i++) {

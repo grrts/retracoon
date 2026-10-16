@@ -1,7 +1,7 @@
 // PROTOTYPE (combat VFX study). Particle shapes, drawn white and tinted from a palette
 // ramp at runtime, like the existing pt_* aura shapes in gfx/textures.ts.
 import Phaser from 'phaser';
-import { mapTexture, canvasTexture } from '../gfx/pixels';
+import { mapTexture, canvasTexture, outlineMap, pad } from '../gfx/pixels';
 
 const SHAPES: Record<string, string[]> = {
   fx_shard: ['w..', 'ww.', '.ww', '..w'],
@@ -48,8 +48,27 @@ function spark(r: number, tips: boolean): string[] {
   return g.map((row) => row.join(''));
 }
 
+// The shape with a 1px near-black outline. Tint multiplies, so the outline stays dark
+// whatever the element colour: the effect reads on any biome, even green on grass.
+export function outlined(rows: string[]): string[] {
+  const ring = outlineMap(rows, 'k');
+  const p = pad(rows);
+  return ring.map((line, y) => [...line].map((ch, x) => (p[y - 1]?.[x - 1] && p[y - 1][x - 1] !== '.' ? 'w' : ch)).join(''));
+}
+export const OUTLINED = ['fx_plus', 'pt_bubble', 'pt_flame', 'pt_leaf', 'pt_heart', 'fx_shard', 'fx_coin', 'pt_drop', 'pt_flake', 'pt_star', 'fx_chunk'];
+const PT: Record<string, string[]> = {
+  pt_bubble: ['.ww.', 'w..w', 'w..w', '.ww.'],
+  pt_flame: ['.w.', 'www', 'www', '.w.'],
+  pt_leaf: ['.ww', 'www', 'ww.'],
+  pt_heart: ['.w.w.', 'wwwww', '.www.', '..w..'],
+  pt_drop: ['w', 'w', 'w'],
+  pt_flake: ['.w.', 'www', '.w.'],
+  pt_star: ['w.w', '.w.', 'w.w'],
+};
+
 export function buildFxTextures(scene: Phaser.Scene) {
   for (const [k, rows] of Object.entries(SHAPES)) mapTexture(scene, k, rows);
+  for (const k of OUTLINED) mapTexture(scene, k + '_o', outlined(SHAPES[k] ?? PT[k]));
   for (const r of SPARKS) {
     mapTexture(scene, `fx_hit_${r}`, spark(r, false));
     mapTexture(scene, `fx_hit_${r}_b`, spark(r, true));
