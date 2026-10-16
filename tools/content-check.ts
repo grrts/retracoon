@@ -7,7 +7,9 @@ import { items, skills, sets, RARITY } from '../src/content/registry';
 import { PAL } from '../src/gfx/palette';
 import { passives } from '../src/content/passives';
 import { FONT } from '../src/gfx/font';
-import { emptyBonus } from '../src/game/run';
+import { emptyBonus, newRun } from '../src/game/run';
+import { ACHIEVEMENTS } from '../src/platform/achievements';
+import { readFileSync } from 'node:fs';
 import { levelFactor, statFactor } from '../src/content/skills/book';
 import type { Bonus, Fx, ItemDef, SkillEffect } from '../src/content/types';
 import { PARTS, applyBonus, fxOf, type Eff } from '../src/content/items/forge';
@@ -212,6 +214,29 @@ const growthSt = statFactor({ stat: 'str', min: 10 }, { level: 1, stats: { ...ST
 for (const p of passives.values()) {
   if (!fits(p.each, PASSIVE_W, 3)) err(`passive ${p.id} text too long: ${p.each}`);
   for (const n of [1, 3, 6]) if (!fits(`TOTAL ${p.desc(n)}`, PASSIVE_W + 2, 2)) err(`passive ${p.id} total too long at ${n}: ${p.desc(n)}`);
+}
+
+// ---------------------------------------------------------------- achievements
+
+// The ids are Steamworks API names, entered by hand in Steamworks from docs/STEAM.md.
+{
+  const doc = readFileSync(new URL('../docs/STEAM.md', import.meta.url), 'utf8');
+  const ids = new Set<string>();
+  const run = newRun();
+  for (const a of ACHIEVEMENTS) {
+    if (ids.has(a.id)) err(`achievement ${a.id} listed twice`);
+    ids.add(a.id);
+    if (!/^[A-Z0-9_]{1,64}$/.test(a.id)) err(`achievement ${a.id}: API names are A-Z, 0-9 and _`);
+    if (!doc.includes(`\`${a.id}\``)) err(`achievement ${a.id} is missing from docs/STEAM.md`);
+    if (a.stat && !doc.includes(`\`${a.stat}\``)) err(`stat ${a.stat} is missing from docs/STEAM.md`);
+    try {
+      a.test(run);
+      a.test(null);
+    } catch (e) {
+      err(`achievement ${a.id} test throws: ${(e as Error).message}`);
+    }
+  }
+  console.log(`achievements: ${ACHIEVEMENTS.length}`);
 }
 
 // ---------------------------------------------------------------- report

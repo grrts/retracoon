@@ -1,0 +1,10 @@
+"lang"
+{
+	"Language"	"english"
+	"Tokens"
+	{
+		"#Status_Menu"	"Picking a skin"
+		"#Status_Run"	"Stage %stage% in %world%"
+		"#Status_Daily"	"Daily run, stage %stage% in %world%"
+	}
+}

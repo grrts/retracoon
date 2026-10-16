@@ -1,5 +1,8 @@
 // A small HTML text box over the game, for names and friend codes (Phaser has no text
-// input of its own). Resolves with the text, or null if cancelled.
+// input of its own). Resolves with the text, or null if cancelled. On a Steam Deck the
+// Steam app opens the on-screen keyboard next to it.
+import { steam } from './platform/native';
+
 export function askText(title: string, initial = '', maxLength = 16): Promise<string | null> {
   return new Promise((resolve) => {
     const wrap = document.createElement('div');
@@ -45,6 +48,11 @@ export function askText(title: string, initial = '', maxLength = 16): Promise<st
       e.preventDefault();
       done(input.value);
     };
-    setTimeout(() => input.focus(), 30);
+    setTimeout(() => {
+      input.focus();
+      const r = input.getBoundingClientRect();
+      const k = window.devicePixelRatio || 1;
+      steam()?.keyboard?.(Math.round(r.left * k), Math.round(r.top * k), Math.round(r.width * k), Math.round(r.height * k));
+    }, 30);
   });
 }

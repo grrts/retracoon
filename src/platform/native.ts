@@ -10,6 +10,12 @@ export interface SteamBridge {
   setFullscreen(on: boolean): void;
   setWindowSize?(w: number, h: number): void; // newer builds of the Steam app
   onFullscreen?(cb: (on: boolean) => void): void;
+  // Newer builds of the Steam app (Steamworks features):
+  achievement?(ids: string[], stats: Record<string, number>): void; // unlock these, set these stats
+  presence?(status: 'menu' | 'run' | 'daily', vars?: Record<string, string>): void; // rich presence
+  cloudRead?(): string | null; // the save in Steam Cloud
+  cloudWrite?(json: string): void;
+  keyboard?(x: number, y: number, w: number, h: number): void; // Steam Deck on-screen keyboard
 }
 
 export const steam = (): SteamBridge | null => (globalThis as { retracoonSteam?: SteamBridge }).retracoonSteam ?? null;

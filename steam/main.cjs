@@ -1,5 +1,6 @@
 // Retracoon for Steam: the same web game in an Electron window, plus Steamworks for
-// sign-in (a Web API auth ticket the server checks) and the Steam overlay.
+// sign-in (a Web API auth ticket the server checks), the Steam overlay, achievements and
+// stats, rich presence, Steam Cloud saves and the Steam Deck keyboard (docs/STEAM.md).
 // Build the game into ./game first: `npm run build:steam` in the repo root.
 const { app, BrowserWindow, ipcMain, protocol, net } = require('electron');
 const path = require('node:path');
@@ -25,6 +26,33 @@ try {
 protocol.registerSchemesAsPrivileged([{ scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 
 let pendingSize = null;
+
+// Steam Cloud: one file holding the same JSON the game keeps in localStorage. The game
+// saves often, so writes wait a moment and the last one wins; quitting writes at once.
+const CLOUD_FILE = 'retracoon-save.json';
+const cloudOn = () => {
+  try {
+    return !!steam && steam.cloud.isEnabledForAccount() && steam.cloud.isEnabledForApp();
+  } catch {
+    return false;
+  }
+};
+let cloudPending = null;
+let cloudTimer = null;
+function flushCloud() {
+  clearTimeout(cloudTimer);
+  cloudTimer = null;
+  if (cloudPending === null || !cloudOn()) return;
+  try {
+    steam.cloud.writeFile(CLOUD_FILE, cloudPending);
+  } catch (e) {
+    console.warn('Steam Cloud write failed:', e && e.message);
+  }
+  cloudPending = null;
+}
+
+// Rich presence strings live in Steamworks (steam/richpresence.vdf); these pick one.
+const PRESENCE = { menu: '#Status_Menu', run: '#Status_Run', daily: '#Status_Daily' };
 
 // Never bigger than the screen the window is on.
 function setSize(win, w, h) {
@@ -89,6 +117,49 @@ app.whenReady().then(() => {
   });
   ipcMain.handle('steam:name', () => (steam ? steam.localplayer.getName() : ''));
   ipcMain.on('steam:quit', () => app.quit());
+
+  // Achievements the game has earned, and its stats. Steam ignores ones it already has.
+  ipcMain.on('steam:achievements', (_e, ids, stats) => {
+    if (!steam) return;
+    try {
+      for (const [name, v] of Object.entries(stats || {})) {
+        const n = Math.floor(Number(v));
+        if (Number.isFinite(n) && (steam.stats.getInt(name) ?? 0) < n) steam.stats.setInt(name, n);
+      }
+      for (const id of ids || []) if (!steam.achievement.isActivated(id)) steam.achievement.activate(id);
+      steam.stats.store();
+    } catch (e) {
+      console.warn('Steam achievements failed:', e && e.message);
+    }
+  });
+  ipcMain.on('steam:presence', (_e, status, vars) => {
+    if (!steam || !PRESENCE[status]) return;
+    try {
+      for (const [k, v] of Object.entries(vars || {})) steam.localplayer.setRichPresence(k, String(v).slice(0, 64));
+      steam.localplayer.setRichPresence('steam_display', PRESENCE[status]);
+    } catch (e) {
+      console.warn('Steam rich presence failed:', e && e.message);
+    }
+  });
+  ipcMain.on('steam:cloud-read', (e) => {
+    try {
+      e.returnValue = cloudOn() && steam.cloud.fileExists(CLOUD_FILE) ? steam.cloud.readFile(CLOUD_FILE) : null;
+    } catch {
+      e.returnValue = null;
+    }
+  });
+  ipcMain.on('steam:cloud-write', (_e, json) => {
+    cloudPending = json;
+    if (!cloudTimer) cloudTimer = setTimeout(flushCloud, 3000);
+  });
+  // Text boxes on a Steam Deck: show Steam's floating keyboard next to the box.
+  ipcMain.on('steam:keyboard', (_e, x, y, w, h) => {
+    try {
+      if (steam && steam.utils.isSteamRunningOnSteamDeck()) void steam.utils.showFloatingGamepadTextInput(0, x, y, w, h).catch(() => {});
+    } catch {
+      /* older Steam client */
+    }
+  });
   ipcMain.on('steam:fullscreen', (e, on) => BrowserWindow.fromWebContents(e.sender)?.setFullScreen(!!on));
   // Windowed size from the game's settings. Leaving full screen can take a moment, so a
   // size asked for meanwhile is applied once the window is out of it.
@@ -102,4 +173,5 @@ app.whenReady().then(() => {
   createWindow();
 });
 
+app.on('before-quit', flushCloud);
 app.on('window-all-closed', () => app.quit());
