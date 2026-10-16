@@ -91,7 +91,7 @@ export interface Foe {
 }
 
 export type Ev =
-  | { t: 'act'; who: Who; name: string; kind?: string }
+  | { t: 'act'; who: Who; name: string; kind?: string; skill?: string; target?: Who }
   | { t: 'hit'; who: Who; src: Who | 'env'; dmg: number; blocked: number; crit?: boolean; armor?: number; hp: number; block: number }
   | { t: 'dodge'; who: Who }
   | { t: 'block'; who: Who; amount: number; block: number }
@@ -345,7 +345,7 @@ export class Combat {
   }
 
   private resolve(i: number, def: SkillDef, e: SkillEffect, targetUid?: number) {
-    this.ev.push({ t: 'act', who: 'p', name: def.name, kind: e.dmg ? 'attack' : 'self' });
+    this.ev.push({ t: 'act', who: 'p', name: def.name, kind: e.dmg ? 'attack' : 'self', skill: def.id, target: targetUid });
 
     if (e.hpCost) this.hurtPlayerDirect(e.hpCost);
     if (e.hpPct) this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * e.hpPct)));

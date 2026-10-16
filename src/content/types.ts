@@ -227,6 +227,7 @@ export interface SkillDef {
   effect: (lvl: number, ctx?: SkillCtx) => SkillEffect;
   req?: SkillReq;
   pack?: string;
+  look?: string; // 'shape/ink' as written in the book; the ink is the skill's element (combat FX)
 }
 
 // ---------------------------------------------------------------- enemies

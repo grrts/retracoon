@@ -203,6 +203,7 @@ export function sk(id: string, name: string, look: string, cost: number, cooldow
   return {
     id,
     name,
+    look,
     icon: skillIcon(id, name, look),
     cost,
     cooldown,
