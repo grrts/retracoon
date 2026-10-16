@@ -156,6 +156,11 @@ class Synth {
   clear() {
     [523, 659, 784, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.16, 'square', 0.16, undefined, i * 0.08));
   }
+  // Passing your best: a quick rising run that ends on a held high note.
+  record() {
+    [659, 784, 988, 1319].forEach((f, i) => this.tone(f, 0.08, 'square', 0.16, undefined, i * 0.06));
+    this.tone(1568, 0.3, 'square', 0.14, undefined, 0.24);
+  }
   warn() {
     for (let i = 0; i < 3; i++) {
       this.tone(440, 0.22, 'square', 0.16, 880, i * 0.5);

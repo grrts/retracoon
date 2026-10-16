@@ -131,6 +131,10 @@ for (const [w, h] of SIZES) {
     window.__game.scene.getScene('Title').showPrizes({ prizes: [{ id: 1, kind: 'daily', period: '2026-11-14', place: 1, gems: 10 }, { id: 2, kind: 'season', period: '2026-10', place: 1, gems: 300 }] }),
   );
   await shot('title-prizes');
+  // The area map, with a handful of areas found.
+  await page.evaluate(() => (window.__debug.store.themesSeen = ['street', 'park', 'junkyard', 'mushroom_kingdom', 'neon', 'crystal_caves', 'candy', 'haunted']));
+  await start('Map', {});
+  await shot('map');
   for (const tab of ['sound', 'display', 'keys', 'pad']) {
     await start('Title');
     await sleep(200);

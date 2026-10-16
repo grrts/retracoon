@@ -19,6 +19,7 @@ import { startTracking, setTracking } from '../platform/track';
 import { addCaps } from '../meta/economy';
 import { continueBoot } from './AccountScenes';
 import { onAction, padConnected } from '../input';
+import { areasFound } from './MapScene';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -267,6 +268,12 @@ export class TitleScene extends Phaser.Scene {
     this.add.image(cx, GROUND_Y + 1, 'shadow').setScale(2.5);
     this.coon = new RaccoonView(this, cx, GROUND_Y + 1, null, store.skin).setScale(3);
     this.coon.play('walk', 99);
+    // How far you have got: the areas you have walked through so far.
+    const { found, total } = areasFound();
+    button(this, cx, 30, 72, 16, `MAP ${found}/${total}`, () => {
+      sfx.unlock();
+      this.scene.start('Map', { back: 'Title' });
+    });
 
     const mx = Math.round(W * 0.6);
     const logo = text(this, mx, 34, 'RETRACOON', { scale: 3, color: COL.white });

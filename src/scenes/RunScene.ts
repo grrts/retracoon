@@ -28,7 +28,7 @@ import { text, panel, button, wait, Button, Floaters, BTN, LINE_H, shake } from 
 import { onAction } from '../input';
 import { sfx, areaTrack, bossTrack } from '../audio';
 import { store, save } from '../save';
-import { COL } from '../gfx/palette';
+import { COL, hex } from '../gfx/palette';
 import { ensureEnemy, enemyKey } from '../gfx/textures';
 import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
@@ -42,6 +42,7 @@ const PX_PER_M = 6;
 const COON_X = 72;
 const WALK_SPEED = 80;
 const BAR_Y = GROUND_Y + 8; // top of the bottom control band
+const FLAG_AHEAD = 46; // the best-stage flag stands this far past where the raccoon stops
 
 interface FoeView {
   uid: number;
@@ -60,6 +61,14 @@ interface FoeView {
   w: number;
   h: number;
   tint?: number;
+}
+
+interface BestFlag {
+  c: Phaser.GameObjects.Container;
+  img: Phaser.GameObjects.Image;
+  label: Phaser.GameObjects.BitmapText;
+  flutter: Phaser.Time.TimerEvent;
+  at: number; // distance (m) where it stands
 }
 
 interface SkillBtn {
@@ -103,6 +112,9 @@ export class RunScene extends Phaser.Scene {
   private pendingElite = false;
   private pendingBoss = false;
   private tiersSeen = new Set<number>();
+  private record = 0; // the stage to beat this run; 0 = no record yet
+  private flag: BestFlag | null = null;
+  private flagPassed = false;
   // PROTOTYPE combat VFX
   fx!: FxDirector;
   private fxEl: Element = 'steel';
@@ -133,6 +145,9 @@ export class RunScene extends Phaser.Scene {
     this.busy = false;
     this.walking = false;
     this.tiersSeen = new Set();
+    this.record = this.recordStage();
+    this.flag = null;
+    this.flagPassed = false;
 
     this.theme = themes.get(this.run.theme) ?? [...themes.values()][0];
     this.world = new Parallax(this, this.theme);
@@ -312,6 +327,7 @@ export class RunScene extends Phaser.Scene {
       }
     }
     this.world.update(dt, this.walking, dx);
+    this.moveFlag();
     for (const v of this.views.values()) {
       v.shadow.setPosition(v.c.x, GROUND_Y + 1);
       if (v.glow) v.glow.setAlpha(0.5 + 0.4 * Math.sin(_t / 200));
@@ -331,7 +347,65 @@ export class RunScene extends Phaser.Scene {
     this.walking = true;
     this.walkLeft = duration;
     this.coon.play('walk');
+    this.plantFlag(duration);
     this.tip('');
+  }
+
+  // ---------------------------------------------------------------- best-stage flag
+
+  // The stage to beat: your all-time best, or on a daily run your best on today's road.
+  private recordStage() {
+    const r = this.run;
+    if (r.mode === 'daily') return store.dailyDay === r.day ? (store.dailyBest?.stage ?? 0) : 0;
+    return store.bestStage;
+  }
+
+  // Once you have matched your best, a flag drops onto the road just past the next stop:
+  // win there and you walk past it into a new record. A road stop instead of a fight
+  // moves it on to the next one.
+  private plantFlag(walk: number) {
+    if (this.flagPassed || this.record <= 0 || this.run.stage !== this.record) return;
+    const at = this.run.distance + (walk * WALK_SPEED + FLAG_AHEAD) / PX_PER_M;
+    if (!this.flag) {
+      const img = this.add.image(0, 0, 'bestflag0').setOrigin(2 / 13, 1);
+      const label = text(this, 6, -29, `BEST ${this.record}`, { color: COL.yellow });
+      const c = this.add.container(0, 0, [img, label]).setDepth(3);
+      const flutter = this.time.addEvent({ delay: 260, loop: true, callback: () => img.setTexture(img.texture.key === 'bestflag0' ? 'bestflag1' : 'bestflag0') });
+      this.flag = { c, img, label, flutter, at };
+    }
+    const f = this.flag;
+    f.at = at;
+    this.moveFlag();
+    this.tweens.killTweensOf(f.c);
+    f.c.y = GROUND_Y + 1 - 48;
+    this.tweens.add({ targets: f.c, y: GROUND_Y + 1, duration: 420, ease: 'Bounce.out' });
+  }
+
+  // The flag is pinned to the road, so it scrolls with the ground.
+  private moveFlag() {
+    const f = this.flag;
+    if (!f) return;
+    f.c.x = Math.round(COON_X + (f.at - this.run.distance) * PX_PER_M);
+    if (!this.flagPassed && f.c.x <= COON_X && this.run.stage > this.record) this.passFlag();
+    if (f.c.x < -40) {
+      f.flutter.remove();
+      f.c.destroy();
+      this.flag = null;
+    }
+  }
+
+  private passFlag() {
+    const f = this.flag!;
+    this.flagPassed = true;
+    sfx.record();
+    // The label rises clear of the raccoon's head as it walks past.
+    f.label.setText('NEW BEST!').setTint(COL.lime);
+    this.tweens.add({ targets: f.label, y: -48, duration: 260, ease: 'Back.out' });
+    this.tweens.add({ targets: f.img, y: -5, yoyo: true, duration: 140, ease: 'Quad.out' });
+    const x = f.c.x + 6;
+    const y = GROUND_Y - 16;
+    this.fx.emit(x, y, 14, 'pt_star', [hex('Y'), hex('y'), hex('O')], 'fall', { spread: 10 });
+    this.fx.emit(x, y, 10, 'px1', [hex('w'), hex('L'), hex('G')], 'burst', { spread: 6 });
   }
 
   private arrive() {
