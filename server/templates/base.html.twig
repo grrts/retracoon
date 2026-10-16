@@ -4,7 +4,22 @@
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <title>{% block title %}Retracoon{% endblock %}</title>
-        {% block meta %}{% endblock %}
+        <meta name="description" content="{% block description %}A turn-based 8-bit roguelike where your raccoon wears every item it finds.{% endblock %}">
+        <meta name="theme-color" content="#1a1c2c">
+        {# Open Graph and Twitter cards, so a shared link shows the raccoon. #}
+        <meta property="og:type" content="website">
+        <meta property="og:site_name" content="Retracoon">
+        <meta property="og:title" content="{{ block('title') }}">
+        <meta property="og:description" content="{{ block('description') }}">
+        <meta property="og:url" content="{{ app.request.uri }}">
+        <meta property="og:image" content="{% block og_image %}{{ absolute_url('/downloads/capsules/steam-main-capsule-1232x706.png') }}{% endblock %}">
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{{ block('title') }}">
+        <meta name="twitter:description" content="{{ block('description') }}">
+        <meta name="twitter:image" content="{{ block('og_image') }}">
+        <style>
+{% include '_style.css.twig' %}
+        </style>
         {% block stylesheets %}{% endblock %}
     </head>
     <body>

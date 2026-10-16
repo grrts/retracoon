@@ -1,0 +1,99 @@
+{% extends 'site/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+
+{% block title %}Retracoon: the raccoon roguelike where the loot is the look{% endblock %}
+
+{% block content %}
+<section class="top">
+    <div>
+        <p class="kicker">8-bit roguelike · phones and Steam</p>
+        <h1 class="pitch">A turn-based 8-bit roguelike where your raccoon wears every item it finds.</h1>
+        <p class="lede">Walk an endless road through {{ counts.areas }} areas. Every fight is harder than the last, so the only question is how far you get this time.</p>
+        <div id="get">{% include 'site/_stores.html.twig' %}</div>
+    </div>
+    <video class="clip tall" src="/site/glow-up.mp4" poster="/site/glow-up.webp" width="540" height="960" autoplay muted loop playsinline aria-label="A bare raccoon gains a crown, laser eyes, a mech, wings and an aura"></video>
+</section>
+
+<div class="stats">
+    <div><b>{{ counts.items|number_format }}</b>items to wear</div>
+    <div><b>{{ counts.sets }}</b>item sets</div>
+    <div><b>{{ counts.skills }}</b>skills</div>
+    <div><b>{{ counts.areas }}</b>areas</div>
+    <div><b>{{ counts.skins }}</b>skins</div>
+</div>
+
+<section>
+    <h2>Today's daily run</h2>
+    {% if board is null %}
+        <p class="muted">The scoreboard is taking a nap. Check back soon.</p>
+    {% else %}
+        <p class="muted">Everyone walks the same road today. The furthest stage wins, the fastest time breaks ties.{% if board.total %} {{ board.total|number_format }} {{ board.total == 1 ? 'raccoon has' : 'raccoons have' }} run it so far.{% endif %}</p>
+        {% if board.players %}
+        <table class="board">
+            <tr><th>#</th><th>Raccoon</th><th>Stage</th><th>Time</th></tr>
+            {% for p in board.players %}
+            <tr>
+                <td class="rank">{{ p.rank }}</td>
+                <td><span class="who">{{ sprite('skins', p.skin, 1) }}<span>{{ p.name }}<span class="tagno">#{{ '%04d'|format(p.tag) }}</span></span></span></td>
+                <td>{{ p.stage }}</td>
+                <td>{{ p.timeMs // 60000 }}:{{ '%02d'|format((p.timeMs // 1000) % 60) }}</td>
+            </tr>
+            {% endfor %}
+        </table>
+        {% else %}
+            <p>Nobody has walked today's road yet. The first run takes the top spot.</p>
+        {% endif %}
+        {% if board.lastWinner %}<p class="muted">Yesterday's winner: {{ board.lastWinner.name }}#{{ '%04d'|format(board.lastWinner.tag) }}, stage {{ board.lastWinner.stage }}.</p>{% endif %}
+        <p>Think you can beat them? <a href="#get">Get the game</a> and play the daily run.</p>
+    {% endif %}
+</section>
+
+<section class="feature">
+    <div>
+        <h2>Your loot is your look</h2>
+        <p>Every item you find shows up on your raccoon: a paper hat, laser eyes, comet wings, a trash mech. {{ counts.items|number_format }} items, each one drawn on the raccoon, so you can see exactly how far you came. Tap any loot to try it on before you take it.</p>
+    </div>
+    <div class="media road">
+        {% for name, label in {fresh: 'Run start', early: 'A few fights in', mid: 'Deep in', legend: 'Legend run'} %}
+        <figure><img src="/downloads/raccoons/{{ name }}.png" alt="The raccoon: {{ label|lower }}" style="width:{{ {fresh: 93, early: 96, mid: 132, legend: 129}[name] }}px">{{ label }}</figure>
+        {% endfor %}
+    </div>
+</section>
+
+<section class="feature flip">
+    <div>
+        <h2>A boss hides in every area</h2>
+        <p>Somewhere among the fights of each area, the boss is waiting, and you never know which fight it is. Every foe shows its next move above its head, so block the big hit or strike first. Beat the boss to reach a new area.</p>
+    </div>
+    <div class="media"><video class="clip" src="/site/boss-fight.mp4" poster="/site/boss-fight.webp" width="1280" height="720" controls muted playsinline preload="none" aria-label="A real boss fight with phase 2"></video></div>
+</section>
+
+<section class="feature">
+    <div>
+        <h2>Push on or retreat</h2>
+        <p>Retreat before a fight and your raccoon keeps its level and stats for the next run. Push your luck and lose, and you start over from level 1.</p>
+    </div>
+    <div class="media"><img class="clip" src="/site/push-or-retreat.webp" width="1280" height="722" alt="Critters ahead: fight or retreat" loading="lazy"></div>
+</section>
+
+{% if item %}
+<section>
+    <h2>From the wiki</h2>
+    <a class="teaser" href="{{ path('wiki_item', {id: item.id}) }}" style="color:var(--text);text-decoration:none">
+        {{ sprite('items', item.id, 5, item.name ~ ' on the raccoon') }}
+        <span class="info">
+            <h3 style="color:{{ wiki().rarities[item.rarity].color }};font-size:18px">{{ item.name }}</h3>
+            <p>{{ w.rarity(item.rarity) }}<span class="pill">{{ wiki().slots[item.slot] }}</span></p>
+            <span class="desc">{{ item.desc }}</span>
+            <p class="muted">One of {{ counts.items|number_format }} items in the <span style="color:var(--cyan)">wiki</span>, each drawn on your raccoon.</p>
+        </span>
+    </a>
+</section>
+{% endif %}
+
+<section>
+    <h2>Fair to play</h2>
+    <p class="muted">On phones: free, one ad when the game starts and never during a run, no energy timers, no paying to win. Skins are cosmetic only. On Steam: buy once, no ads.</p>
+    {% include 'site/_stores.html.twig' %}
+</section>
+{% endblock %}

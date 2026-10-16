@@ -1,0 +1,11 @@
+<footer>
+    <nav class="links">
+        <a href="{{ path('home') }}">Home</a>
+        <a href="{{ path('wiki') }}">Wiki</a>
+        <a href="{{ path('press') }}">Press kit</a>
+        <a href="{{ path('privacy') }}">Privacy</a>
+        <a href="/account/delete">Delete account</a>
+        {% if support_email %}<a href="mailto:{{ support_email }}">{{ support_email }}</a>{% endif %}
+    </nav>
+    {% if note is defined %}<p>{{ note }}</p>{% endif %}
+</footer>

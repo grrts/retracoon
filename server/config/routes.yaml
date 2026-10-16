@@ -1,14 +1,18 @@
 # Controllers declare their routes with #[Route]. Everything answers in JSON,
-# errors included (as application/problem+json), except the wiki's web pages.
+# errors included (as application/problem+json), except the website's pages (site and wiki).
 controllers:
     resource:
         path: ../src/Controller/
         namespace: App\Controller
     type: attribute
-    exclude: ../src/Controller/WikiController.php
+    exclude: ../src/Controller/{SiteController,WikiController}.php
     defaults:
         _format: json
 
 wiki:
     resource: App\Controller\WikiController
+    type: attribute
+
+site:
+    resource: App\Controller\SiteController
     type: attribute

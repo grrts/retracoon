@@ -1,0 +1,57 @@
+{% extends 'base.html.twig' %}
+
+{% block stylesheets %}
+<style>
+.site-main{max-width:1100px}
+section{margin:36px 0}
+.kicker{color:var(--lime);text-transform:uppercase;font-size:13px;letter-spacing:2px;margin:0}
+.pitch{font-size:30px;line-height:1.25;margin:6px 0 12px;text-transform:none;letter-spacing:0}
+.lede{color:var(--muted);font-size:16px;max-width:560px}
+.top{display:grid;grid-template-columns:1fr 280px;gap:28px;align-items:center}
+.clip{width:100%;height:auto;display:block;border:3px solid var(--panel);background:#0f1020;image-rendering:pixelated}
+.tall{max-width:280px;aspect-ratio:9/16;justify-self:center}
+.btns{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 6px}
+.btn{display:inline-block;padding:10px 16px;border:3px solid var(--gold);background:var(--gold);color:#1a1c2c;font-weight:700;text-transform:uppercase;box-shadow:4px 4px 0 #0f1020}
+.btn:hover{text-decoration:none;transform:translate(-1px,-1px);box-shadow:5px 5px 0 #0f1020}
+.btn.alt{background:transparent;color:var(--gold)}
+.soon{color:var(--muted);font-size:13px;text-transform:uppercase;margin:4px 0 0}
+.feature{display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:center}
+.feature.flip .media{order:-1}
+.feature p{color:var(--muted)}
+.road{display:flex;justify-content:space-around;align-items:flex-end;gap:8px;padding:16px 8px 0;background:linear-gradient(transparent 78%,#333c57 78%);border:3px solid var(--panel);min-height:200px}
+.road figure{margin:0;text-align:center;font-size:11px;text-transform:uppercase;color:var(--muted)}
+.road img{display:block;image-rendering:pixelated;max-width:100%;height:auto;margin:0 auto 4px}
+.board{width:100%;max-width:640px}
+.board td{vertical-align:middle}
+.board .who{display:flex;align-items:center;gap:8px}
+.board .rank{color:var(--gold);font-weight:700;width:2em}
+.tagno{color:var(--muted)}
+.teaser{display:flex;gap:18px;align-items:center;background:var(--panel2);border:2px solid var(--line);padding:16px;flex-wrap:wrap}
+.teaser .info{flex:1;min-width:200px}
+.downloads{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.downloads a{display:flex;flex-direction:column;gap:6px;align-items:center;justify-content:space-between;background:var(--panel2);border:2px solid var(--line);padding:8px;font-size:12px;word-break:break-all;text-align:center}
+.downloads a:hover{border-color:var(--gold);text-decoration:none}
+.downloads img{max-width:100%;max-height:120px;image-rendering:pixelated}
+.prose{max-width:760px}
+.scroll{overflow-x:auto}
+.prose p,.prose li{color:var(--text)}
+blockquote{margin:0 0 12px;padding:8px 14px;border-left:4px solid var(--gold);background:var(--panel2);font-size:17px}
+@media (max-width:760px){.top,.feature{grid-template-columns:1fr}.feature.flip .media{order:0}.pitch{font-size:23px}.tall{max-width:220px}}
+</style>
+{% endblock %}
+
+{% block body %}
+{% set here = app.request.attributes.get('_route') %}
+<header><div class="bar">
+    <a class="logo" href="{{ path('home') }}">Retracoon</a>
+    <nav>
+        <a href="{{ path('wiki') }}">Wiki</a>
+        <a href="{{ path('press') }}"{% if here == 'press' %} class="on"{% endif %}>Press</a>
+        {% if here == 'home' %}<a href="#get">Get the game</a>{% endif %}
+    </nav>
+</div></header>
+<main class="site-main">
+{% block content %}{% endblock %}
+</main>
+{% include '_footer.html.twig' %}
+{% endblock %}

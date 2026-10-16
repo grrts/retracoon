@@ -1,5 +1,7 @@
 twig:
     file_name_pattern: '*.twig'
+    globals:
+        support_email: '%env(SUPPORT_EMAIL)%'
 
 when@test:
     twig:

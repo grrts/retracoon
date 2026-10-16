@@ -64,6 +64,28 @@ Add one cron job so daily and season prizes are paid even on a quiet day (the AP
 */15 * * * * cd /path/to/server && php bin/console app:prizes
 ```
 
+## Website
+
+The same Symfony app serves the website, server-rendered with Twig (no JavaScript framework):
+
+| Page | What it is |
+|---|---|
+| `/` | Landing page: the pitch, store buttons, today's daily top 5, three features with clips, a random rare item from the wiki |
+| `/wiki` | The content wiki (see `server/README.md`) |
+| `/privacy` | The privacy policy (`server/templates/site/privacy.html.twig`); use this URL in the stores |
+| `/press` | Press kit: pitch, fact sheet and downloads from `server/public/downloads/` |
+| `/account/delete` | Account deletion steps for Google Play |
+
+Store buttons appear once their URL is set in `server/.env.local`; until then the page says the game is coming:
+
+```dotenv
+STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
+STORE_APP_STORE_URL=https://apps.apple.com/app/...
+STORE_STEAM_URL=https://store.steampowered.com/app/...
+```
+
+The clips, screenshots and press downloads in `server/public/site/` and `server/public/downloads/` come from the marketing kit, compressed for the web by `tools/site-media.sh /path/to/marketing` (needs ffmpeg). Rerun it when the kit changes.
+
 ## Daily run, seasons and prizes
 
 - **Daily run.** Everyone plays the same seed each UTC day (the game makes it from the date). The board ranks the furthest stage, and the fastest time breaks ties. Players can try as often as they like; their best run counts. When the day closes, #1 gets **10 gems**.

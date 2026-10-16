@@ -68,7 +68,7 @@ Details: [docs/MONETIZATION.md](docs/MONETIZATION.md).
 
 ## Phones
 
-The `android/` and `ios/` folders are the native projects. Building, signing and store submission: [docs/PUBLISHING.md](docs/PUBLISHING.md). Store text and graphics: [docs/store-listing.md](docs/store-listing.md), `docs/store/`. Privacy policy: [docs/privacy-policy.md](docs/privacy-policy.md). Accounts and sign-in: [docs/ACCOUNTS.md](docs/ACCOUNTS.md). Store rules check: [docs/STORE-ELIGIBILITY.md](docs/STORE-ELIGIBILITY.md).
+The `android/` and `ios/` folders are the native projects. Building, signing and store submission: [docs/PUBLISHING.md](docs/PUBLISHING.md). Store text and graphics: [docs/store-listing.md](docs/store-listing.md), `docs/store/`. Website (landing page, wiki, privacy policy at `/privacy`, press kit at `/press`): [docs/ONLINE.md](docs/ONLINE.md#website). Accounts and sign-in: [docs/ACCOUNTS.md](docs/ACCOUNTS.md). Store rules check: [docs/STORE-ELIGIBILITY.md](docs/STORE-ELIGIBILITY.md).
 
 ## Steam
 
