@@ -13,10 +13,11 @@ import { loadContent } from '../src/content';
 import { enemies, themes, items, skills, skins, events } from '../src/content/registry';
 import { Combat } from '../src/game/combat';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../src/game/encounters';
-import { MUTATOR_ORDER, hasMutator, type MutatorId } from '../src/game/mutators';
+import { measure } from '../src/ui';
+import { MUTATOR_LIST, rules, type MutatorId } from '../src/game/mutators';
 import { roll, newRun, bossFoes, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, afterFight, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
 import { store } from '../src/save';
-import { rand } from '../src/game/rng';
+import { rand, mulberry32 } from '../src/game/rng';
 import type { RunMode } from '../src/game/run';
 import type { StatKey } from '../src/content/types';
 
@@ -103,7 +104,7 @@ function roadStop(r: RunState) {
     else r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.15));
   } else if (roll < 0.9) {
     // camp: nap, or forage when NO NAPS is on
-    if (hasMutator(r, 'nonaps')) r.shinies += 8 + Math.round(danger(r) * 1.5);
+    if (rules(r).noNaps) r.shinies += 8 + Math.round(danger(r) * 1.5);
     else r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.25));
   } else {
     const it = randomItem(r, 1);
@@ -162,7 +163,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], d
       const it = randomItem(r, 2);
       if (it) equip(r, it);
       if (boss) r.bosses++;
-    } else if ((roll(r, 'drop'), rand() < 0.15) && !hasMutator(r, 'flea')) {
+    } else if ((roll(r, 'drop'), rand() < 0.15 * rules(r).dropMul) && !rules(r).noDrops) {
       const it = randomItem(r, 0, 2);
       if (it) equip(r, it);
     }
@@ -170,7 +171,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], d
       r.area++;
       r.areaStage = 0;
       roll(r, 'area');
-      r.bossAt = rollBossAt(r.area, hasMutator(r, 'bossrush'));
+      r.bossAt = rollBossAt(r.area, rules(r).bossRush);
       r.theme = nextTheme(r);
       r.themesVisited.push(r.theme);
       theme = themes.get(r.theme)!;
@@ -228,11 +229,20 @@ if (process.argv.includes('--daily')) {
 // bots play many days' daily runs under each rule and under no rule. Fails when a rule
 // moves the median stage reached by more than half (either way) for either bot.
 if (process.argv.includes('--mutators')) {
+  // Two years of weeks, each rule's name fits the DAILY RUN button and its line the banner.
+  const ids = new Set(MUTATOR_LIST.map((d) => d.id));
+  const tooWide = MUTATOR_LIST.filter((d) => measure(d.name) > 70 || measure(d.desc) > 360 - 16);
+  if (MUTATOR_LIST.length < 104 || ids.size !== MUTATOR_LIST.length || tooWide.length) {
+    console.error(`rules: ${MUTATOR_LIST.length} (need 104), ${MUTATOR_LIST.length - ids.size} duplicate ids, too wide: ${tooWide.map((d) => d.id).join(', ') || 'none'}`);
+    process.exit(1);
+  }
+  // The bots' own choices use Math.random too: seed it so CI gets the same verdict every time.
+  Math.random = mulberry32(104);
   const days = Array.from({ length: Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 300) }, (_, i) => new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString().slice(0, 10));
-  const rules: (MutatorId | null)[] = [null, ...MUTATOR_ORDER];
+  const list: (MutatorId | null)[] = [null, ...MUTATOR_LIST.map((d) => d.id)];
   const base: Record<Bot, number> = { casual: 0, skilled: 0 };
   let bad = 0;
-  for (const m of rules) {
+  for (const m of list) {
     const line: string[] = [];
     for (const bot of ['casual', 'skilled'] as Bot[]) {
       const res = days.map((d) => playRun(bot, 99, 'daily', undefined, d, m));
@@ -243,7 +253,7 @@ if (process.argv.includes('--mutators')) {
       if (off) bad++;
       line.push(`${bot} median ${String(med).padStart(2)} p10 ${String(pct(st, 0.1)).padStart(2)} p90 ${String(pct(st, 0.9)).padStart(2)} bosses ${(res.reduce((a, x) => a + x.bosses, 0) / res.length).toFixed(2)}${off ? ' <- OFF' : ''}`);
     }
-    console.log(`${(m ?? 'none').padEnd(9)} ${line.join('   ')}`);
+    console.log(`${(m ?? 'none').padEnd(14)} ${line.join('   ')}`);
   }
   if (bad) {
     console.error(`${bad} rule/bot pairs moved the median stage by more than half`);

@@ -7,7 +7,7 @@ import { sfx } from '../audio';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
 import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
-import { hasMutator } from '../game/mutators';
+import { rules } from '../game/mutators';
 import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
 import { itemCard, RaccoonView } from '../game/views';
 import { store } from '../save';
@@ -343,7 +343,7 @@ export class CampScene extends Overlay<OverlayData> {
     const forage = 8 + Math.round(danger(r) * 1.5);
     const bw = Math.min(W - 40, 240);
     // NO NAPS week: the box is too cold to sleep in.
-    const noNaps = hasMutator(r, 'nonaps');
+    const noNaps = rules(r).noNaps;
     const opts: [string, string, () => void, object][] = [
       [`NAP`, noNaps ? 'NO NAPS THIS WEEK' : `HEAL ${nap} HP`, () => {
         if (noNaps) return;

@@ -18,7 +18,7 @@ import {
   totalStat,
 } from './run';
 import { rand } from './rng';
-import { hasMutator } from './mutators';
+import { rules } from './mutators';
 
 const TWIN = 0.6;
 
@@ -170,9 +170,8 @@ export class Combat {
     const T = TIERS[def.boss ? 0 : tier];
     // Bosses can hide as early as the second fight, so early ones come in lighter.
     // TWIN BOSSES: each twin is a little over half a boss, so the pair is a step up, not double.
-    const ease = def.boss ? bossEase(this.stage) * (hasMutator(this.run, 'twin') ? TWIN : 1) : 1;
-    const rule = hasMutator(this.run, 'brawl') ? { hp: 0.7, dmg: 1.4 } : hasMutator(this.run, 'pal') ? { hp: 1.25, dmg: 1 } : { hp: 1, dmg: 1 };
-    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease * rule.hp * (1 + (this.fx.foeHp ?? 0) / 100));
+    const ease = def.boss ? bossEase(this.stage) * (rules(this.run).twinBoss ? TWIN : 1) : 1;
+    const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease * (1 + (this.fx.foeHp ?? 0) / 100));
     const f: Foe = {
       uid: uidSeq++,
       def,
@@ -182,7 +181,7 @@ export class Combat {
       status: {},
       intent: def.moves[0],
       moves: def.moves,
-      dmgMul: dmgScale(this.danger) * T.dmg * (def.boss ? Math.sqrt(ease) : 1) * rule.dmg * (1 + (this.fx.foeDmg ?? 0) / 100),
+      dmgMul: dmgScale(this.danger) * T.dmg * (def.boss ? Math.sqrt(ease) : 1) * (1 + (this.fx.foeDmg ?? 0) / 100),
       armor: Math.round((def.armor ?? 0) * (1 + this.danger * 0.03)),
       regen: Math.round((def.regen ?? 0) * hpScale(this.danger)),
       tier: def.boss ? 0 : tier,
@@ -204,7 +203,7 @@ export class Combat {
       f.maxHp = f.hp = Math.round(f.hp * (f.elite === 'tough' ? 2.2 : 1.6));
       if (f.elite === 'brutal') f.dmgMul *= 1.5;
     }
-    if (hasBlessing(this.run, 'hexed') || hasMutator(this.run, 'armored')) f.block = Math.round(6 * (1 + this.danger * 0.05));
+    if (hasBlessing(this.run, 'hexed') || rules(this.run).foeBlock) f.block = Math.round(6 * (1 + this.danger * 0.05));
     f.intent = def.opener ? f.moves.find((m) => m.id === def.opener) ?? this.pickMove(f) : this.pickMove(f);
     this.foes.push(f);
     return f;
@@ -236,11 +235,6 @@ export class Combat {
     if (this.fx.stink) this.alive().forEach((f) => this.applyStatus(f.uid, 'poison', this.fx.stink!));
     if (this.fx.markStart) this.alive().forEach((f) => this.applyStatus(f.uid, 'mark', this.fx.markStart!));
     if (this.fx.selfPoison) this.applyStatus('p', 'poison', this.fx.selfPoison);
-    // STINKY WEEK: the whole fight starts poisoned.
-    if (hasMutator(this.run, 'toxic')) {
-      this.alive().forEach((f) => this.applyStatus(f.uid, 'poison', Math.round(4 * (1 + this.danger * 0.05))));
-      this.applyStatus('p', 'poison', 3);
-    }
     if (this.fx.focusStart) this.applyStatus('p', 'focus', this.fx.focusStart);
     if (this.fx.firstStrike) {
       this.ev.push({ t: 'act', who: 'p', name: 'FIRST STRIKE', kind: 'laser' });
@@ -284,7 +278,7 @@ export class Combat {
         this.damageFoe(t, this.fx.laser, false, false);
       }
     }
-    if ((hasBlessing(this.run, 'friend') || hasMutator(this.run, 'pal')) && this.alive().length) {
+    if ((hasBlessing(this.run, 'friend') || rules(this.run).pal) && this.alive().length) {
       const t = this.alive()[Math.floor(rand() * this.alive().length)];
       this.ev.push({ t: 'act', who: 'p', name: 'CRITTER PAL BITES', kind: 'laser' });
       this.damageFoe(t, attackPower(this.run) * 0.6, false, false);

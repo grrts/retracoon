@@ -4,7 +4,7 @@ import { items, skills, sets, RARITY, themesByTier, themes } from '../content/re
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
-import { hasMutator, weeklyMutator, type MutatorId } from './mutators';
+import { MUTATORS, mutatorOf, rules, weeklyMutator, type MutatorId } from './mutators';
 
 export interface OwnedItem {
   id: string;
@@ -129,7 +129,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: Mut
     distance: 0,
     stage: 0,
     areaStage: 0,
-    bossAt: rollBossAt(0, rule === 'bossrush'),
+    bossAt: rollBossAt(0, !!(rule && MUTATORS[rule]?.rules?.bossRush)),
     area: 0,
     theme: 'street',
     themesVisited: ['street'],
@@ -164,7 +164,7 @@ export function danger(r: RunState) {
 
 // The area boss, or the boss and its twin under TWIN BOSSES.
 export function bossFoes(r: RunState, boss: string) {
-  return hasMutator(r, 'twin') ? [boss, boss] : [boss];
+  return rules(r).twinBoss ? [boss, boss] : [boss];
 }
 
 // Theme for the next area: Town, then one area per tier, then anything goes.
@@ -209,7 +209,7 @@ let cacheKey = '';
 let cacheVal: { bonus: Bonus; fx: Fx } = { bonus: emptyBonus(), fx: {} };
 
 export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
-  const key = JSON.stringify(r.gear) + JSON.stringify(r.passives ?? {});
+  const key = JSON.stringify(r.gear) + JSON.stringify(r.passives ?? {}) + (r.mutator ?? '');
   if (key === cacheKey) return cacheVal;
   const b = emptyBonus();
   const fx: Fx = {};
@@ -226,6 +226,10 @@ export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
     p.bonus?.(b, n);
     if (p.fx) add(p.fx(n));
   }
+  // The daily run's weekly rule counts like one more piece of gear.
+  const mut = mutatorOf(r);
+  if (mut?.bonus) for (const [k, v] of Object.entries(mut.bonus)) b[k as keyof Bonus] += v ?? 0;
+  if (mut?.fx) add(mut.fx);
   const t = tagCounts(r);
   if (t.speed >= 2) b.agi += 3;
   if (t.speed >= 4) add({ dodgeStrike: 6 });
@@ -266,16 +270,16 @@ export const HARD_CAP = 0.95;
 
 export function maxHp(r: RunState) {
   const b = computeBonus(r).bonus;
-  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul) * (hasMutator(r, 'goldrush') ? 0.75 : hasMutator(r, 'lucky') ? 0.8 : 1)));
+  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul)));
 }
 
 export function apPerTurn(r: RunState) {
   const agi = rawStat(r, 'agi');
-  return Math.max(1, 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) + (hasMutator(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0));
+  return Math.max(1, 3 + computeBonus(r).bonus.ap + (agi >= 10 ? 1 : 0) + (agi >= 22 ? 1 : 0) + (hasBlessing(r, 'swift') ? 1 : 0) - (hasBlessing(r, 'slow') ? 1 : 0));
 }
 
 export function critChance(r: RunState) {
-  return Math.min(HARD_CAP, 0.05 + totalStat(r, 'lck') * 0.03 + computeBonus(r).bonus.crit + (hasBlessing(r, 'lucky') ? 0.15 : 0) + (hasMutator(r, 'lucky') ? 0.2 : 0));
+  return Math.min(HARD_CAP, 0.05 + totalStat(r, 'lck') * 0.03 + computeBonus(r).bonus.crit + (hasBlessing(r, 'lucky') ? 0.15 : 0));
 }
 
 export function dodgeChance(r: RunState) {
@@ -288,14 +292,14 @@ export function accuracy(r: RunState) {
 }
 
 export function attackPower(r: RunState, scale: StatKey = 'str') {
-  return (4 + totalStat(r, scale) * 1.6) * (1 + computeBonus(r).bonus.dmg) * (hasBlessing(r, 'sharp') ? 1.25 : 1) * (hasMutator(r, 'glass') ? 1.5 : 1);
+  return (4 + totalStat(r, scale) * 1.6) * (1 + computeBonus(r).bonus.dmg) * (hasBlessing(r, 'sharp') ? 1.25 : 1);
 }
 
 // Defence: a percentage cut, so it never makes you immune.
 export function damageTaken(r: RunState) {
   const def = totalStat(r, 'def');
   const cut = 1 - (1 - def * 0.03) * (1 - computeBonus(r).bonus.armor);
-  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken) * (hasMutator(r, 'glass') ? 1.5 : hasMutator(r, 'swift') ? 1.25 : 1);
+  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken);
 }
 
 // Healing received: drawbacks can cut it, never below nothing.
@@ -308,7 +312,7 @@ export function shinyMult(r: RunState) {
 }
 
 export function discount(r: RunState) {
-  return Math.min(0.6, computeBonus(r).bonus.discount + (hasMutator(r, 'flea') ? 0.5 : 0));
+  return Math.min(0.6, computeBonus(r).bonus.discount);
 }
 
 export function hasBlessing(r: RunState, id: BlessingId) {
@@ -372,7 +376,7 @@ export function itemPool(r: RunState, rarity: number): ItemDef[] {
 
 export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []): ItemDef | null {
   // RISKY LOOT: only items with a catch, which are all rare or better.
-  if (hasMutator(r, 'risky')) {
+  if (rules(r).riskyLoot) {
     for (let tries = 0; tries < 12; tries++) {
       const rar = rollRarity(r, Math.max(2, min), Math.max(2, max));
       const pool = itemPool(r, rar).filter((i) => i.risky && !exclude.includes(i.id));

@@ -22,7 +22,7 @@ import {
   afterFight,
   bossFoes,
 } from '../game/run';
-import { MUTATORS, hasMutator } from '../game/mutators';
+import { MUTATORS, rules } from '../game/mutators';
 import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
@@ -364,7 +364,7 @@ export class RunScene extends Phaser.Scene {
     r.area++;
     r.areaStage = 0;
     roll(r, 'area');
-    r.bossAt = rollBossAt(r.area, hasMutator(r, 'bossrush'));
+    r.bossAt = rollBossAt(r.area, rules(r).bossRush);
     r.theme = nextTheme(r);
     r.themesVisited.push(r.theme);
     this.theme = themes.get(r.theme) ?? this.theme;
@@ -1177,7 +1177,7 @@ export class RunScene extends Phaser.Scene {
     const steps: { key: string; data: object }[] = [];
     if (boss) steps.push({ key: 'Reward', data: { run: r, title: 'BOSS LOOT', min: 2 } });
     else if (elite) steps.push({ key: 'Reward', data: { run: r, title: 'ELITE STASH', min: 2 } });
-    else if ((roll(r, 'drop'), rand() < 0.15) && !hasMutator(r, 'flea')) {
+    else if ((roll(r, 'drop'), rand() < 0.15 * rules(r).dropMul) && !rules(r).noDrops) {
       const it = randomItem(r, 0, 2);
       if (it) steps.push({ key: 'Reward', data: { run: r, title: 'A CRITTER DROPPED THIS', fixed: [it.id] } });
     }
