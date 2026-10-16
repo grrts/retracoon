@@ -3,6 +3,7 @@
 //   npx tsx tools/sim.ts --quick     a fast smoke test for CI (fails on crashes)
 //   npx tsx tools/sim.ts --all-str   the skilled bot dumps every point into STR, for comparison
 //   npx tsx tools/sim.ts --daily     checks that daily runs give every player the same road
+//   npx tsx tools/sim.ts --mutators  daily runs under each weekly rule, against no rule
 //
 // Two bots:
 //   casual   dumps every point into STR, takes the first skill offered, never retreats.
@@ -12,7 +13,8 @@ import { loadContent } from '../src/content';
 import { enemies, themes, items, skills, skins, events } from '../src/content/registry';
 import { Combat } from '../src/game/combat';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../src/game/encounters';
-import { roll, newRun, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, afterFight, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
+import { MUTATOR_ORDER, hasMutator, type MutatorId } from '../src/game/mutators';
+import { roll, newRun, bossFoes, danger, DIST_STEP, gainXp, maxHp, levelUpChoices, addPassive, learnSkill, randomItem, equip, itemPrice, afterFight, nextTheme, rollBossAt, tickBlessings, STAT_KEYS, SKILL_SLOTS, RunState } from '../src/game/run';
 import { store } from '../src/save';
 import { rand } from '../src/game/rng';
 import type { RunMode } from '../src/game/run';
@@ -100,7 +102,9 @@ function roadStop(r: RunState) {
     if (Math.random() < 0.5) r.shinies += 10 + r.stage;
     else r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.15));
   } else if (roll < 0.9) {
-    r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.25));
+    // camp: nap, or forage when NO NAPS is on
+    if (hasMutator(r, 'nonaps')) r.shinies += 8 + Math.round(danger(r) * 1.5);
+    else r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.25));
   } else {
     const it = randomItem(r, 1);
     if (it) equip(r, it);
@@ -117,8 +121,10 @@ interface Result {
 
 // The same rolls, in the same order, as the run scene (see roll() in run.ts), so a
 // daily run here meets what a player would.
-function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[]): Result {
-  const r = newRun(mode, '2026-11-14');
+// `mutator` null plays a daily run with no weekly rule, for comparison.
+function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[], day = '2026-11-14', mutator?: MutatorId | null): Result {
+  const r = newRun(mode, day, mutator ?? undefined);
+  if (mutator === null) r.mutator = null;
   let theme = themes.get(r.theme)!;
   for (let guard = 0; guard < 600; guard++) {
     if (bot === 'skilled' && r.stage >= 3 && (r.stage >= push || r.hp < maxHp(r) * 0.5)) return { stage: r.stage, level: r.level, reason: 'retreat', bosses: r.bosses, r };
@@ -131,7 +137,7 @@ function playRun(bot: Bot, push = 4, mode: RunMode = 'normal', log?: string[]): 
       roll(r, 'arrive');
     }
     const elite = !boss && (r.eliteNext || rand() < eliteChance(r));
-    const pick = boss ? { ids: [theme.boss], tiers: [0] } : elite ? pickElite(r, theme) : pickFoes(r, theme);
+    const pick = boss ? { ids: bossFoes(r, theme.boss), tiers: [0, 0] } : elite ? pickElite(r, theme) : pickFoes(r, theme);
     log?.push(`${r.stage}:${r.theme}:${pick.ids.join('+')}:${pick.tiers.join('')}`);
     roll(r, 'combat');
     const c = new Combat(r, pick.ids, danger(r), { boss, elite, tiers: pick.tiers, hazard: theme.hazard, hooks: { shinies: () => r.shinies, addShinies: (n) => (r.shinies = Math.max(0, r.shinies + n)) } });
@@ -216,6 +222,34 @@ if (process.argv.includes('--daily')) {
     shared += n;
   }
   console.log(`daily: 40 pairs of runs met the same foes on all ${shared} shared fights`);
+  process.exit(0);
+}
+
+// Every weekly rule should change the daily run, not make it trivial or hopeless: both
+// bots play many days' daily runs under each rule and under no rule. Fails when a rule
+// moves the median stage reached by more than half (either way) for either bot.
+if (process.argv.includes('--mutators')) {
+  const days = Array.from({ length: Number(process.argv.find((a) => /^\d+$/.test(a)) ?? 300) }, (_, i) => new Date(Date.UTC(2026, 0, 1) + i * 86400000).toISOString().slice(0, 10));
+  const rules: (MutatorId | null)[] = [null, ...MUTATOR_ORDER];
+  const base: Record<Bot, number> = { casual: 0, skilled: 0 };
+  let bad = 0;
+  for (const m of rules) {
+    const line: string[] = [];
+    for (const bot of ['casual', 'skilled'] as Bot[]) {
+      const res = days.map((d) => playRun(bot, 99, 'daily', undefined, d, m));
+      const st = res.map((x) => x.stage);
+      const med = pct(st, 0.5);
+      if (m === null) base[bot] = med;
+      const off = m !== null && (med < base[bot] * 0.5 || med > base[bot] * 1.5);
+      if (off) bad++;
+      line.push(`${bot} median ${String(med).padStart(2)} p10 ${String(pct(st, 0.1)).padStart(2)} p90 ${String(pct(st, 0.9)).padStart(2)} bosses ${(res.reduce((a, x) => a + x.bosses, 0) / res.length).toFixed(2)}${off ? ' <- OFF' : ''}`);
+    }
+    console.log(`${(m ?? 'none').padEnd(9)} ${line.join('   ')}`);
+  }
+  if (bad) {
+    console.error(`${bad} rule/bot pairs moved the median stage by more than half`);
+    process.exit(1);
+  }
   process.exit(0);
 }
 

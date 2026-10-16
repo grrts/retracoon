@@ -5,6 +5,7 @@ import type { ThemeDef } from '../world/types';
 import { rollTier, Foe } from './combat';
 import { RunState, computeBonus, shinyMult } from './run';
 import { rand } from './rng';
+import { hasMutator } from './mutators';
 
 export interface FoePick {
   ids: string[];
@@ -52,6 +53,8 @@ export function pickElite(r: RunState, theme: ThemeDef): FoePick {
 }
 
 export function eliteChance(r: RunState) {
+  // ELITE WEEK: three times as common, from the third fight.
+  if (hasMutator(r, 'elites')) return r.stage >= 2 ? 3 * (0.1 + Math.min(0.15, r.stage * 0.003)) : 0;
   return r.stage >= 4 ? 0.1 + Math.min(0.15, r.stage * 0.003) : 0;
 }
 
@@ -66,7 +69,7 @@ export function fightRewards(r: RunState, killed: Foe[]) {
   }
   const { fx, bonus } = computeBonus(r);
   xp = Math.round(xp * Math.max(0, 1 + bonus.xp));
-  sh = Math.round(sh * shinyMult(r));
+  sh = Math.round(sh * shinyMult(r) * (hasMutator(r, 'goldrush') ? 2 : 1));
   if (fx.interest) sh += Math.floor((r.shinies * fx.interest) / 100);
   return { xp, shinies: sh };
 }

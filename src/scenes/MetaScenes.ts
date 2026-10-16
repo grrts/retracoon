@@ -6,7 +6,8 @@ import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { items, skills, themes, RARITY, STAT_INFO, TAGS } from '../content/registry';
 import type { Slot } from '../content/types';
-import { RunState, newRun, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
+import { MUTATORS, weeklyMutator } from '../game/mutators';
+import { RunState, newRun, dailyDay, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
 import { RaccoonView } from '../game/views';
 import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
@@ -285,14 +286,15 @@ export class TitleScene extends Phaser.Scene {
     };
     const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', () => go(), BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });
-    // The daily run: the same road for everyone today, a fresh level 1 raccoon.
-    button(this, mx - 36, 114, 68, 22, 'DAILY RUN', () => go(true), BTN.green);
-    button(this, mx + 36, 114, 68, 22, 'SKIN SHOP', () => {
+    // The daily run: the same road for everyone today, a fresh level 1 raccoon, and
+    // this week's rule on its second line.
+    button(this, mx - 40, 114, 76, 22, `DAILY RUN\n${MUTATORS[weeklyMutator(dailyDay())].name}`, () => go(true), BTN.green);
+    button(this, mx + 40, 114, 76, 22, 'SKIN SHOP', () => {
       sfx.unlock();
       this.scene.start('Store', { back: 'Title' });
     }, BTN.gold);
-    button(this, mx - 36, 140, 68, 20, 'HOW TO PLAY', () => this.scene.start('Tutorial', { next: 'Title' }));
-    button(this, mx + 36, 140, 68, 20, 'SCORES', () => {
+    button(this, mx - 40, 140, 76, 20, 'HOW TO PLAY', () => this.scene.start('Tutorial', { next: 'Title' }));
+    button(this, mx + 40, 140, 76, 20, 'SCORES', () => {
       sfx.unlock();
       this.scene.start('Scores', { back: 'Title' });
     }, BTN.violet);
@@ -303,9 +305,9 @@ export class TitleScene extends Phaser.Scene {
     };
     // Desktop (Steam) needs a way out; phones have their own.
     if (isSteam()) {
-      button(this, mx - 36, 164, 68, 18, 'SETTINGS', settings);
-      button(this, mx + 36, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
-    } else button(this, mx, 164, 68, 18, 'SETTINGS', settings);
+      button(this, mx - 40, 164, 76, 18, 'SETTINGS', settings);
+      button(this, mx + 40, 164, 76, 18, 'QUIT', () => steam()?.quit(), BTN.red);
+    } else button(this, mx, 164, 76, 18, 'SETTINGS', settings);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0

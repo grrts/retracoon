@@ -20,7 +20,9 @@ import {
   BLESSING_INFO,
   roll,
   afterFight,
+  bossFoes,
 } from '../game/run';
+import { MUTATORS } from '../game/mutators';
 import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
@@ -168,7 +170,10 @@ export class RunScene extends Phaser.Scene {
     });
 
     this.cameras.main.fadeIn(250, 26, 28, 44);
-    this.banner(this.theme.name, this.world.season ? this.world.season.banner : 'WHERE IT ALL STARTS', this.world.season ? COL.yellow : COL.white);
+    // A daily run opens on the week's rule; the area name is on the HUD.
+    const m = this.run.mutator;
+    if (m) this.banner(`THIS WEEK: ${MUTATORS[m].name}`, MUTATORS[m].desc, COL.lime);
+    else this.banner(this.theme.name, this.world.season ? this.world.season.banner : 'WHERE IT ALL STARTS', this.world.season ? COL.yellow : COL.white);
     this.markTheme();
     this.time.delayedCall(500, () => this.walk());
   }
@@ -384,7 +389,7 @@ export class RunScene extends Phaser.Scene {
     const elite = kind === 'elite';
     let foes: string[];
     let tiers: number[] = [];
-    if (boss) foes = [this.theme.boss];
+    if (boss) foes = bossFoes(this.run, this.theme.boss);
     else {
       const pick = elite ? pickElite(this.run, this.theme) : pickFoes(this.run, this.theme);
       foes = pick.ids;

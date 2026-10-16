@@ -18,6 +18,9 @@ import {
   totalStat,
 } from './run';
 import { rand } from './rng';
+import { hasMutator } from './mutators';
+
+const TWIN = 0.6;
 
 export type Statuses = Partial<Record<StatusKey, number>>;
 export type Who = 'p' | number; // 'p' = raccoon, number = foe uid
@@ -166,7 +169,8 @@ export class Combat {
     if (!def) return null;
     const T = TIERS[def.boss ? 0 : tier];
     // Bosses can hide as early as the second fight, so early ones come in lighter.
-    const ease = def.boss ? bossEase(this.stage) : 1;
+    // TWIN BOSSES: each twin is a little over half a boss, so the pair is a step up, not double.
+    const ease = def.boss ? bossEase(this.stage) * (hasMutator(this.run, 'twin') ? TWIN : 1) : 1;
     const hp = Math.round(def.hp * hpScale(this.danger) * T.hp * ease * (1 + (this.fx.foeHp ?? 0) / 100));
     const f: Foe = {
       uid: uidSeq++,
@@ -199,7 +203,7 @@ export class Combat {
       f.maxHp = f.hp = Math.round(f.hp * (f.elite === 'tough' ? 2.2 : 1.6));
       if (f.elite === 'brutal') f.dmgMul *= 1.5;
     }
-    if (hasBlessing(this.run, 'hexed')) f.block = Math.round(6 * (1 + this.danger * 0.05));
+    if (hasBlessing(this.run, 'hexed') || hasMutator(this.run, 'armored')) f.block = Math.round(6 * (1 + this.danger * 0.05));
     f.intent = def.opener ? f.moves.find((m) => m.id === def.opener) ?? this.pickMove(f) : this.pickMove(f);
     this.foes.push(f);
     return f;

@@ -4,6 +4,7 @@ import { items, skills, sets, RARITY, themesByTier, themes } from '../content/re
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
+import { hasMutator, weeklyMutator, type MutatorId } from './mutators';
 
 export interface OwnedItem {
   id: string;
@@ -27,6 +28,7 @@ export interface RunState {
   mode: RunMode;
   day: string | null; // daily runs: the UTC date (YYYY-MM-DD) of the daily seed
   seed: number | null; // daily runs: the shared seed; null = plain Math.random
+  mutator: MutatorId | null; // daily runs: the week's extra rule (see mutators.ts)
   rollStage: number; // stage the per-stage random rolls below belong to
   rollCounts: Record<string, number>;
   level: number;
@@ -96,7 +98,7 @@ export function roll(r: RunState, what: string) {
 // run from the street, so it can push further next time. Skills and items are lost.
 // Dying wipes the bank and you start over at level 1.
 // A daily run is always a fresh level 1 raccoon and never touches the banked one.
-export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
+export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId): RunState {
   const daily = mode === 'daily';
   const kept = daily ? null : store.kept;
   const seed = daily ? hash('retracoon-daily', day) : null;
@@ -105,6 +107,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
     mode,
     day: daily ? day : null,
     seed,
+    mutator: daily ? mutator ?? weeklyMutator(day) : null,
     rollStage: 0,
     rollCounts: {},
     level: kept?.level ?? 1,
@@ -153,6 +156,11 @@ export const DIST_STEP = 24;
 // that doesn't retreat around the fifth fight dies soon after.
 export function danger(r: RunState) {
   return 1 + (r.stage + r.distance / DIST_STEP) / 2 + r.heat;
+}
+
+// The area boss, or the boss and its twin under TWIN BOSSES.
+export function bossFoes(r: RunState, boss: string) {
+  return hasMutator(r, 'twin') ? [boss, boss] : [boss];
 }
 
 // Theme for the next area: Town, then one area per tier, then anything goes.
@@ -254,7 +262,7 @@ export const HARD_CAP = 0.95;
 
 export function maxHp(r: RunState) {
   const b = computeBonus(r).bonus;
-  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul)));
+  return Math.max(1, Math.round((18 + totalStat(r, 'vit') * 6 + r.level * 2 + b.hp) * Math.max(0.2, 1 + b.hpMul) * (hasMutator(r, 'goldrush') ? 0.75 : 1)));
 }
 
 export function apPerTurn(r: RunState) {
@@ -276,14 +284,14 @@ export function accuracy(r: RunState) {
 }
 
 export function attackPower(r: RunState, scale: StatKey = 'str') {
-  return (4 + totalStat(r, scale) * 1.6) * (1 + computeBonus(r).bonus.dmg) * (hasBlessing(r, 'sharp') ? 1.25 : 1);
+  return (4 + totalStat(r, scale) * 1.6) * (1 + computeBonus(r).bonus.dmg) * (hasBlessing(r, 'sharp') ? 1.25 : 1) * (hasMutator(r, 'glass') ? 1.5 : 1);
 }
 
 // Defence: a percentage cut, so it never makes you immune.
 export function damageTaken(r: RunState) {
   const def = totalStat(r, 'def');
   const cut = 1 - (1 - def * 0.03) * (1 - computeBonus(r).bonus.armor);
-  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken);
+  return (1 - Math.min(HARD_CAP, Math.max(0, cut))) * (hasBlessing(r, 'fragile') ? 1.25 : 1) * Math.max(0.25, 1 + computeBonus(r).bonus.taken) * (hasMutator(r, 'glass') ? 1.5 : 1);
 }
 
 // Healing received: drawbacks can cut it, never below nothing.
@@ -359,6 +367,14 @@ export function itemPool(r: RunState, rarity: number): ItemDef[] {
 }
 
 export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []): ItemDef | null {
+  // RISKY LOOT: only items with a catch, which are all rare or better.
+  if (hasMutator(r, 'risky')) {
+    for (let tries = 0; tries < 12; tries++) {
+      const rar = rollRarity(r, Math.max(2, min), Math.max(2, max));
+      const pool = itemPool(r, rar).filter((i) => i.risky && !exclude.includes(i.id));
+      if (pool.length) return pool[Math.floor(rand() * pool.length)];
+    }
+  }
   // Sets pull: wearing a piece makes the rest of its set turn up far more often.
   const worn = Object.keys(setCounts(r));
   if (worn.length && rand() < SET_PULL) {
