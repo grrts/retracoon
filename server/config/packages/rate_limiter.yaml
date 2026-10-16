@@ -18,6 +18,12 @@ framework:
             limit: 60
             rate: { interval: '1 minute', amount: 20 }
             cache_pool: cache.rate_limiter
+        # shared runs per player (each one stores a card image)
+        share:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
+            cache_pool: cache.rate_limiter
         # friend-code attempts per player
         friend:
             policy: sliding_window

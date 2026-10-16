@@ -33,6 +33,7 @@ import { ensureEnemy, enemyKey } from '../gfx/textures';
 import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
 import { submitRun } from '../platform/online';
+import { killerOf, type Killer } from '../game/share';
 import { track } from '../platform/track';
 import { skills } from '../content/registry';
 import { FxDirector } from '../fx/Fx';
@@ -497,7 +498,7 @@ export class RunScene extends Phaser.Scene {
     this.finish('retreat');
   }
 
-  private finish(reason: 'death' | 'retreat') {
+  private finish(reason: 'death' | 'retreat', killer: Killer | null = null) {
     const r = this.run;
     const d = Math.floor(r.distance);
     const daily = r.mode === 'daily';
@@ -525,7 +526,7 @@ export class RunScene extends Phaser.Scene {
     const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin });
     sfx.stopMusic();
     this.scene.pause();
-    this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent });
+    this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent, killer });
   }
 
   // ---------------------------------------------------------------- foes on screen
@@ -1198,6 +1199,7 @@ export class RunScene extends Phaser.Scene {
   }
 
   private async defeat() {
+    const killer = killerOf(this.combat?.killedBy);
     this.clearCombatUi();
     this.run.hp = 0;
     sfx.die();
@@ -1205,7 +1207,7 @@ export class RunScene extends Phaser.Scene {
     this.tweens.add({ targets: this.coon, angle: -90, y: GROUND_Y - 4, duration: 500, ease: 'Bounce.out' });
     shake(this, 300, 0.01);
     await wait(this, 1300);
-    this.finish('death');
+    this.finish('death', killer);
   }
 
   private autoPause() {

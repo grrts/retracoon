@@ -34,7 +34,7 @@ final class PageController extends AbstractController
 <h1>Delete your Retracoon account</h1>
 <p><b>In the game:</b> open <b>Scores</b>, tap <b>Account</b>, then <b>Delete account</b> and type DELETE. It happens right away.</p>
 $contact
-<p><b>What is deleted:</b> your player name and tag, scores, friends list, gem balance, skins bought with gems, the record of your purchases, and the link to your Google, Apple or Steam account. Store receipts kept by Google, Apple or Steam themselves are covered by their own policies.</p>
+<p><b>What is deleted:</b> your player name and tag, scores, shared run pages, friends list, gem balance, skins bought with gems, the record of your purchases, and the link to your Google, Apple or Steam account. Store receipts kept by Google, Apple or Steam themselves are covered by their own policies.</p>
 <p>Progress saved on your device (levels, Bottle Caps) stays there until you uninstall the game.</p>
 </body></html>
 HTML;

@@ -12,7 +12,7 @@ Your progress (best runs, Bottle Caps, Gems, owned skins, settings) is saved on 
 
 When you sign in, Google, Apple or Steam tells our server a stable account id for you (not your password, and we don't ask for your email). Our server stores that account id, a random player id, your nickname with its 4-digit tag (for example SNEAKY BANDIT#1234), your best stage, level and distance, your best daily run of each day and your best run of each season (shown on the daily and season boards), any prizes you won, the skin you wear, your friend list (players whose friend code you entered, or who entered yours), your gem balance, skins bought with gems, a record of your purchases (product and store transaction id) and when you last played. If you sign in with Apple we also keep a token from Apple so we can cancel it when you delete your account.
 
-Other players can see your nickname with its tag, skin and scores; only you see your friend code and gems. The server sees your IP address to limit abuse but does not store it with your account.
+Other players can see your nickname with its tag, skin and scores; only you see your friend code and gems. When you tap **SHARE** at the end of a run while signed in, that run gets a public web page anyone with the link can open: the card image the game drew, your nickname with its tag, the stage, area, level, gear and what ended the run. Those pages are deleted with your account. The server sees your IP address to limit abuse but does not store it with your account.
 
 **Deleting your account:** in the game open Scores > Account > Delete account. This deletes everything listed above right away. You can also follow the steps at https://YOUR-API/account/delete.
 

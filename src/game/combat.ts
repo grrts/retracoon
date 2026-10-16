@@ -130,6 +130,8 @@ export class Combat {
   firstHitDone = false;
   hazard?: AreaHazard;
   hazardIn = 0;
+  // What dealt the blow that ended the run: a foe, or a hazard, status or own cost.
+  killedBy: { foe?: Foe; what?: string } | null = null;
   danger: number;
   stage: number;
   killed: Foe[] = [];
@@ -255,7 +257,7 @@ export class Combat {
     this.status.thorns = 0;
     this.status.evade = 0;
     if (this.fx.turnHurt) {
-      this.hurtPlayerDirect(this.fx.turnHurt);
+      this.hurtPlayerDirect(this.fx.turnHurt, 'env', 'RISKY GEAR');
       if (this.hp <= 0) return;
     }
     const startBlock = (this.fx.startBlock ?? 0) + (this.fx.moneyArmor ? Math.floor(this.hooks.shinies() / 10) * this.fx.moneyArmor : 0);
@@ -347,8 +349,8 @@ export class Combat {
   private resolve(i: number, def: SkillDef, e: SkillEffect, targetUid?: number) {
     this.ev.push({ t: 'act', who: 'p', name: def.name, kind: e.dmg ? 'attack' : 'self', skill: def.id, target: targetUid });
 
-    if (e.hpCost) this.hurtPlayerDirect(e.hpCost);
-    if (e.hpPct) this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * e.hpPct)));
+    if (e.hpCost) this.hurtPlayerDirect(e.hpCost, 'env', def.name);
+    if (e.hpPct) this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * e.hpPct)), 'env', def.name);
     if (this.hp <= 0) return;
     if (e.cleanse) for (const k of ['poison', 'burn', 'bleed', 'weak', 'vuln'] as StatusKey[]) if (this.status[k]) this.setStatus('p', k, 0);
     if (e.ap) this.ap += e.ap;
@@ -675,6 +677,7 @@ export class Combat {
     this.cheat();
     this.ev.push({ t: 'hit', who: 'p', src: f.uid, dmg: amt, blocked, hp: this.hp, block: this.block });
     if (this.hp <= 0) {
+      this.killedBy = { foe: f };
       this.ev.push({ t: 'die', who: 'p' });
       return;
     }
@@ -794,12 +797,16 @@ export class Combat {
     if (this.fx.killBurst) for (const o of this.alive()) this.damageFoe(o, this.fx.killBurst, false, false);
   }
 
-  private hurtPlayerDirect(n: number, src: Who | 'env' = 'env') {
+  // what: names a source that isn't a foe, for the end screen ("TAKEN OUT BY POISON").
+  private hurtPlayerDirect(n: number, src: Who | 'env' = 'env', what?: string) {
     if (n <= 0) return;
     this.hp = Math.max(0, this.hp - n);
     this.cheat();
     this.ev.push({ t: 'hit', who: 'p', src, dmg: n, blocked: 0, hp: this.hp, block: this.block });
-    if (this.hp <= 0) this.ev.push({ t: 'die', who: 'p' });
+    if (this.hp <= 0) {
+      this.killedBy = typeof src === 'number' ? { foe: this.foe(src) } : { what };
+      this.ev.push({ t: 'die', who: 'p' });
+    }
   }
 
   // Once a fight, cheatDeath turns a lethal blow into 1 health.
@@ -851,7 +858,7 @@ export class Combat {
       this.healP(Math.round(this.maxHp * 0.08));
     } else if (roll === 4) {
       say('CHAOS: OUCH', 0xb13e53);
-      this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * 0.06)));
+      this.hurtPlayerDirect(Math.max(1, Math.round(this.maxHp * 0.06)), 'env', 'CHAOS');
     } else if (roll === 5 && foe) {
       say('CHAOS: FOE ANGRY', 0xb13e53);
       this.applyStatus(foe.uid, 'rage', 1);
@@ -904,7 +911,7 @@ export class Combat {
     if (!st?.burn) return;
     const n = st.burn;
     st.burn = Math.floor(n / 2);
-    if (who === 'p') this.hurtPlayerDirect(n);
+    if (who === 'p') this.hurtPlayerDirect(n, 'env', 'BURNS');
     else {
       const f = this.foe(who)!;
       f.hp = Math.max(0, f.hp - n);
@@ -936,7 +943,7 @@ export class Combat {
     if (!st?.poison) return;
     const n = st.poison;
     st.poison--;
-    if (who === 'p') this.hurtPlayerDirect(n);
+    if (who === 'p') this.hurtPlayerDirect(n, 'env', 'POISON');
     else {
       const f = this.foe(who)!;
       f.hp = Math.max(0, f.hp - n);
@@ -966,7 +973,7 @@ export class Combat {
     this.ev.push({ t: 'hazard', name: h.name, desc: h.desc });
     const pow = Math.round(h.power * dmgScale(this.danger) * 0.8);
     const everyone: Who[] = ['p', ...this.alive().map((f) => f.uid)];
-    const hitWho = (t: Who, n: number) => (t === 'p' ? this.hurtPlayerDirect(n) : this.damageFoe(this.foe(t)!, n, false, false));
+    const hitWho = (t: Who, n: number) => (t === 'p' ? this.hurtPlayerDirect(n, 'env', h.name) : this.damageFoe(this.foe(t)!, n, false, false));
     if (h.kind === 'pot') {
       const t = everyone[Math.floor(rand() * everyone.length)];
       hitWho(t, t === 'p' ? pow : pow * 2);
