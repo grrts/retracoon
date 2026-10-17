@@ -1,0 +1,26 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Search{% endblock %}
+{% block content %}
+<h1>Search</h1>
+{% if q|length < 2 %}<p class="lead">Type at least two letters.</p>
+{% elseif not hits %}<p class="lead">Nothing is called “{{ q }}”.</p>
+{% endif %}
+{% set names = {items: 'Items', sets: 'Sets', skills: 'Skills', passives: 'Passives', enemies: 'Foes', areas: 'Areas', events: 'Road events', skins: 'Skins'} %}
+{% for kind, list in hits %}
+<h2>{{ names[kind] }} ({{ list|length }})</h2>
+<div class="grid">
+{% for x in list %}
+    {% if kind == 'items' %}{{ w.item(x) }}
+    {% elseif kind == 'skills' %}{{ w.skill(x) }}
+    {% elseif kind == 'enemies' %}{{ w.foe(x) }}
+    {% elseif kind == 'sets' %}<a class="card" href="{{ path('wiki_set', {id: x.id}) }}">{{ sprite('items', 'set:' ~ x.id, 2) }}<span class="t"><h3 style="color:{{ x.color }}">{{ x.name }}</h3></span></a>
+    {% elseif kind == 'passives' %}<a class="card" href="{{ path('wiki_passives') }}#{{ x.id }}">{{ sprite('icons', 'passive:' ~ x.id, 3) }}<span class="t"><h3>{{ x.name }}</h3><span class="desc">{{ x.each }}</span></span></a>
+    {% elseif kind == 'areas' %}<a class="card" href="{{ path('wiki_area', {id: x.id}) }}"><span class="t"><h3>{{ x.name }}</h3><small>tier {{ x.tier }}</small></span></a>
+    {% elseif kind == 'events' %}<a class="card" href="{{ path('wiki_events') }}#{{ x.id }}"><span class="t"><h3>{{ x.title }}</h3></span></a>
+    {% elseif kind == 'skins' %}<a class="card" href="{{ path('wiki_skins') }}#{{ x.id }}">{{ sprite('skins', x.id, 2) }}<span class="t"><h3>{{ x.name }}</h3></span></a>
+    {% endif %}
+{% endfor %}
+</div>
+{% endfor %}
+{% endblock %}

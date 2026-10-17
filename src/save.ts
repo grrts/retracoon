@@ -40,6 +40,7 @@ export interface Store {
   // settings
   vol: { master: number; music: number; sfx: number }; // 0-10 each
   shake: boolean;
+  haptics: boolean; // vibration on phones, rumble on controllers
   fullscreen: boolean; // desktop
   windowSize: number; // index into WINDOW_SIZES (Steam, windowed)
   keys: Record<string, string[]>; // action -> KeyboardEvent.code; missing = default (see input.ts)
@@ -92,6 +93,7 @@ function base(): Store {
     trackingOff: false,
     vol: { master: 10, music: 10, sfx: 10 },
     shake: true,
+    haptics: true,
     fullscreen: true,
     windowSize: 1,
     keys: {},

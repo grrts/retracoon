@@ -1,0 +1,49 @@
+{% extends 'base.html.twig' %}
+
+{% set titles = {
+    form: 'Retracoon news',
+    check: 'Check your inbox',
+    confirm: 'Confirm your sign-up',
+    confirmed: 'You are on the list',
+    unsubscribe: 'Unsubscribe',
+    unsubscribed: 'You are unsubscribed',
+    invalid: 'That link has expired',
+} %}
+
+{% block title %}{{ titles[state] }} · Retracoon{% endblock %}
+
+{% block meta %}<meta name="robots" content="noindex">{% endblock %}
+
+{% block stylesheets %}
+<style>
+body{margin:0;background:#1a1c2c;color:#f4f4f4;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+main{max-width:560px;margin:40px auto;padding:0 16px}
+h1{color:#ffcd75;text-transform:uppercase;letter-spacing:1px;font-size:22px}
+a{color:#73eff7}
+.act{font:inherit;cursor:pointer;background:#ffcd75;color:#1a1c2c;border:2px solid #1a1c2c;padding:8px 16px;text-transform:uppercase;font-weight:700}
+.act:active{transform:translateY(2px)}
+</style>
+{% endblock %}
+
+{% block body %}
+<main>
+<h1>{{ titles[state] }}</h1>
+{% if state == 'form' %}
+    <p>One short email when there is news: launch day, new areas, the odd big update. Nothing else.</p>
+    {% include 'list/_signup.html.twig' %}
+{% elseif state == 'check' %}
+    <p>We sent a confirm link to your address. Open it to join the list. If nothing arrives, check your spam folder. Unconfirmed sign-ups are deleted after a week.</p>
+{% elseif state == 'confirm' %}
+    <form method="post" action="{{ path('list_confirm', {token: token}) }}"><button class="act" type="submit">Yes, send me Retracoon news</button></form>
+{% elseif state == 'confirmed' %}
+    <p>Thanks! You will hear from us when there is news. Every email has an unsubscribe link, or use <a href="{{ path('list_unsubscribe', {token: token}) }}">this one</a>.</p>
+{% elseif state == 'unsubscribe' %}
+    <p>Stop getting Retracoon news? Your address is deleted right away.</p>
+    <form method="post" action="{{ path('list_unsubscribe', {token: token}) }}"><button class="act" type="submit">Unsubscribe</button></form>
+{% elseif state == 'unsubscribed' %}
+    <p>Your address is off the list and deleted. You will not get more email from us.</p>
+{% else %}
+    <p>This confirm link is no longer valid. Sign up again <a href="{{ path('list') }}">here</a>.</p>
+{% endif %}
+</main>
+{% endblock %}

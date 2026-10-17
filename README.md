@@ -17,6 +17,8 @@ npm run assets:count   # how much art the game ships
 
 The online scoreboard has its own server in `server/` (PHP, Symfony). See [docs/ONLINE.md](docs/ONLINE.md).
 
+The same server hosts the content wiki at `/wiki`: every item, set, skill, passive, foe, area, road event and skin, with its sprite. It is generated from the content files, so after changing content run `npm run wiki` and commit the result (CI fails if the wiki is out of date).
+
 ## First launch
 
 Sign in is offered first (Google, Apple or Steam), or play as a guest and sign in later for the scoreboard and shop. Then a short **How to play**, which can't be skipped the first time, explains the goal: get as far as you can on a road that never ends, and know when to retreat. It can be opened again from the title screen. The one launch ad comes only after that, with a note before it.

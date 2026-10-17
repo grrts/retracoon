@@ -1,45 +1,65 @@
 # Store listing
 
+Checked against the game on 16 October 2026 (about 1,000 items in 50 sets, over 500 skills, passive skills, 50 areas, 250 skins, a boss window that grows per area). The marketing kit keeps a fuller version with Steam text and a press blurb.
+
 ## Name
 
-Retracoon
+Retracoon (Google Play: Retracoon: Raccoon Roguelike, 28 of 30 characters)
 
 ## Subtitle (App Store, 30 characters)
 
-Trash raccoon roguelike
+Raccoon roguelike, wear loot
 
 ## Short description (Google Play, 80 characters)
 
-Lead a scrappy raccoon through endless turn-based fights. Retreat in time to grow.
+Your raccoon wears every item it finds. How far can you get on the endless road?
 
-## Full description
+## Full description (2,221 of 4,000 characters)
 
 Retracoon is a turn-based 8-bit roguelike about a raccoon who will not stop.
 
-Start on the street between the trash cans, then push on into the woods, the jungle, the swamp, the mushroom kingdom and dozens of stranger places. Every stage is harder than the last, and somewhere between stage 2 and 20 of every area a boss is waiting. You never know which stage.
+Start between the trash cans on Trash Street, then keep walking: into the woods, the jungle, the swamp, the mushroom kingdom, the moon and 50 areas in all. The road never ends. Every fight is harder than the last, so the only question is how far you get this time.
+
+YOUR LOOT IS YOUR LOOK
+About 1,000 items, each drawn on your raccoon. A paper hat. Laser eyes. Comet wings. A trash mech. Look at your raccoon and you can see exactly how far you came. Tap any loot to try it on before you take it.
+
+COLLECT THE SET
+Hunt down 50 sets. Wear two matching pieces and the set bonus switches on, then it grows with every piece you add. Risky sets pay out bigger, but every one comes with a catch.
 
 FIGHT SMART
-Spend action points on up to four skills. Every foe shows what it is about to do, so you can block the big hit or strike first. Mean, Feral and Mythic critters bring new tricks the deeper you go.
+Spend action points on up to four skills, picked from over 500. Burn foes, freeze them, poison them or make them bleed. Stronger skills unlock as your raccoon levels up and builds its stats. Every foe shows its next move above its head, so you can block the big hit or strike first. Go deeper and Mean, Feral and Mythic critters bring armor, regeneration and thorns.
 
-GROW YOUR RACCOON
-Level up, spend stat points, pick new skills. Every item you find appears on your raccoon: hats, masks, capes, wands, glowing auras. Look at your raccoon and you can see how far you have come.
+EVERY LEVEL COUNTS
+Level-ups bring new skills, upgrades and passive skills: always-on boosts like more damage, more health or more crits that stack without limit.
 
-RETREAT OR RISK IT
-Retreat before a fight and your raccoon keeps its level and stats for the next run. Push your luck and die, and you start again from scratch.
+A BOSS HIDES IN EVERY AREA
+Each area's boss waits at a random fight, and you never know which one. In the first area it shows up by the 4th fight. The deeper you go, the longer it hides. Beat it to reach a new area.
 
-DRESS UP
-Collect 250 raccoon skins with Bottle Caps you earn by playing. New skins go on sale every week, and holiday skins come back every Christmas, Halloween and more.
+PUSH ON OR RETREAT
+Retreat before a fight and your raccoon keeps its level and stats for the next run. Push your luck and lose, and you start over from level 1.
+
+DAILY RUN
+Every day there's one road for everyone. Take a fresh raccoon down it and see where you rank on the daily board.
+
+250 SKINS
+Earn Bottle Caps every run and spend them on fur colours and outfits. A new sale every Monday, and holiday skins come back every Christmas, Halloween, King's Day and more.
 
 FAIR TO PLAY
-One ad when the game starts, and that is it. Skins are cosmetic only.
+One ad when the game starts, and that's it. No ads during runs, no energy timers, no paying to win. Skins are cosmetic only.
+
+Play with friends: add them with a 6-letter friend code and race up the scoreboard.
+
+## Promotional text (App Store, 170 characters)
+
+A raccoon who wears every item it finds, on an 8-bit road that never ends. About 1,000 items, over 500 skills, hidden bosses and one ad at launch.
 
 ## Keywords (App Store, 100 characters)
 
-roguelike,raccoon,turn based,pixel,retro,rpg,8-bit,arcade,dungeon,roguelite,offline,trash
+turn based,pixel,retro,8-bit,rpg,arcade,roguelite,dungeon,trash,loot,dress up,skins,endless,strategy
 
 ## Category
 
-Games > Role Playing (secondary: Arcade)
+Games > Role Playing (secondary: Adventure)
 
 ## Graphics
 

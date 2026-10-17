@@ -4,6 +4,7 @@ import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN } from '../ui';
 import { onAction } from '../input';
 import { sfx } from '../audio';
+import { buzz } from '../haptics';
 import { COL } from '../gfx/palette';
 import { STAT_INFO, skills } from '../content/registry';
 import type { StatKey } from '../content/types';
@@ -37,6 +38,7 @@ export class LevelUpScene extends Overlay<OverlayData & { statsOnly?: boolean }>
     onAction(this, ['slot1', 'slot2', 'slot3', 'slot4'], (a) => this.keys.slot?.(Number(a.slice(4)) - 1));
     this.backdrop();
     sfx.upgrade();
+    if (!this.d.statsOnly) buzz('levelUp');
     if (this.d.run.statPoints > 0) this.statStep();
     else this.skillStep();
   }

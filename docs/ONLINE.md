@@ -44,6 +44,15 @@ REVENUECAT_WEBHOOK_AUTH=...
 SUPPORT_EMAIL=support@retracoon.com
 # Optional: a long random key that unlocks GET /api/stats (soft-launch numbers)
 STATS_KEY=...
+# Website: the mailing list's confirm emails (any SMTP provider), and the store pages
+# behind the store buttons. Leave a store empty to hide its button until it is live.
+MAILER_DSN=smtp://USER:PASSWORD@smtp.example.com:587
+MAILER_FROM="Retracoon <news@retracoon.com>"
+STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
+STORE_APP_STORE_URL=
+STORE_STEAM_URL=
+# The site's address, used for links in emails and exports
+DEFAULT_URI=https://retracoon.com
 ```
 
 Then:
@@ -84,6 +93,18 @@ php bin/console app:stats --days=14
 That prints installs, players, runs, daily runs, median stage, the share of runs that left the first area, and day 1, 7 and 30 retention per install day. The same numbers come from `GET /api/stats?days=14` with header `X-Stats-Key: <STATS_KEY>` (404 without it). Good soft-launch targets: 35% back on day 1, 10% on day 7.
 
 Events are kept until you delete them, e.g. `DELETE FROM play_event WHERE at < now() - interval '180 days'` in a monthly cron job.
+
+## Website: mailing list and visit counts
+
+**Mailing list.** `/list` has a sign-up form (email only); any page can show it with `{% include 'list/_signup.html.twig' %}`. Signing up sends a confirm link (double opt-in), and only confirmed addresses are on the list. Unconfirmed sign-ups are deleted after a week; unsubscribing deletes the address. Confirm and unsubscribe links open a page with a button, so mail scanners that open links can't act on them. Export the list for your mail tool:
+
+```bash
+php bin/console app:mailing-list:export -o list.csv   # email, confirmed_at, unsubscribe_url
+```
+
+Put each address's `unsubscribe_url` in the mail as a link, and in the `List-Unsubscribe` header with `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (the link accepts that one-click POST).
+
+**Visits and store clicks.** The landing page (`/`) counts its visits, and store buttons go through `/go/google-play`, `/go/app-store` and `/go/steam`, which count the click and redirect to the `STORE_*_URL`. In Twig: `{% if store_live('steam') %}<a href="{{ store_link('steam') }}">...</a>{% endif %}`; `store_link()` carries the visit's referring site and UTM tags into the click. Only daily counters are stored per referring site and `utm_source`, `utm_medium`, `utm_campaign`: no cookies, IP addresses or anything else about the visitor. Bots are skipped, and one address counts at most 30 times an hour. `app:stats` prints them under the game numbers, with the mailing list size. Tag links you post, e.g. `https://retracoon.com/?utm_source=reddit&utm_campaign=launch`.
 
 ## Connecting the game
 
