@@ -1,0 +1,11 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Foes{% endblock %}
+{% block content %}
+<h1>Foes</h1>
+<p class="lead">Base numbers. Foes get about 16% tougher every fight, and deeper ones come as Mean, Feral and Mythic with armor, regeneration and thorns.</p>
+{% for fam, list in groups %}
+<h2>{{ {bosses: 'Bosses', other: 'Summoned helpers'}[fam] ?? fam|replace({'_': ' '}) }}</h2>
+<div class="grid small">{% for e in list %}{{ w.foe(e) }}{% endfor %}</div>
+{% endfor %}
+{% endblock %}

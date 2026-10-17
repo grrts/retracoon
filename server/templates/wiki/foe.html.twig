@@ -1,0 +1,33 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}{{ foe.name }}{% endblock %}
+{% block content %}
+<div class="hero">
+    <div>{{ sprite('foes', foe.id, 4, foe.name) }}{% if foe.phase2 %} {{ sprite('foes', foe.id ~ ':2', 4, foe.phase2.name) }}{% endif %}</div>
+    <div class="info">
+        <h1>{{ foe.name }}</h1>
+        <p>{% if foe.boss %}<span class="pill" style="color:var(--red)">Boss</span>{% endif %}{% if foe.family %}<span class="pill">{{ foe.family }}</span>{% endif %}{% if foe.role %}<span class="pill">{{ foe.role }}</span>{% endif %}{% if foe.flyer %}<span class="pill">Flyer</span>{% endif %}</p>
+        <div class="stats">
+            <div><b>{{ foe.hp }}</b>health</div>
+            {% if foe.armor %}<div><b>{{ foe.armor }}</b>armor</div>{% endif %}
+            {% if foe.regen %}<div><b>{{ foe.regen }}</b>regen a turn</div>{% endif %}
+            {% if foe.dodge %}<div><b>{{ (foe.dodge * 100)|round }}%</b>dodge</div>{% endif %}
+            <div><b>{{ foe.xp }}</b>XP</div>
+            <div><b>{{ foe.shinies }}</b>shinies</div>
+            {% if foe.minStage %}<div><b>{{ foe.minStage }}+</b>from stage</div>{% endif %}
+        </div>
+        {% if foe.onDeath %}<p class="muted">On death: {{ {revive: 'gets back up once', burst: 'bursts, hurting you', split: 'splits in two'}[foe.onDeath] }}.</p>{% endif %}
+    </div>
+</div>
+<h2>Moves</h2>
+{{ w.moves(foe.moves) }}
+{% if foe.phase2 %}
+<h2>Phase 2: {{ foe.phase2.name }} (at {{ (foe.phase2.at * 100)|round }}% health)</h2>
+{{ w.moves(foe.phase2.moves) }}
+{% endif %}
+{% if related %}<h2>Calls in</h2><div class="grid small">{% for e in related %}{{ w.foe(e) }}{% endfor %}</div>{% endif %}
+{% if areas %}
+<h2>{{ foe.boss ? 'Boss of' : 'Found in' }}</h2>
+<div class="filters">{% for a in areas %}<a href="{{ path('wiki_area', {id: a.id}) }}">{{ a.name }}</a>{% endfor %}</div>
+{% endif %}
+{% endblock %}

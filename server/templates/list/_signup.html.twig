@@ -1,0 +1,23 @@
+{# The mailing list sign-up form. Include it on any page: {% include 'list/_signup.html.twig' %} #}
+<form class="signup" action="{{ path('list_subscribe') }}" method="post">
+    <style>
+    .signup{background:#333c57;border:2px solid #566c86;padding:12px;max-width:520px;color:#f4f4f4;font:15px/1.5 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace}
+    .signup label{display:block;color:#ffcd75;text-transform:uppercase;letter-spacing:1px;margin-bottom:6px}
+    .signup .row{display:flex;gap:6px;flex-wrap:wrap}
+    .signup input[type=email]{flex:1 1 200px;min-width:0;font:inherit;background:#1a1c2c;color:#f4f4f4;border:2px solid #566c86;padding:6px 8px}
+    .signup button{font:inherit;cursor:pointer;background:#ffcd75;color:#1a1c2c;border:2px solid #1a1c2c;padding:6px 14px;text-transform:uppercase;font-weight:700}
+    .signup button:active{transform:translateY(2px)}
+    .signup small{display:block;color:#94b0c2;font-size:12px;margin-top:6px}
+    .signup small a{color:#73eff7}
+    .signup .err{color:#ef7d57;margin:6px 0 0}
+    .signup .hp{position:absolute;left:-9999px}
+    </style>
+    <label for="signup-email">Get launch news</label>
+    <div class="row">
+        <input id="signup-email" type="email" name="email" required maxlength="180" autocomplete="email" placeholder="you@example.com" value="{{ email ?? '' }}">
+        <button type="submit">Sign up</button>
+    </div>
+    <input class="hp" type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+    {% if error ?? null %}<p class="err" role="alert">{{ error }}</p>{% endif %}
+    <small>Email only. We send a confirm link first, and every mail has an unsubscribe link. <a href="/privacy">Privacy</a></small>
+</form>

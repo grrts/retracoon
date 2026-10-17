@@ -1,0 +1,16 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Skills{% endblock %}
+{% block content %}
+<h1>Skills</h1>
+<p class="lead">Up to 4 skills on your bar, paid for with action points each turn. Open skills can turn up from the start; the rest unlock with character level, a stat, or both, and grow with what unlocked them. Text below is rank 1 for a raccoon that just unlocked it. {{ skills|length }} shown.</p>
+{% set f = filter %}
+<div class="filters">
+    {% for k, label in {'': 'All', open: 'Open', stat: 'Stat-locked', level: 'Level-locked', mastery: 'Mastery'} %}{{ w.filter('wiki_skills', f, 'kind', k, label, f.kind) }}{% endfor %}
+</div>
+<div class="filters">
+    {{ w.filter('wiki_skills', f, 'stat', '', 'Any stat', f.stat) }}
+    {% for k, s in wiki().stats %}{{ w.filter('wiki_skills', f, 'stat', k, s.name, f.stat) }}{% endfor %}
+</div>
+<div class="grid">{% for s in skills %}{{ w.skill(s) }}{% endfor %}</div>
+{% endblock %}

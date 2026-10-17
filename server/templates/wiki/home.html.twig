@@ -1,0 +1,32 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Wiki{% endblock %}
+{% block content %}
+<div class="hero">
+    {{ sprite('skins', 'classic', 4, 'The raccoon') }}
+    <div class="info">
+        <h1>Retracoon Wiki</h1>
+        <p class="lead">An 8-bit roguelike on a road that never ends. Everything the raccoon can wear, learn, fight and find, straight from the game's content.</p>
+    </div>
+</div>
+<h2>Browse</h2>
+<div class="grid small">
+    {% for key, info in {
+        items: ['wiki_items', 'Items', 'items', 'ronin_kabuto', 'Drawn on the raccoon', 2],
+        sets: ['wiki_sets', 'Sets', 'items', 'set:ronin', 'Bonuses from 2 pieces', 2],
+        skills: ['wiki_skills', 'Skills', 'icons', 'claw', 'Up to 4 on your bar', 6],
+        passives: ['wiki_passives', 'Passives', 'icons', 'passive:brawn', 'Stack forever', 6],
+        foes: ['wiki_foes', 'Foes', 'foes', 'van', 'Critters and bosses', 1],
+        areas: ['wiki_areas', 'Areas', 'foes', 'goose', 'Places on the road', 1],
+        events: ['wiki_events', 'Road events', 'events', 'trash_pile', 'Choices between fights', 2],
+        skins: ['wiki_skins', 'Skins', 'skins', 'ninja', 'Cosmetic looks', 2],
+    } %}
+    <a class="card col" href="{{ path(info[0]) }}">
+        {{ sprite(info[2], info[3], info[5]) }}
+        <span class="t"><h3>{{ info[1] }}</h3><small>{{ counts[key] }} · {{ info[4] }}</small></span>
+    </a>
+    {% endfor %}
+</div>
+<h2>Bosses</h2>
+<div class="grid small">{% for b in bosses %}{{ w.foe(b) }}{% endfor %}</div>
+{% endblock %}
