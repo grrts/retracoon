@@ -4,6 +4,7 @@ import { items, skills, sets, RARITY, themesByTier, themes } from '../content/re
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
+import { note } from './ledger';
 import { MUTATORS, mutatorOf, rules, weeklyMutator, type MutatorId } from './mutators';
 
 export interface OwnedItem {
@@ -511,6 +512,7 @@ export function forgetSkill(r: RunState, id: string) {
 }
 
 export function gainXp(r: RunState, n: number): number {
+  note(r, ['x', n]);
   r.xp += n;
   let ups = 0;
   while (r.xp >= xpToLevel(r.level)) {

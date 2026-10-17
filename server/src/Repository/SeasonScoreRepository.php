@@ -32,14 +32,16 @@ class SeasonScoreRepository extends ServiceEntityRepository
 
     public function countSeason(string $season): int
     {
-        return (int) $this->createQueryBuilder('s')->select('COUNT(s.id)')->where('s.season = :season')->setParameter('season', $season)->getQuery()->getSingleScalarResult();
+        return (int) $this->createQueryBuilder('s')->select('COUNT(s.id)')->join('s.player', 'p')->where('s.season = :season')->andWhere('p.hidden = false')->setParameter('season', $season)->getQuery()->getSingleScalarResult();
     }
 
     public function rankOf(SeasonScore $x): int
     {
         $ahead = (int) $this->createQueryBuilder('s')
             ->select('COUNT(s.id)')
+            ->join('s.player', 'p')
             ->where('s.season = :season')
+            ->andWhere('p.hidden = false')
             ->andWhere('s.stage > :st OR (s.stage = :st AND s.distance > :d)')
             ->setParameter('season', $x->getSeason())
             ->setParameter('st', $x->getStage())
@@ -76,6 +78,7 @@ class SeasonScoreRepository extends ServiceEntityRepository
             ->addSelect('p')
             ->join('s.player', 'p')
             ->where('s.season = :season')
+            ->andWhere('p.hidden = false')
             ->setParameter('season', $season)
             ->orderBy('s.stage', 'DESC')
             ->addOrderBy('s.distance', 'DESC')

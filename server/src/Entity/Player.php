@@ -69,6 +69,11 @@ class Player implements UserInterface
     #[ORM\Column(nullable: true)]
     private ?\DateTimeImmutable $scoredAt = null;
 
+    // Kept off every public board and out of prizes, without telling the player
+    // (`app:runs --hide`). They still see their own scores.
+    #[ORM\Column(options: ['default' => false])]
+    private bool $hidden = false;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -206,6 +211,16 @@ class Player implements UserInterface
     public function getScoredAt(): ?\DateTimeImmutable
     {
         return $this->scoredAt;
+    }
+
+    public function isHidden(): bool
+    {
+        return $this->hidden;
+    }
+
+    public function setHidden(bool $hidden): void
+    {
+        $this->hidden = $hidden;
     }
 
     public function getCreatedAt(): \DateTimeImmutable

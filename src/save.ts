@@ -1,3 +1,5 @@
+import type { Ledger } from './game/ledger';
+
 // Small persistent store. Storage can be unavailable (private mode), so never assume it works.
 export interface Kept {
   level: number;
@@ -15,6 +17,7 @@ export interface Store {
   foesSeen: string[]; // enemy ids ever met
   themesSeen: string[];
   kept: Kept | null; // stats banked by retreating
+  runOpen: boolean; // a normal run started and hasn't ended yet (see RunScene.create)
   muted: boolean;
   // meta progression and the shop
   caps: number; // Bottle Caps, earned by playing
@@ -57,6 +60,7 @@ export interface PendingRun {
   distance: number;
   timeMs: number;
   skin: string;
+  log?: Ledger; // how the score added up, for the server's checks
 }
 
 const KEY = 'retracoon.v3';
@@ -73,6 +77,7 @@ function base(): Store {
     foesSeen: [],
     themesSeen: [],
     kept: null,
+    runOpen: false,
     muted: false,
     caps: 0,
     gems: 0,
