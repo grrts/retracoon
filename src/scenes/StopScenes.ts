@@ -4,6 +4,7 @@ import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN, LINE_H, wrapPx, measure, fmt, Button, shake } from '../ui';
 import { onAction } from '../input';
 import { sfx } from '../audio';
+import { buzz } from '../haptics';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
 import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
@@ -87,6 +88,8 @@ export class RewardScene extends Overlay<RewardData> {
     });
     onAction(this, 'confirm', () => this.confirm());
     if (n === 1) this.pick(0);
+    // Epic and legendary loot gets a buzz as the cards land.
+    if (choices.some((it) => it.rarity >= 3)) this.time.delayedCall(200 + n * 80, () => buzz('loot'));
   }
 
   private pick(i: number) {

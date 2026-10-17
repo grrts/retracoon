@@ -27,6 +27,7 @@ import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounte
 import { text, panel, button, wait, Button, Floaters, BTN, LINE_H, shake } from '../ui';
 import { onAction } from '../input';
 import { sfx, areaTrack, bossTrack } from '../audio';
+import { buzz } from '../haptics';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { ensureEnemy, enemyKey } from '../gfx/textures';
@@ -102,6 +103,10 @@ export class RunScene extends Phaser.Scene {
   private walkLeft = 0;
   private pendingElite = false;
   private pendingBoss = false;
+  // For the game-over recap: who landed the last blow, and the best stage before this run.
+  private killer = '';
+  private hazard = '';
+  private bestBefore = 0;
   private tiersSeen = new Set<number>();
   // PROTOTYPE combat VFX
   fx!: FxDirector;
@@ -124,6 +129,9 @@ export class RunScene extends Phaser.Scene {
       }
       store.dailyRuns++;
     }
+    this.killer = '';
+    this.hazard = '';
+    this.bestBefore = this.run.mode === 'daily' ? (store.dailyBest?.stage ?? 0) : store.bestStage;
     save();
     track('run_start', { mode: this.run.mode, level: this.run.level });
     this.views.clear();
@@ -525,7 +533,7 @@ export class RunScene extends Phaser.Scene {
     const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin });
     sfx.stopMusic();
     this.scene.pause();
-    this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent });
+    this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent, killer: this.killer, bestBefore: this.bestBefore });
   }
 
   // ---------------------------------------------------------------- foes on screen
@@ -828,6 +836,7 @@ export class RunScene extends Phaser.Scene {
     for (const e of evs) {
       switch (e.t) {
         case 'turn':
+          this.hazard = '';
           if (e.side === 'foes') await wait(this, 160);
           break;
         case 'act': {
@@ -855,6 +864,8 @@ export class RunScene extends Phaser.Scene {
             if (e.dmg > 0) {
               this.coon.play('hurt', 0.3);
               sfx.hurt();
+              buzz(e.dmg >= c.maxHp * 0.2 ? 'bigHurt' : 'hurt');
+              this.killer = this.blameFor(e.src);
               shake(this, 140, e.dmg >= c.maxHp * 0.2 ? 0.016 : 0.008);
               this.flashCoon();
               if (e.src === 'env') this.fxTick('p', COON_X, GROUND_Y - 16);
@@ -874,6 +885,7 @@ export class RunScene extends Phaser.Scene {
             this.tweens.add({ targets: v.spr, x: 3, yoyo: true, duration: 50 });
             if (e.crit) {
               sfx.crit();
+              buzz('crit');
               shake(this, 120, 0.008);
               this.hitStop(70);
               const sl = this.add.image(v.c.x, GROUND_Y - v.h / 2, 'slash').setDepth(20).setScale(2);
@@ -961,6 +973,7 @@ export class RunScene extends Phaser.Scene {
               this.fx.death(v.c.x, GROUND_Y, f.def.colors, !!f.def.boss, v.h);
               if (f.def.boss) {
                 sfx.bossDie();
+                buzz('boss');
                 shake(this, 500, 0.015);
                 this.cameras.main.flash(200, 255, 255, 255);
                 this.hitStop(200);
@@ -1019,6 +1032,7 @@ export class RunScene extends Phaser.Scene {
           this.refreshCombatUi();
           break;
         case 'hazard':
+          this.hazard = e.name;
           this.banner(e.name + '!', e.desc, COL.orange);
           await wait(this, 600);
           break;
@@ -1163,6 +1177,7 @@ export class RunScene extends Phaser.Scene {
     if (after.heal) this.floats.add(COON_X - 20, GROUND_Y - 52, `+${after.heal} HP`, COL.lime);
     if (after.hurt) this.floats.add(COON_X - 20, GROUND_Y - 52, `-${after.hurt} HP`, COL.red);
     if (after.tax) this.floats.add(COON_X + 30, GROUND_Y - 52, `-${after.tax}`, COL.orange);
+    if (this.bestBefore > 0 && r.stage === this.bestBefore + 1) this.passedBest();
     this.refreshHud();
     this.views.forEach((v) => (v.c.destroy(), v.shadow.destroy()));
     this.views.clear();
@@ -1185,6 +1200,25 @@ export class RunScene extends Phaser.Scene {
     });
   }
 
+  // The moment this run goes past the best stage before it: once per run.
+  private passedBest() {
+    sfx.record();
+    buzz('record');
+    this.cameras.main.flash(220, 255, 205, 117);
+    this.floats.add(W / 2, 70, 'NEW RECORD!', COL.yellow, true);
+  }
+
+  // Name for whatever just hurt the raccoon: the foe, the area's hazard, or else the
+  // toughest foe still standing (burns, poison and the like come from the fight itself).
+  private blameFor(src: Who | 'env') {
+    const c = this.combat;
+    if (!c) return this.killer;
+    if (typeof src === 'number') return c.foe(src)?.def.name ?? this.killer;
+    if (this.hazard) return this.hazard;
+    const alive = c.foes.filter((f) => !f.dead).sort((a, b) => Number(!!b.def.boss) - Number(!!a.def.boss) || b.maxHp - a.maxHp);
+    return alive[0]?.def.name ?? this.killer;
+  }
+
   // Launch overlay scenes one after another, then carry on.
   runSteps(steps: { key: string; data: object }[], then?: () => void) {
     const next = steps.shift();
@@ -1201,6 +1235,7 @@ export class RunScene extends Phaser.Scene {
     this.clearCombatUi();
     this.run.hp = 0;
     sfx.die();
+    buzz('bigHurt');
     this.coon.play('hurt', 99);
     this.tweens.add({ targets: this.coon, angle: -90, y: GROUND_Y - 4, duration: 500, ease: 'Bounce.out' });
     shake(this, 300, 0.01);
