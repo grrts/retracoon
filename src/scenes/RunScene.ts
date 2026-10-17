@@ -20,7 +20,9 @@ import {
   BLESSING_INFO,
   roll,
   afterFight,
+  bossFoes,
 } from '../game/run';
+import { MUTATORS, rules } from '../game/mutators';
 import { rand } from '../game/rng';
 import { RaccoonView } from '../game/views';
 import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
@@ -176,7 +178,10 @@ export class RunScene extends Phaser.Scene {
     });
 
     this.cameras.main.fadeIn(250, 26, 28, 44);
-    this.banner(this.theme.name, this.world.season ? this.world.season.banner : 'WHERE IT ALL STARTS', this.world.season ? COL.yellow : COL.white);
+    // A daily run opens on the week's rule; the area name is on the HUD.
+    const m = this.run.mutator;
+    if (m) this.banner(`THIS WEEK: ${MUTATORS[m].name}`, MUTATORS[m].desc, COL.lime);
+    else this.banner(this.theme.name, this.world.season ? this.world.season.banner : 'WHERE IT ALL STARTS', this.world.season ? COL.yellow : COL.white);
     this.markTheme();
     this.time.delayedCall(500, () => this.walk());
   }
@@ -367,7 +372,7 @@ export class RunScene extends Phaser.Scene {
     r.area++;
     r.areaStage = 0;
     roll(r, 'area');
-    r.bossAt = rollBossAt(r.area);
+    r.bossAt = rollBossAt(r.area, rules(r).bossRush);
     r.theme = nextTheme(r);
     r.themesVisited.push(r.theme);
     this.theme = themes.get(r.theme) ?? this.theme;
@@ -392,7 +397,7 @@ export class RunScene extends Phaser.Scene {
     const elite = kind === 'elite';
     let foes: string[];
     let tiers: number[] = [];
-    if (boss) foes = [this.theme.boss];
+    if (boss) foes = bossFoes(this.run, this.theme.boss);
     else {
       const pick = elite ? pickElite(this.run, this.theme) : pickFoes(this.run, this.theme);
       foes = pick.ids;
@@ -1187,7 +1192,7 @@ export class RunScene extends Phaser.Scene {
     const steps: { key: string; data: object }[] = [];
     if (boss) steps.push({ key: 'Reward', data: { run: r, title: 'BOSS LOOT', min: 2 } });
     else if (elite) steps.push({ key: 'Reward', data: { run: r, title: 'ELITE STASH', min: 2 } });
-    else if ((roll(r, 'drop'), rand() < 0.15)) {
+    else if ((roll(r, 'drop'), rand() < 0.15 * rules(r).dropMul) && !rules(r).noDrops) {
       const it = randomItem(r, 0, 2);
       if (it) steps.push({ key: 'Reward', data: { run: r, title: 'A CRITTER DROPPED THIS', fixed: [it.id] } });
     }
