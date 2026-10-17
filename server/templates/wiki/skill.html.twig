@@ -1,0 +1,26 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}{{ skill.name }}{% endblock %}
+{% block description %}{{ skill.name }}: {{ skill.ranks[0] }}{% endblock %}
+{% block content %}
+<div class="hero">
+    {{ sprite('icons', skill.id, 8, skill.name) }}
+    <div class="info">
+        <h1>{{ skill.name }}</h1>
+        <div class="stats">
+            <div><b>{{ skill.cost }} AP</b>cost</div>
+            <div><b>{{ skill.cooldown ?: 'none' }}</b>cooldown (turns)</div>
+            <div><b>{{ {one: 'one foe', all: 'every foe', self: 'yourself', random: 'random foes'}[skill.target] }}</b>target</div>
+            <div><b>{{ skill.max }}</b>ranks</div>
+        </div>
+        {% if skill.req %}
+            <p>Unlocks at <b style="color:var(--gold)">{{ w.req(skill.req) }}</b>{% if skill.req.stat %} and grows with {{ wiki().stats[skill.req.stat].name }}{% elseif skill.req.level %} and grows 2% per level above it{% endif %}.</p>
+        {% else %}<p class="muted">Open skill: can be offered from level 1.</p>{% endif %}
+    </div>
+</div>
+<h2>Ranks</h2>
+<table><tr><th>Rank</th><th>Effect</th></tr>
+{% for d in skill.ranks %}<tr><td>{{ loop.index }}</td><td>{{ d }}</td></tr>{% endfor %}
+</table>
+{% if skill.req %}<p class="muted">Shown for a raccoon that has just met the unlock; higher {{ skill.req.stat ? wiki().stats[skill.req.stat].name : 'level' }} makes it stronger.</p>{% endif %}
+{% endblock %}

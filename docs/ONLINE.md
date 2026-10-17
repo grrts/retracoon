@@ -44,10 +44,15 @@ REVENUECAT_WEBHOOK_AUTH=...
 SUPPORT_EMAIL=support@retracoon.com
 # Optional: a long random key that unlocks GET /api/stats (soft-launch numbers)
 STATS_KEY=...
-# Optional: store pages, shown as "play today's daily" on shared run pages
+# Website: the mailing list's confirm emails (any SMTP provider), and the store pages
+# behind the store buttons. Leave a store empty to hide its button until it is live.
+MAILER_DSN=smtp://USER:PASSWORD@smtp.example.com:587
+MAILER_FROM="Retracoon <news@retracoon.com>"
 STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
-STORE_APP_STORE_URL=https://apps.apple.com/app/id...
-STORE_STEAM_URL=https://store.steampowered.com/app/...
+STORE_APP_STORE_URL=
+STORE_STEAM_URL=
+# The site's address, used for links in emails and exports
+DEFAULT_URI=https://retracoon.com
 ```
 
 Then:
@@ -79,7 +84,7 @@ Add one cron job so daily and season prizes are paid even on a quiet day (the AP
 
 **SHARE** on the game-over screen draws a 1200x630 card: the raccoon in its final gear in the area it reached, what ended the run (or "retreated in time"), the stage, and the site address (`VITE_SITE_URL`, default `https://retracoon.com`). Phones open the native share sheet, browsers with the Web Share API use it, and Steam and other desktops save the image and copy the line to the clipboard. Daily runs share a Wordle-style line, like `Retracoon daily 16 Oct · stage 23 · beaten by the Swamp King`.
 
-Signed-in players also get a page for the run: the game sends `POST /api/runs` with the card and the few facts the page shows, and gets back `/r/{id}` on the API's host. That page shows the card, the stage, area, level and loadout (linked into `/wiki`), and the store buttons from `STORE_*_URL` (empty ones are hidden). Its Open Graph and Twitter tags point at `/r/{id}.png`, so a shared link previews as the card. Players without an account share the card with a link to the site. Shared runs are deleted with the account; each player can share 30 runs an hour.
+Signed-in players also get a page for the run: the game sends `POST /api/runs` with the card and the few facts the page shows, and gets back `/r/{id}` on the API's host. That page shows the card, the stage, area, level and loadout (linked into `/wiki`), and the site's store buttons (`STORE_*_URL`, counted through `/go/{store}`; empty ones are hidden). Its Open Graph and Twitter tags point at `/r/{id}.png`, so a shared link previews as the card. Players without an account share the card with a link to the site. Shared runs are deleted with the account; each player can share 30 runs an hour.
 
 ## Gameplay tracking
 
@@ -94,6 +99,18 @@ php bin/console app:stats --days=14
 That prints installs, players, runs, daily runs, median stage, the share of runs that left the first area, and day 1, 7 and 30 retention per install day. The same numbers come from `GET /api/stats?days=14` with header `X-Stats-Key: <STATS_KEY>` (404 without it). Good soft-launch targets: 35% back on day 1, 10% on day 7.
 
 Events are kept until you delete them, e.g. `DELETE FROM play_event WHERE at < now() - interval '180 days'` in a monthly cron job.
+
+## Website: mailing list and visit counts
+
+**Mailing list.** `/list` has a sign-up form (email only); any page can show it with `{% include 'list/_signup.html.twig' %}`. Signing up sends a confirm link (double opt-in), and only confirmed addresses are on the list. Unconfirmed sign-ups are deleted after a week; unsubscribing deletes the address. Confirm and unsubscribe links open a page with a button, so mail scanners that open links can't act on them. Export the list for your mail tool:
+
+```bash
+php bin/console app:mailing-list:export -o list.csv   # email, confirmed_at, unsubscribe_url
+```
+
+Put each address's `unsubscribe_url` in the mail as a link, and in the `List-Unsubscribe` header with `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (the link accepts that one-click POST).
+
+**Visits and store clicks.** The landing page (`/`) counts its visits, and store buttons go through `/go/google-play`, `/go/app-store` and `/go/steam`, which count the click and redirect to the `STORE_*_URL`. In Twig: `{% if store_live('steam') %}<a href="{{ store_link('steam') }}">...</a>{% endif %}`; `store_link()` carries the visit's referring site and UTM tags into the click. Only daily counters are stored per referring site and `utm_source`, `utm_medium`, `utm_campaign`: no cookies, IP addresses or anything else about the visitor. Bots are skipped, and one address counts at most 30 times an hour. `app:stats` prints them under the game numbers, with the mailing list size. Tag links you post, e.g. `https://retracoon.com/?utm_source=reddit&utm_campaign=launch`.
 
 ## Connecting the game
 

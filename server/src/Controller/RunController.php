@@ -7,9 +7,9 @@ use App\Entity\Player;
 use App\Entity\SharedRun;
 use App\Repository\SharedRunRepository;
 use App\Service\Periods;
+use App\Twig\SiteExtension;
 use Doctrine\ORM\EntityManagerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
-use Symfony\Component\DependencyInjection\Attribute\Autowire;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -34,9 +34,7 @@ final class RunController extends AbstractController
 
     public function __construct(
         private readonly SharedRunRepository $runs,
-        #[Autowire('%env(STORE_GOOGLE_PLAY_URL)%')] private readonly string $googlePlay,
-        #[Autowire('%env(STORE_APP_STORE_URL)%')] private readonly string $appStore,
-        #[Autowire('%env(STORE_STEAM_URL)%')] private readonly string $steam,
+        private readonly SiteExtension $site,
     ) {
     }
 
@@ -149,9 +147,10 @@ final class RunController extends AbstractController
     private function stores(): string
     {
         $links = '';
-        foreach (['Google Play' => $this->googlePlay, 'App Store' => $this->appStore, 'Steam' => $this->steam] as $name => $href) {
-            if (str_starts_with($href, 'https://')) {
-                $links .= '<a class="btn" href="'.htmlspecialchars($href, \ENT_QUOTES | \ENT_HTML5).'">'.$name.'</a>';
+        foreach (['google-play' => 'Google Play', 'app-store' => 'App Store', 'steam' => 'Steam'] as $store => $name) {
+            if ($this->site->live($store)) {
+                // Through /go/{store}, so the click is counted like the site's own store buttons.
+                $links .= '<a class="btn" href="'.htmlspecialchars($this->site->link($store), \ENT_QUOTES | \ENT_HTML5).'">'.$name.'</a>';
             }
         }
         $lead = '<p>Retracoon is an 8-bit roguelike about a raccoon on a road that never ends. Everyone gets the same road on the daily run. How far can you get?</p>';

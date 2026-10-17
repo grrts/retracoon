@@ -2,7 +2,7 @@
 
 _Last updated: fill in the date you publish this. Contact: fill in your email address._
 
-Retracoon is a game. You sign in with Google, Apple or Steam so your name, scores and purchases belong to you. It has no chat, and it does not ask for your real name, email or location.
+Retracoon is a game. You sign in with Google, Apple or Steam so your name, scores and purchases belong to you. It has no chat, and it does not ask for your real name, email or location. The only email we keep is the one you give to our mailing list, if you sign up for it.
 
 ## What stays on your device
 
@@ -19,6 +19,14 @@ Other players can see your nickname with its tag, skin and scores; only you see 
 ## Play statistics
 
 To learn how the game plays (how far runs get, whether players come back), the game sends a few anonymous events to our own server: when the game is opened, when a run starts and ends (with the stage, area, level and time), when the tutorial is finished, when the shop or scoreboard is opened, and when a purchase is made (only which product). They are stored with a random id made on your device, the platform and the game version. They are not linked to your account or name, and are not shared with anyone. Turn it off any time with **STATS ON/OFF** on the title screen; anything not yet sent is dropped.
+
+## Mailing list
+
+If you sign up for Retracoon news on our website, we store your email address, when you signed up and when you confirmed it. We first send one email with a confirm link; if you don't confirm within a week, the address is deleted. We use it only to send news about the game, and every email has an unsubscribe link that deletes your address right away. We send these emails through an email delivery provider, which handles the address only to deliver them.
+
+## Website visits
+
+Our website counts how many people visit the home page and click a store button, per day, together with the website that linked to it and the campaign tags in the link (like `utm_source=reddit`). We don't use cookies or any tracking scripts on the website, and we don't store your IP address, browser or anything else about you with these counts. Your IP address is only held briefly in memory to stop one address from inflating the counts or flooding the sign-up form.
 
 ## Ads
 
@@ -47,6 +55,7 @@ Retracoon is not directed at children under 13.
 | User ids (Google, Apple or Steam account id; random player id) | Yes (our server) | No | App functionality, account management | Sign-in |
 | App interactions (play statistics: runs, stages, screens opened) | Yes (our server) | No | Analytics | Improving the game; not linked to the account |
 | Crash or diagnostic data | No | | | |
-| Personal info (real name, email, contacts) | No | | | |
+| Email address | Only if you join the mailing list on our website (not in the app) | No | Marketing (game news) | Mailing list |
+| Personal info (real name, contacts) | No | | | |
 
 Data is encrypted in transit. Users can delete their account and its data in the app or through the web page above.

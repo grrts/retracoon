@@ -1,0 +1,15 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}{{ set.name }}{% endblock %}
+{% block content %}
+<div class="hero">
+    {{ sprite('items', 'set:' ~ set.id, 5, 'The full ' ~ set.name ~ ' set') }}
+    <div class="info">
+        <h1 style="color:{{ set.color }}">{{ set.name }}</h1>
+        {% if set.risky %}<p><span class="pill risky">Risky set</span></p>{% endif %}
+        <table>{% for b in set.bonuses %}<tr><td style="white-space:nowrap">{{ b.n }} pieces</td><td>{{ b.desc }}</td></tr>{% endfor %}</table>
+    </div>
+</div>
+<h2>Pieces</h2>
+<div class="grid">{% for p in pieces %}{{ w.item(p) }}{% endfor %}</div>
+{% endblock %}

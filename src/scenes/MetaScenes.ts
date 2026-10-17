@@ -6,7 +6,8 @@ import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { items, skills, themes, RARITY, STAT_INFO, TAGS } from '../content/registry';
 import type { Slot } from '../content/types';
-import { RunState, newRun, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
+import { MUTATORS, weeklyMutator } from '../game/mutators';
+import { RunState, newRun, dailyDay, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
 import { RaccoonView } from '../game/views';
 import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
@@ -140,12 +141,23 @@ export class PauseScene extends Phaser.Scene {
 
 // ---------------------------------------------------------------- run over
 
+// "BEATEN BY THE SWAMP KING. 2 STAGES SHORT OF YOUR RECORD."
+export function recap(r: RunState, dead: boolean, killer: string | undefined, best: number) {
+  const how = dead ? `BEATEN BY ${(killer || 'THE ROAD').toUpperCase()}.` : 'GOT OUT ALIVE.';
+  const rec = r.mode === 'daily' ? "TODAY'S BEST" : 'YOUR RECORD';
+  const gap = best - r.stage;
+  const far =
+    best <= 0 ? '' : gap < 0 ? ` ${-gap} PAST ${rec}!` : gap === 0 ? ` TIED ${rec}.` : ` ${gap} STAGE${gap > 1 ? 'S' : ''} SHORT OF ${rec}.`;
+  return how + far;
+}
+
 export class GameOverScene extends Phaser.Scene {
   constructor() {
     super('GameOver');
   }
 
-  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown>; killer?: Killer | null }) {
+  // killer: who the recap line blames; blame: the same, with what the share card needs.
+  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown>; killer?: string; bestBefore?: number; blame?: Killer | null }) {
     const r = data.run;
     const daily = r.mode === 'daily';
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.92).setOrigin(0).setInteractive();
@@ -198,6 +210,8 @@ export class GameOverScene extends Phaser.Scene {
       text(this, x, 70 + i * LINE_H, k, { origin: 0, color: COL.light });
       text(this, x + pw - 10, 70 + i * LINE_H, v, { origin: 1, color: COL.white });
     });
+    // One line on how it ended and how close it came to the record.
+    text(this, W / 2, H - 50, recap(r, dead, data.blame?.name ?? data.killer, data.bestBefore ?? 0), { color: COL.white, maxWidth: W - 16, maxLines: 1 });
     const note = text(
       this,
       W / 2,
@@ -239,7 +253,7 @@ export class GameOverScene extends Phaser.Scene {
     else button(this, W / 2, H - 16, bw, 22, 'SKIN SHOP', () => leave('Store', { back: 'Title' }), BTN.gold);
     button(this, W / 2 + bw + 4, H - 16, bw, 22, 'MENU', () => leave('Title'));
     onAction(this, 'confirm', again);
-    this.shareButton(r, data.reason, data.killer ?? null);
+    this.shareButton(r, data.reason, data.blame ?? null);
     // The title theme comes back once the game-over jingle has played.
     this.time.delayedCall(1400, () => menuMusic(this));
   }
@@ -343,14 +357,15 @@ export class TitleScene extends Phaser.Scene {
     };
     const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', () => go(), BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });
-    // The daily run: the same road for everyone today, a fresh level 1 raccoon.
-    button(this, mx - 36, 114, 68, 22, 'DAILY RUN', () => go(true), BTN.green);
-    button(this, mx + 36, 114, 68, 22, 'SKIN SHOP', () => {
+    // The daily run: the same road for everyone today, a fresh level 1 raccoon, and
+    // this week's rule on its second line.
+    button(this, mx - 40, 114, 76, 22, `DAILY RUN\n${MUTATORS[weeklyMutator(dailyDay())].name}`, () => go(true), BTN.green);
+    button(this, mx + 40, 114, 76, 22, 'SKIN SHOP', () => {
       sfx.unlock();
       this.scene.start('Store', { back: 'Title' });
     }, BTN.gold);
-    button(this, mx - 36, 140, 68, 20, 'HOW TO PLAY', () => this.scene.start('Tutorial', { next: 'Title' }));
-    button(this, mx + 36, 140, 68, 20, 'SCORES', () => {
+    button(this, mx - 40, 140, 76, 20, 'HOW TO PLAY', () => this.scene.start('Tutorial', { next: 'Title' }));
+    button(this, mx + 40, 140, 76, 20, 'SCORES', () => {
       sfx.unlock();
       this.scene.start('Scores', { back: 'Title' });
     }, BTN.violet);
@@ -361,9 +376,9 @@ export class TitleScene extends Phaser.Scene {
     };
     // Desktop (Steam) needs a way out; phones have their own.
     if (isSteam()) {
-      button(this, mx - 36, 164, 68, 18, 'SETTINGS', settings);
-      button(this, mx + 36, 164, 68, 18, 'QUIT', () => steam()?.quit(), BTN.red);
-    } else button(this, mx, 164, 68, 18, 'SETTINGS', settings);
+      button(this, mx - 40, 164, 76, 18, 'SETTINGS', settings);
+      button(this, mx + 40, 164, 76, 18, 'QUIT', () => steam()?.quit(), BTN.red);
+    } else button(this, mx, 164, 76, 18, 'SETTINGS', settings);
     const sub = store.kept
       ? 'YOUR RETREATED RACCOON KEEPS ITS LEVEL AND STATS'
       : store.bestStage > 0

@@ -1,0 +1,19 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}{{ area.name }}{% endblock %}
+{% block content %}
+<div class="sky" style="height:90px;background:linear-gradient({{ area.sky|join(',') }})"></div>
+<h1>{{ area.name }}</h1>
+<p><span class="pill">Tier {{ area.tier }}</span>{% if area.weather %}<span class="pill">{{ area.weather }}</span>{% endif %}{% if area.night %}<span class="pill">Night</span>{% endif %}</p>
+{% if area.hazard %}
+<h2>Hazard: {{ area.hazard.name }}</h2>
+<p>{{ area.hazard.desc }} <span class="muted">Every {{ area.hazard.every }} turns.</span></p>
+{% endif %}
+{% if boss %}<h2>Boss</h2><div class="grid small">{{ w.foe(boss) }}</div>{% endif %}
+<h2>Foes</h2>
+<div class="grid small">{% for e in foes %}{{ w.foe(e) }}{% endfor %}</div>
+{% if events %}
+<h2>Road events only here</h2>
+<div class="filters">{% for e in events %}<a href="{{ path('wiki_events') }}#{{ e.id }}">{{ e.title }}</a>{% endfor %}</div>
+{% endif %}
+{% endblock %}

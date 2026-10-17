@@ -30,6 +30,18 @@ framework:
             limit: 30
             interval: '1 hour'
             cache_pool: cache.rate_limiter
+        # mailing list sign-ups per IP address
+        signup:
+            policy: sliding_window
+            limit: 5
+            interval: '1 hour'
+            cache_pool: cache.rate_limiter
+        # counted site visits and store clicks per IP address (more are served, not counted)
+        site:
+            policy: sliding_window
+            limit: 30
+            interval: '1 hour'
+            cache_pool: cache.rate_limiter
     cache:
         pools:
             cache.rate_limiter:

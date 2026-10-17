@@ -5,6 +5,7 @@ import type { ThemeDef } from '../world/types';
 import { rollTier, Foe } from './combat';
 import { RunState, computeBonus, shinyMult } from './run';
 import { rand } from './rng';
+import { rules } from './mutators';
 
 export interface FoePick {
   ids: string[];
@@ -25,7 +26,7 @@ export function pickFoes(r: RunState, theme: ThemeDef): FoePick {
   const fallback = (families.get('street') ?? []).map((id) => enemies.get(id)!).filter(Boolean);
   const list = pool.length >= 2 ? pool : [...pool, ...fallback];
   let count = s < 2 ? 1 + (rand() < 0.3 ? 1 : 0) : s < 8 ? 2 : s < 20 ? 2 + (rand() < 0.5 ? 1 : 0) : s < 40 ? 3 : 3 + (rand() < 0.5 ? 1 : 0);
-  count = Math.min(4, count);
+  count = Math.min(4, count + (rules(r).extraFoe ? 1 : 0));
   const ids: string[] = [];
   let supports = 0;
   let guards = 0;
@@ -52,6 +53,9 @@ export function pickElite(r: RunState, theme: ThemeDef): FoePick {
 }
 
 export function eliteChance(r: RunState) {
+  // Weekly rules can make elites more common, starting from the third fight.
+  const mul = rules(r).eliteMul;
+  if (mul > 1) return r.stage >= 2 ? mul * (0.1 + Math.min(0.15, r.stage * 0.003)) : 0;
   return r.stage >= 4 ? 0.1 + Math.min(0.15, r.stage * 0.003) : 0;
 }
 

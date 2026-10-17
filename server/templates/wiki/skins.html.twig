@@ -1,0 +1,19 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Skins{% endblock %}
+{% block content %}
+<h1>Skins</h1>
+<p class="lead">Cosmetic looks from the shop, bought with Bottle Caps or Gems. Holiday skins are only sold during their season.</p>
+{% set rc = ['#94b0c2', '#41a6f6', '#b05ccf', '#ffa300'] %}
+{% for g, list in groups %}
+<h2>{{ {fur: 'Fur', outfit: 'Outfits', holiday: 'Holiday'}[g] ?? g }} ({{ list|length }})</h2>
+<div class="grid small">
+{% for s in list %}
+<div class="card col" id="{{ s.id }}">
+    {{ sprite('skins', s.id, 3, s.name) }}
+    <span class="t"><h3 style="color:{{ rc[s.rarity] }}">{{ s.name }}</h3><small>{{ wiki().skinRarities[s.rarity] }}{% if s.season %} · {{ seasons[s.season].name ?? s.season }}{% endif %}{% if s.effect %} · {{ s.effect }}{% endif %}</small></span>
+</div>
+{% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
