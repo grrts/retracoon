@@ -96,6 +96,12 @@ The clips, screenshots and press downloads in `server/public/site/` and `server/
 - Results from an offline phone still count for 30 minutes after a day or season closes, then the winner is paid. Each board is paid once (a lock plus a unique row per board and place). Only signed-in players are on these boards, so only they can win.
 - The game shows a "YOU WON!" popup on the title screen and then marks the prize seen. On Steam, which has no gem shop, the game turns a prize into Bottle Caps (10 per gem).
 
+## Shared runs
+
+**SHARE** on the game-over screen draws a 1200x630 card: the raccoon in its final gear in the area it reached, what ended the run (or "retreated in time"), the stage, and the site address (`VITE_SITE_URL`, default `https://retracoon.com`). Phones open the native share sheet, browsers with the Web Share API use it, and Steam and other desktops save the image and copy the line to the clipboard. Daily runs share a Wordle-style line, like `Retracoon daily 16 Oct · stage 23 · beaten by the Swamp King`.
+
+Signed-in players also get a page for the run: the game sends `POST /api/runs` with the card and the few facts the page shows, and gets back `/r/{id}` on the API's host. That page shows the card, the stage, area, level and loadout (linked into `/wiki`), and the site's store buttons (`STORE_*_URL`, counted through `/go/{store}`; empty ones are hidden). Its Open Graph and Twitter tags point at `/r/{id}.png`, so a shared link previews as the card. Players without an account share the card with a link to the site. Shared runs are deleted with the account; each player can share 30 runs an hour.
+
 ## Gameplay tracking
 
 The game sends a few events to `POST /api/events` under a random install id made on the device: `app_open`, `tutorial_done`, `run_start`, `run_end` (mode, reason, stage, area, level, bosses, time), `area_reached`, `boss_beaten`, `sign_in`, `purchase`, `shop_open`, `scores_open`. They are not linked to the account. Players can turn it off with STATS ON/OFF on the title screen.

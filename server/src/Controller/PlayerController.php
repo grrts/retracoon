@@ -9,6 +9,7 @@ use App\Entity\DailyScore;
 use App\Entity\Player;
 use App\Entity\Prize;
 use App\Entity\SeasonScore;
+use App\Entity\SharedRun;
 use App\Entity\Purchase;
 use App\Entity\Session;
 use App\Repository\DailyScoreRepository;
@@ -149,7 +150,7 @@ final class PlayerController extends AbstractController
         return $this->json(['player' => $this->standing->me($me)]);
     }
 
-    /** Deletes the player, their scores, friendships, purchases and sign-ins. */
+    /** Deletes the player, their scores, shared runs, friendships, purchases and sign-ins. */
     #[Route('/me', methods: ['DELETE'])]
     #[IsGranted('ROLE_PLAYER')]
     public function delete(#[CurrentUser] Player $me, AppleTokens $apple): Response
@@ -159,7 +160,7 @@ final class PlayerController extends AbstractController
             $apple->revoke($t);
         }
         // Explicit as well as ON DELETE CASCADE, for databases that don't enforce it.
-        foreach ([Session::class, Purchase::class, DailyScore::class, SeasonScore::class, Prize::class] as $class) {
+        foreach ([Session::class, Purchase::class, DailyScore::class, SeasonScore::class, Prize::class, SharedRun::class] as $class) {
             $this->em->createQuery("DELETE FROM $class x WHERE x.player = :p")->setParameter('p', $me)->execute();
         }
         $this->em->remove($me);

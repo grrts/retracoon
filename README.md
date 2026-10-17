@@ -39,6 +39,7 @@ Sign in is offered first (Google, Apple or Steam), or play as a guest and sign i
 - **Retreat** before any fight: the run ends, and your raccoon keeps its level and stats for the next run, which starts from the street again. Items, skills and shinies are lost. Retreating in time is how you get further.
 - **Death:** everything is reset. The next run starts at level 1.
 - Every run pays **Bottle Caps** for the skin shop either way.
+- **SHARE** on the game-over screen makes a pixel-art card of the raccoon in its final gear, the stage and what got it, for the share sheet. Signed in, the link opens the run's own page and previews as the card ([docs/ONLINE.md](docs/ONLINE.md#shared-runs)).
 
 ## Daily run and seasons
 

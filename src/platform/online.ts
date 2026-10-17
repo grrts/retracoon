@@ -286,3 +286,26 @@ export async function deleteAccount(): Promise<boolean> {
 export async function removeFriend(id: string) {
   await authed('DELETE', `/me/friends/${id}`);
 }
+
+export interface RunShareBody {
+  mode: 'normal' | 'daily';
+  day: string | null;
+  reason: 'death' | 'retreat';
+  stage: number;
+  area: number;
+  level: number;
+  theme: string;
+  themeName: string;
+  killer: string | null;
+  killerId: string | null;
+  gear: { slot: string; id: string; name: string; rarity: number; lvl: number }[];
+  card: string; // 1200x630 PNG, base64
+}
+
+// Gives a shared run its public page (/r/{id}, previewed by its card). Signed-in only:
+// the page names the player and goes with their account. null = offline or signed out.
+export async function shareRun(body: RunShareBody): Promise<string | null> {
+  if (!onlineConfigured() || !signedIn()) return null;
+  const res = await call<{ id: string; url: string }>('POST', '/runs', body);
+  return res.data?.url ?? null;
+}

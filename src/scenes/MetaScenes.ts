@@ -15,11 +15,16 @@ import { Parallax } from '../world/parallax';
 import { adsEnabled, showNativeLaunchAd } from '../platform/ads';
 import { initIap, loginPurchases } from '../platform/iap';
 import { isNative, isSteam, steam } from '../platform/native';
-import { submitBest, flushRuns, needsSignIn, profile, prizesSeen, signedIn, onlineConfigured, type Me } from '../platform/online';
+import { submitBest, flushRuns, needsSignIn, profile, prizesSeen, signedIn, onlineConfigured, shareRun, type Me } from '../platform/online';
+import { shareCard, blobToBase64 } from '../platform/share';
+import { SITE_URL } from '../platform/config';
+import { renderRunCard } from '../gfx/runCard';
+import { shareLine, type Killer } from '../game/share';
 import { startTracking, setTracking } from '../platform/track';
 import { addCaps } from '../meta/economy';
 import { continueBoot } from './AccountScenes';
 import { onAction, padConnected } from '../input';
+import { areasFound } from './MapScene';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -152,7 +157,8 @@ export class GameOverScene extends Phaser.Scene {
     super('GameOver');
   }
 
-  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown>; killer?: string; bestBefore?: number }) {
+  // killer: who the recap line blames; blame: the same, with what the share card needs.
+  create(data: { run: RunState; reason: 'death' | 'retreat'; newBest: boolean; caps: number; sent?: Promise<unknown>; killer?: string; bestBefore?: number; blame?: Killer | null }) {
     const r = data.run;
     const daily = r.mode === 'daily';
     this.add.rectangle(0, 0, W, H, 0x1a1c2c, 0.92).setOrigin(0).setInteractive();
@@ -206,7 +212,7 @@ export class GameOverScene extends Phaser.Scene {
       text(this, x + pw - 10, 70 + i * LINE_H, v, { origin: 1, color: COL.white });
     });
     // One line on how it ended and how close it came to the record.
-    text(this, W / 2, H - 50, recap(r, dead, data.killer, data.bestBefore ?? 0), { color: COL.white, maxWidth: W - 16, maxLines: 1 });
+    text(this, W / 2, H - 50, recap(r, dead, data.blame?.name ?? data.killer, data.bestBefore ?? 0), { color: COL.white, maxWidth: W - 16, maxLines: 1 });
     const note = text(
       this,
       W / 2,
@@ -248,9 +254,63 @@ export class GameOverScene extends Phaser.Scene {
     else button(this, W / 2, H - 16, bw, 22, 'SKIN SHOP', () => leave('Store', { back: 'Title' }), BTN.gold);
     button(this, W / 2 + bw + 4, H - 16, bw, 22, 'MENU', () => leave('Title'));
     onAction(this, 'confirm', again);
+    this.shareButton(r, data.reason, data.blame ?? null);
     // The title theme comes back once the game-over jingle has played.
     this.time.delayedCall(1400, () => menuMusic(this));
   }
+
+  private shareButton(r: RunState, reason: 'death' | 'retreat', killer: Killer | null) {
+    let busy = false;
+    let card: Blob | null = null;
+    let url: string | null = null;
+    const b = button(this, W - 38, 14, 60, 18, 'SHARE', async () => {
+      if (busy) return;
+      busy = true;
+      b.setLabel('...');
+      try {
+        card ??= await renderRunCard(this, { run: r, skin: store.skin, reason, killer });
+        // Signed in, the run gets its own page; its link previews the card.
+        url ??= await shareRun(shareBody(r, reason, killer, await blobToBase64(card)));
+        const res = await shareCard(card, shareLine({ mode: r.mode === 'daily' ? 'daily' : 'normal', day: r.day, reason, stage: r.stage, killer }), url ?? SITE_URL);
+        if (!b.c.active) return;
+        b.setLabel(res === 'shared' ? 'SHARED!' : res === 'saved' ? 'SAVED!' : res === 'failed' ? 'OOPS' : 'SHARE');
+        if (res === 'saved') this.flashNote('CARD SAVED AND LINK COPIED');
+        else if (res === 'failed') this.flashNote("COULDN'T SHARE THIS TIME");
+      } catch (e) {
+        console.warn('share failed', e);
+        if (b.c.active) b.setLabel('OOPS');
+      }
+      busy = false;
+    }, BTN.gold);
+  }
+
+  private flashNote(s: string) {
+    const t = text(this, W / 2, H - 30, s, { color: COL.yellow }).setDepth(60);
+    this.tweens.add({ targets: t, alpha: 0, delay: 1800, duration: 400, onComplete: () => t.destroy() });
+  }
+}
+
+// Shared run: the card, and for signed-in players a page of its own to link to.
+function shareBody(r: RunState, reason: 'death' | 'retreat', killer: Killer | null, card: string) {
+  return {
+    mode: r.mode === 'daily' ? ('daily' as const) : ('normal' as const),
+    day: r.mode === 'daily' ? r.day : null,
+    reason,
+    stage: r.stage,
+    area: r.area + 1,
+    level: r.level,
+    theme: r.theme,
+    themeName: themes.get(r.theme)?.name ?? r.theme.toUpperCase(),
+    killer: reason === 'death' ? killer?.name ?? null : null,
+    killerId: reason === 'death' ? killer?.id ?? null : null,
+    gear: (Object.entries(r.gear) as [Slot, { id: string; lvl: number } | undefined][])
+      .filter(([, o]) => o && items.get(o.id))
+      .map(([slot, o]) => {
+        const def = items.get(o!.id)!;
+        return { slot, id: def.id, name: def.name, rarity: def.rarity, lvl: o!.lvl };
+      }),
+    card,
+  };
 }
 
 // ---------------------------------------------------------------- title
@@ -280,6 +340,12 @@ export class TitleScene extends Phaser.Scene {
     this.add.image(cx, GROUND_Y + 1, 'shadow').setScale(2.5);
     this.coon = new RaccoonView(this, cx, GROUND_Y + 1, null, store.skin).setScale(3);
     this.coon.play('walk', 99);
+    // How far you have got: the areas you have walked through so far.
+    const { found, total } = areasFound();
+    button(this, cx, 30, 72, 16, `MAP ${found}/${total}`, () => {
+      sfx.unlock();
+      this.scene.start('Map', { back: 'Title' });
+    });
 
     const mx = Math.round(W * 0.6);
     const logo = text(this, mx, 34, 'RETRACOON', { scale: 3, color: COL.white });
