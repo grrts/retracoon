@@ -127,6 +127,23 @@ export function ensureItem(scene: Phaser.Scene, id: string) {
   mapTexture(scene, `item_${it.id}`, it.icon ?? (it.gear?.length ? gearIcon(it.gear) : ['k']));
 }
 
+// The checkered flag planted on the road at your best stage, and its flutter frame
+// (the free end of the cloth dips a pixel).
+const BEST_FLAG = pad([
+  '.kk..........',
+  'kyyk.........',
+  'kOOkkkkkkkkkk',
+  'kwlkwwddwwddk',
+  'kwlkwwddwwddk',
+  'kwlkddwwddwwk',
+  'kwlkddwwddwwk',
+  'kwlkwwddwwddk',
+  'kwlkwwddwwddk',
+  'kwlkkkkkkkkkk',
+  ...Array<string>(12).fill('kwlk'),
+]);
+const BEST_FLAG_1 = BEST_FLAG.map((row, y, a) => row.slice(0, 8) + (y === 2 ? '.....' : y >= 3 && y <= 10 ? a[y - 1].slice(8) : row.slice(8)));
+
 // Small particle shapes for auras, skins and weather.
 const PARTICLES: Record<string, string[]> = {
   heart: ['.w.w.', 'wwwww', '.www.', '..w..'],
@@ -157,6 +174,8 @@ export function buildTextures(scene: Phaser.Scene) {
     sack3: ['....kkk....', '...knnnk...', '..knyOnnk..', '.knnnnyNnk.', 'knOnnnnnnNk', 'knnnynnOnnk', 'knnnnnnnnNk', '.kkkkkkkkk.'],
     flag: ['w..', 'www', 'www', 'w..', 'w..', 'w..'],
     flag_big: ['w...', 'wwww', 'wwww', 'wwww', 'w...', 'w...', 'w...'],
+    bestflag0: BEST_FLAG,
+    bestflag1: BEST_FLAG_1,
     sign: ['.kkkkkkkkkk.', 'knnnnnnnnnnk', 'kNnnnnnnnnNk', 'knnnnnnnnnnk', '.kkkkkkkkkk.', '.....kk.....', '.....kn.....', '.....kn.....', '.....kn.....', '.....kn.....', '.....kn.....'],
     chest: ['.kkkkkkkkk.', 'knnnnnnnnnk', 'kNNNkykNNNk', 'kkkkkykkkkk', 'knnnnnnnnnk', 'knnnnnnnnnk', 'kkkkkkkkkkk'],
   };
