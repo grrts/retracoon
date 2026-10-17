@@ -363,9 +363,7 @@ export class TitleScene extends Phaser.Scene {
       sfx.unlock();
       sfx.select();
       this.cameras.main.fadeOut(220, 26, 28, 44);
-      this.cameras.main.once('camerafadeoutcomplete', () =>
-        !store.tutorialDone ? this.scene.start('Tutorial', { next: 'Run' }) : this.scene.start('Run', daily ? { run: newRun('daily') } : {}),
-      );
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Run', daily ? { run: newRun('daily') } : {}));
     };
     const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', () => go(), BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });

@@ -206,6 +206,7 @@ export class RunScene extends Phaser.Scene {
     else this.banner(this.theme.name, this.world.season ? this.world.season.banner : 'WHERE IT ALL STARTS', this.world.season ? COL.yellow : COL.white);
     this.markTheme();
     this.time.delayedCall(500, () => this.walk());
+    this.time.delayedCall(2000, () => this.hint('goal', 'GET AS FAR AS YOU CAN!'));
   }
 
   private markTheme() {
@@ -511,6 +512,7 @@ export class RunScene extends Phaser.Scene {
         this.banner(`${TIERS[newTier].name} CRITTERS!`, 'TOUGHER, MEANER, NEW TRICKS', TIERS[newTier].color);
       } else if (boss) this.banner(this.combat!.foes[0].def.name, 'BOSS FIGHT', COL.red);
       this.showPrompt();
+      if (boss) this.hint('boss', 'BEAT THE BOSS TO REACH A NEW AREA.');
     });
   }
 
@@ -531,7 +533,8 @@ export class RunScene extends Phaser.Scene {
     const fight = button(this, W / 2 - pw / 4, H - 13, pw / 2 - 10, 18, 'FIGHT', () => this.beginFight(), { ...BTN.red, depth: 52 });
     const retreat = button(this, W / 2 + pw / 4, H - 13, pw / 2 - 10, 18, 'RETREAT', () => this.confirmRetreat(), { depth: 52 });
     this.ui.push(g, t1, t2, fight.c, retreat.c);
-    this.hint('retreat', 'RETREAT ENDS THE RUN BUT YOUR RACCOON KEEPS ITS LEVEL AND STATS.');
+    // Taught once the fights start to bite, not before the very first one.
+    if (this.run.fights >= 3 && !boss) this.hint('danger', 'FOES GET TOUGHER. RETREAT KEEPS YOUR LEVEL.');
   }
 
   // One-time hints for new players.
@@ -775,7 +778,7 @@ export class RunScene extends Phaser.Scene {
   private beginFight() {
     this.clearCombatUi();
     this.foeLabels(true);
-    this.hint('combat', 'SPEND ALL YOUR AP ON SKILLS. THE ICON OVER A FOE SHOWS ITS NEXT MOVE.');
+    this.hint('combat', 'TAP SKILLS TO SPEND YOUR AP.');
     this.run.fights++;
     const c = this.combat!;
     this.layoutFoes(false);
@@ -893,6 +896,7 @@ export class RunScene extends Phaser.Scene {
     if (!this.skillBtns.length) this.buildCombatUi();
     this.refreshCombatUi();
     this.refreshHud();
+    if (c.turn >= 2) this.hint('intent', 'THE ICON OVER A FOE IS ITS NEXT MOVE.');
     // Out of AP (or nothing left it can buy): the turn ends by itself, after a beat.
     if (!c.canSpend()) {
       this.busy = true;
@@ -1236,6 +1240,10 @@ export class RunScene extends Phaser.Scene {
     roll(r, 'after');
     const { xp, shinies: sh } = fightRewards(r, c.killed);
     fightEnds(r, c, true);
+    if (!store.tipsSeen.includes('first_win')) {
+      store.tipsSeen.push('first_win');
+      track('tutorial_done');
+    }
     r.shinies += sh;
     r.shiniesEarned += sh;
     r.bestCombo = Math.max(r.bestCombo, c.bestCombo);

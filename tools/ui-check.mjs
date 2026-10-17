@@ -79,7 +79,7 @@ for (const [w, h] of SIZES) {
   const page = await browser.newPage({ viewport: { width: w, height: h } });
   page.on('pageerror', (e) => problems.push(`${w}x${h}: page error ${e.message} ${(e.stack ?? '').split('\n').slice(1, 4).join(' | ')}`));
   await page.goto(url);
-  await page.waitForFunction(() => ['Ad', 'Title', 'Tutorial', 'SignIn'].some((k) => window.__game?.scene?.isActive(k)), null, { timeout: 15000 });
+  await page.waitForFunction(() => ['Ad', 'Title', 'SignIn'].some((k) => window.__game?.scene?.isActive(k)), null, { timeout: 15000 });
   const shot = async (name) => {
     await sleep(450);
     check(`${w}x${h} ${name}`, await page.evaluate(collect));
@@ -92,14 +92,13 @@ for (const [w, h] of SIZES) {
       g.scene.start(k, d);
     }, [key, data]);
 
-  if (await page.evaluate(() => window.__game.scene.isActive('Tutorial'))) await shot('first-tutorial');
   await start('Ad');
   await shot('ad-note');
   await start('SignIn', { then: 'Title' });
   await shot('signin');
   await start('Title');
   await shot('title');
-  for (let i = 0; i < 6; i++) {
+  for (let i = 0; i < 4; i++) {
     await start('Tutorial', { next: 'Title' });
     await page.evaluate((n) => {
       const t = window.__game.scene.getScene('Tutorial');

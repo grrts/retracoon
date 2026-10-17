@@ -27,7 +27,7 @@ export interface Store {
   noAds: boolean;
   purchases: string[]; // product ids bought (for restore and receipts in test mode)
   lastRunGear: { slot: string; id: string; lvl: number }[]; // shown in the wardrobe preview
-  tutorialDone: boolean;
+  tutorialDone: boolean; // saw the old page-by-page tutorial (before first-run hints)
   signInOffered: boolean; // the launch sign-in screen was shown once
   tipsSeen: string[]; // one-time hints already shown during runs
   // online scoreboard
@@ -141,6 +141,11 @@ function load(): Store {
 }
 
 export const store: Store = load();
+
+// Hints that replaced the old tutorial pages. Players who already read those pages
+// don't need them again.
+const FIRST_RUN_HINTS = ['goal', 'combat', 'intent', 'danger', 'boss', 'first_win'];
+if (store.tutorialDone) for (const id of FIRST_RUN_HINTS) if (!store.tipsSeen.includes(id)) store.tipsSeen.push(id);
 
 export function save() {
   store.savedAt = Date.now();

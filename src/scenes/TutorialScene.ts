@@ -1,11 +1,10 @@
-// How to play: a few short pages shown before the first run, and from the title screen.
+// How to play: a short recap from the title screen. New players learn in their first run.
 import Phaser from 'phaser';
-import { track } from '../platform/track';
 import { W, H } from '../config';
 import { text, button, panel, BTN } from '../ui';
 import { onAction } from '../input';
 import { sfx, menuMusic } from '../audio';
-import { store, save } from '../save';
+import { store } from '../save';
 import { COL } from '../gfx/palette';
 import { RaccoonView } from '../game/views';
 import { ensureEnemy, enemyKey } from '../gfx/textures';
@@ -24,20 +23,21 @@ const foe = (s: Phaser.Scene, id: string, x: number, y: number, scale = 2) => {
   if (s.textures.exists(enemyKey(id, 0))) s.add.image(x, y, enemyKey(id, 0)).setOrigin(0.5, 1).setScale(scale);
 };
 
+// One idea per page, a line or two each. The first run teaches the rest with one-time hints.
 const PAGES: Page[] = [
   {
-    title: 'THE GOAL',
+    title: 'GO FAR',
     color: COL.yellow,
-    lines: ['GET AS FAR AS YOU CAN.', 'THE ROAD NEVER ENDS, AND EVERY STAGE IS HARDER THAN THE LAST.', 'YOUR BEST STAGE GOES ON THE SCOREBOARD.'],
+    lines: ['THE ROAD NEVER ENDS.', 'GET AS FAR AS YOU CAN.'],
     art: (s, x, y) => {
       s.coon(x - 40, y);
       s.add.image(x + 40, y, 'flag_big').setOrigin(0.5, 1).setScale(3).setTint(0xffcd75);
     },
   },
   {
-    title: 'FIGHTING',
+    title: 'FIGHT',
     color: COL.red,
-    lines: ['EACH TURN YOU GET ACTION POINTS (AP). TAP SKILLS TO SPEND THEM. THE TURN ENDS WHEN THEY RUN OUT.', 'THE ICON ABOVE A FOE SHOWS WHAT IT WILL DO NEXT. BLOCK THE BIG HITS.'],
+    lines: ['TAP SKILLS TO SPEND AP.', 'FOE ICONS SHOW THEIR NEXT MOVE.'],
     art: (s, x, y) => {
       s.coon(x - 50, y);
       foe(s, 'rat', x + 40, y);
@@ -46,41 +46,18 @@ const PAGES: Page[] = [
     },
   },
   {
-    title: 'GROWING',
+    title: 'GROW',
     color: COL.lime,
-    lines: ['WINS GIVE XP. EACH LEVEL GIVES 3 STAT POINTS AND A NEW SKILL.', 'SPREAD YOUR POINTS: ONE STAT ALONE STOPS PAYING OFF.', 'EVERY ITEM YOU FIND IS WORN BY YOUR RACCOON.'],
+    lines: ['LEVEL UP AND SPREAD YOUR STATS.', 'YOUR RACCOON WEARS ITS LOOT.'],
     art: (s, x, y) => s.coon(x, y, ['wizard_hat', 'golf_club', 'leaf_cape']),
   },
   {
-    title: 'BOSSES',
-    color: COL.orange,
-    lines: ['EACH AREA HIDES A BOSS. THE FIRST WITHIN 2 TO 4 FIGHTS, LATER ONES DEEPER.', 'YOU NEVER KNOW WHICH STAGE. BEAT IT TO REACH A NEW PLACE.'],
-    art: (s, x, y) => {
-      s.coon(x - 60, y);
-      foe(s, 'van', x + 30, y, 1);
-    },
-  },
-  {
-    title: 'RETREAT OR RISK IT',
+    title: 'RETREAT?',
     color: COL.ice,
-    lines: [
-      'BEFORE EVERY FIGHT YOU CAN RETREAT.',
-      'RETREAT: YOUR RACCOON KEEPS ITS LEVEL AND STATS AND STARTS AGAIN FROM THE STREET.',
-      'DIE: EVERYTHING IS RESET TO LEVEL 1. KNOW WHEN TO GO HOME.',
-      'FOES GET MUCH TOUGHER EVERY FIGHT. A NEW RACCOON SHOULD THINK ABOUT HOME BY FIGHT 5.',
-    ],
+    lines: ['RETREAT KEEPS YOUR LEVEL.', 'DYING RESETS IT.'],
     art: (s, x, y) => {
       s.coon(x - 40, y);
       s.add.image(x + 30, y, 'can').setOrigin(0.5, 1).setScale(3);
-    },
-  },
-  {
-    title: 'BOTTLE CAPS',
-    color: COL.yellow,
-    lines: ['EVERY RUN PAYS BOTTLE CAPS, WIN OR LOSE.', 'SPEND THEM ON SKINS IN THE SKIN SHOP. NEW DEALS EVERY WEEK.'],
-    art: (s, x, y) => {
-      s.coon(x - 30, y);
-      [0, 1, 2].forEach((i) => s.add.image(x + 20 + i * 16, y - 8 - (i % 2) * 6, 'bottlecap').setScale(2));
     },
   },
 ];
@@ -95,11 +72,8 @@ export class TutorialScene extends Phaser.Scene {
     super('Tutorial');
   }
 
-  private forced = false;
-
-  init(data: { next?: string; forced?: boolean }) {
+  init(data: { next?: string }) {
     this.next = data.next ?? 'Title';
-    this.forced = !!data.forced;
     this.page = 0;
     this.layer = [];
     this.coons = [];
@@ -108,10 +82,10 @@ export class TutorialScene extends Phaser.Scene {
   create() {
     menuMusic(this);
     this.add.rectangle(0, 0, W, H, 0x1a1c2c).setOrigin(0);
-    if (!this.forced) button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
+    button(this, W - 30, 12, 52, 16, 'SKIP', () => this.finish(), BTN.red);
     onAction(this, ['right', 'confirm'], () => this.go(1));
     onAction(this, 'left', () => this.go(-1));
-    if (!this.forced) onAction(this, 'back', () => this.finish());
+    onAction(this, 'back', () => this.finish());
     this.draw();
   }
 
@@ -170,9 +144,6 @@ export class TutorialScene extends Phaser.Scene {
   }
 
   private finish() {
-    if (!store.tutorialDone) track('tutorial_done');
-    store.tutorialDone = true;
-    save();
     this.scene.start(this.next);
   }
 }
