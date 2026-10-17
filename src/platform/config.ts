@@ -56,3 +56,7 @@ export const SIGN_IN = {
   appleServiceId: (import.meta.env.VITE_APPLE_SERVICE_ID as string | undefined) ?? '',
   appleRedirectUrl: (import.meta.env.VITE_APPLE_REDIRECT_URL as string | undefined) ?? '',
 };
+
+// The game's website, printed on shared run cards and linked when a run is shared
+// without an account (signed-in players get a link to their run's own page instead).
+export const SITE_URL = ((import.meta.env.VITE_SITE_URL as string | undefined) || 'https://retracoon.com').replace(/\/+$/, '');
