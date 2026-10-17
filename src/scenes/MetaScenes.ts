@@ -24,6 +24,7 @@ import { startTracking, setTracking } from '../platform/track';
 import { addCaps } from '../meta/economy';
 import { continueBoot } from './AccountScenes';
 import { onAction, padConnected } from '../input';
+import { checkAchievements, syncAchievements, steamPresence } from '../platform/achievements';
 import { areasFound } from './MapScene';
 
 // ---------------------------------------------------------------- shared bits
@@ -327,6 +328,7 @@ export class TitleScene extends Phaser.Scene {
   create() {
     this.started = false;
     menuMusic(this);
+    steamPresence(null);
     // Catch up on runs and a best score that couldn't be sent earlier (offline at the time),
     // then tell the player about any board they won.
     void flushRuns()
@@ -544,6 +546,8 @@ export class BootScene extends Phaser.Scene {
   create() {
     loadContent();
     buildTextures(this);
+    checkAchievements();
+    syncAchievements();
     startTracking();
     void initIap();
     // An account comes first (when the game has a server), then the first-launch

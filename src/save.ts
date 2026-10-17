@@ -45,6 +45,8 @@ export interface Store {
   windowSize: number; // index into WINDOW_SIZES (Steam, windowed)
   keys: Record<string, string[]>; // action -> KeyboardEvent.code; missing = default (see input.ts)
   pad: Record<string, number[]>; // action -> gamepad button index
+  achievements: string[]; // ids earned (platform/achievements.ts)
+  savedAt: number; // when this save was written; the newer of this and Steam Cloud's wins
 }
 
 export interface PendingRun {
@@ -96,14 +98,32 @@ function base(): Store {
     windowSize: 1,
     keys: {},
     pad: {},
+    achievements: [],
+    savedAt: 0,
   };
+}
+
+// On Steam the save is also kept in Steam Cloud (steam/main.cjs), so it follows the
+// player between a PC and a Steam Deck. Whichever copy was written last wins.
+const STEAM_BRIDGE = () => (globalThis as { retracoonSteam?: { cloudRead?(): string | null; cloudWrite?(json: string): void } }).retracoonSteam;
+
+function cloudSave(): Partial<Store> | null {
+  try {
+    const raw = STEAM_BRIDGE()?.cloudRead?.();
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
 }
 
 function load(): Store {
   const b = base();
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...b, ...JSON.parse(raw) };
+    const local: Partial<Store> | null = raw ? JSON.parse(raw) : null;
+    const cloud = cloudSave();
+    if (cloud && (cloud.savedAt ?? 0) > (local?.savedAt ?? 0)) return { ...b, ...cloud };
+    if (local) return { ...b, ...local };
     const old = localStorage.getItem(OLD_KEY);
     if (old) {
       const o = JSON.parse(old);
@@ -118,8 +138,15 @@ function load(): Store {
 export const store: Store = load();
 
 export function save() {
+  store.savedAt = Date.now();
+  const json = JSON.stringify(store);
   try {
-    localStorage.setItem(KEY, JSON.stringify(store));
+    localStorage.setItem(KEY, json);
+  } catch {
+    /* ignore */
+  }
+  try {
+    STEAM_BRIDGE()?.cloudWrite?.(json);
   } catch {
     /* ignore */
   }

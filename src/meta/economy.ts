@@ -5,6 +5,7 @@ import { activeSeasons } from '../world/calendar';
 import type { SkinDef } from './types';
 import { isSteam } from '../platform/native';
 import { onlineConfigured, signedIn, spendGems } from '../platform/online';
+import { checkAchievements } from '../platform/achievements';
 
 export const SKIN_RARITY = [
   { name: 'COMMON', color: 0x94b0c2, caps: 500, gems: 0 },
@@ -111,6 +112,7 @@ export async function buySkin(id: string, currency: 'caps' | 'gems'): Promise<'o
   if (!store.skins.includes(id)) store.skins.push(id);
   store.skin = id;
   save();
+  checkAchievements();
   return 'ok';
 }
 

@@ -36,6 +36,7 @@ import { ensureEnemy, enemyKey } from '../gfx/textures';
 import { Parallax } from '../world/parallax';
 import { addCaps } from '../meta/economy';
 import { submitRun } from '../platform/online';
+import { checkAchievements, steamPresence } from '../platform/achievements';
 import { killerOf, type Killer } from '../game/share';
 import { track } from '../platform/track';
 import { skills } from '../content/registry';
@@ -189,6 +190,7 @@ export class RunScene extends Phaser.Scene {
       sfx.resume();
       this.refreshHud();
       this.coon.setGear(this.run);
+      checkAchievements(this.run);
     });
 
     this.cameras.main.fadeIn(250, 26, 28, 44);
@@ -205,6 +207,8 @@ export class RunScene extends Phaser.Scene {
       store.themesSeen.push(this.theme.id);
       save();
     }
+    checkAchievements(this.run);
+    steamPresence(this.run);
   }
 
   private applyLight() {
@@ -603,6 +607,7 @@ export class RunScene extends Phaser.Scene {
     const caps = capsForRun(r);
     addCaps(caps);
     save();
+    checkAchievements(r);
     track('run_end', { mode: r.mode, reason, stage: r.stage, area: r.area + 1, level: r.level, bosses: r.bosses, theme: r.theme, time_s: Math.round(timeMs / 1000) });
     const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin });
     sfx.stopMusic();
@@ -1241,6 +1246,8 @@ export class RunScene extends Phaser.Scene {
     }
     const ups = gainXp(r, xp);
     if (ups > 0) r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.1 * ups));
+    checkAchievements(r);
+    steamPresence(r);
     const after = afterFight(r);
     this.combat = null;
     sfx.clear();

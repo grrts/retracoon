@@ -37,7 +37,7 @@ Checked October 2026 against Google Play, the App Store and Steam, for the build
 | **AI content disclosure** in the Content Survey (pre-generated content made with AI tools). | **You:** this game's code and pixel art were made with AI help, so disclose that in the Content Survey. |
 | **Third-party accounts** must be disclosed on the store page. | Pass. Sign-in uses the Steam account itself. |
 | **Privacy policy and store page review**, Steam Direct fee, 30 days before release. | **You.** |
-| **Steam Deck Verified** needs full controller support. | Not required to sell. The game is tap and mouse only, so it will rate as Playable at best for now. |
+| **Steam Deck Verified** needs full controller support, readable text and the on-screen keyboard for text boxes. | Not required to sell. Every screen works with a controller and text boxes open Steam's keyboard on a Deck. **You:** set the Steam Input default to Gamepad and request the Deck review. |
 
 ## Sources
 
