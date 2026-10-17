@@ -5,6 +5,7 @@ namespace App\Controller;
 use App\Repository\DailyScoreRepository;
 use App\Service\Periods;
 use App\Service\Present;
+use App\Service\StoreLinks;
 use App\Service\Wiki;
 use Psr\Log\LoggerInterface;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
@@ -30,9 +31,7 @@ final class SiteController extends AbstractController
 
     public function __construct(
         private readonly Wiki $wiki,
-        #[Autowire('%env(STORE_GOOGLE_PLAY_URL)%')] private readonly string $googlePlay,
-        #[Autowire('%env(STORE_APP_STORE_URL)%')] private readonly string $appStore,
-        #[Autowire('%env(STORE_STEAM_URL)%')] private readonly string $steam,
+        private readonly StoreLinks $stores,
         #[Autowire('%kernel.project_dir%/public')] private readonly string $public,
     ) {
     }
@@ -105,12 +104,6 @@ final class SiteController extends AbstractController
     /** @param array<string, mixed> $vars */
     private function page(string $template, array $vars = []): Response
     {
-        $stores = array_filter([
-            'Google Play' => $this->googlePlay,
-            'App Store' => $this->appStore,
-            'Steam' => $this->steam,
-        ]);
-
-        return $this->render($template, $vars + ['stores' => $stores]);
+        return $this->render($template, $vars + ['stores' => $this->stores->live()]);
     }
 }

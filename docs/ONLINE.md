@@ -44,6 +44,15 @@ REVENUECAT_WEBHOOK_AUTH=...
 SUPPORT_EMAIL=support@retracoon.com
 # Optional: a long random key that unlocks GET /api/stats (soft-launch numbers)
 STATS_KEY=...
+# Website: the mailing list's confirm emails (any SMTP provider), and the store pages
+# behind the store buttons. Leave a store empty to hide its button until it is live.
+MAILER_DSN=smtp://USER:PASSWORD@smtp.example.com:587
+MAILER_FROM="Retracoon <news@retracoon.com>"
+STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
+STORE_APP_STORE_URL=
+STORE_STEAM_URL=
+# The site's address, used for links in emails and exports
+DEFAULT_URI=https://retracoon.com
 ```
 
 Then:
@@ -70,19 +79,13 @@ The same Symfony app serves the website, server-rendered with Twig (no JavaScrip
 
 | Page | What it is |
 |---|---|
-| `/` | Landing page: the pitch, store buttons, today's daily top 5, three features with clips, a random rare item from the wiki |
+| `/` | Landing page: the pitch, store buttons, today's daily top 5, three features with clips, a random rare item from the wiki, the mailing list form |
 | `/wiki` | The content wiki (see `server/README.md`) |
 | `/privacy` | The privacy policy (`server/templates/site/privacy.html.twig`); use this URL in the stores |
 | `/press` | Press kit: pitch, fact sheet and downloads from `server/public/downloads/` |
 | `/account/delete` | Account deletion steps for Google Play |
 
-Store buttons appear once their URL is set in `server/.env.local`; until then the page says the game is coming:
-
-```dotenv
-STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
-STORE_APP_STORE_URL=https://apps.apple.com/app/...
-STORE_STEAM_URL=https://store.steampowered.com/app/...
-```
+Store buttons appear once their `STORE_*_URL` is set (see the `.env.local` above) and go through the click counter described under "Website: mailing list and visit counts"; until none is set, the page says the game is coming. The landing page also carries the mailing list form.
 
 The clips, screenshots and press downloads in `server/public/site/` and `server/public/downloads/` come from the marketing kit, compressed for the web by `tools/site-media.sh /path/to/marketing` (needs ffmpeg). Rerun it when the kit changes. Headings use the game's own pixel font, turned into `server/public/site/retracoon-px.woff2` by `python3 tools/site-font.py` (needs `pip install fonttools brotli`); rerun it if `src/gfx/font.ts` changes. The design direction is in the page CSS, `server/templates/site/_site.css.twig`.
 
@@ -106,6 +109,18 @@ php bin/console app:stats --days=14
 That prints installs, players, runs, daily runs, median stage, the share of runs that left the first area, and day 1, 7 and 30 retention per install day. The same numbers come from `GET /api/stats?days=14` with header `X-Stats-Key: <STATS_KEY>` (404 without it). Good soft-launch targets: 35% back on day 1, 10% on day 7.
 
 Events are kept until you delete them, e.g. `DELETE FROM play_event WHERE at < now() - interval '180 days'` in a monthly cron job.
+
+## Website: mailing list and visit counts
+
+**Mailing list.** `/list` has a sign-up form (email only); any page can show it with `{% include 'list/_signup.html.twig' %}`. Signing up sends a confirm link (double opt-in), and only confirmed addresses are on the list. Unconfirmed sign-ups are deleted after a week; unsubscribing deletes the address. Confirm and unsubscribe links open a page with a button, so mail scanners that open links can't act on them. Export the list for your mail tool:
+
+```bash
+php bin/console app:mailing-list:export -o list.csv   # email, confirmed_at, unsubscribe_url
+```
+
+Put each address's `unsubscribe_url` in the mail as a link, and in the `List-Unsubscribe` header with `List-Unsubscribe-Post: List-Unsubscribe=One-Click` (the link accepts that one-click POST).
+
+**Visits and store clicks.** The landing page (`/`) counts its visits, and store buttons go through `/go/google-play`, `/go/app-store` and `/go/steam`, which count the click and redirect to the `STORE_*_URL`. In Twig: `{% if store_live('steam') %}<a href="{{ store_link('steam') }}">...</a>{% endif %}`; `store_link()` carries the visit's referring site and UTM tags into the click. Only daily counters are stored per referring site and `utm_source`, `utm_medium`, `utm_campaign`: no cookies, IP addresses or anything else about the visitor. Bots are skipped, and one address counts at most 30 times an hour. `app:stats` prints them under the game numbers, with the mailing list size. Tag links you post, e.g. `https://retracoon.com/?utm_source=reddit&utm_campaign=launch`.
 
 ## Connecting the game
 

@@ -123,6 +123,17 @@ a.loot:hover{text-decoration:none;box-shadow:inset 0 0 0 2px var(--glow)}
 .final .body{margin:0 auto 30px}
 .final .btns{justify-content:center}
 
+/* The mailing list form (list/_signup.html.twig brings its own base styles; these win). */
+.news{margin:44px auto 0;max-width:520px;text-align:left}
+body .signup{background:var(--ink);border:0;padding:22px;max-width:none;font:16px/1.5 var(--sans);box-shadow:inset 0 0 0 2px var(--slate)}
+body .signup label{font:20px/1 var(--px);letter-spacing:0;color:var(--gold);margin-bottom:14px}
+body .signup .row{gap:10px}
+body .signup input[type=email]{font:16px/1.4 var(--sans);background:var(--night);border:2px solid var(--steel);padding:12px 14px;color:var(--white)}
+body .signup input[type=email]:focus{border-color:var(--gold);outline:0}
+body .signup button{font:20px/1 var(--px);text-transform:uppercase;background:var(--gold);color:var(--ink);border:0;padding:12px 18px;box-shadow:4px 4px 0 var(--orange)}
+body .signup button:active{transform:translate(4px,4px);box-shadow:none}
+body .signup small{font-size:13px;margin-top:12px}
+
 /* Reading pages: press kit and privacy */
 .page{padding:56px 0 80px}
 .page h1{margin:0 0 20px;font:40px/1.2 var(--px);color:var(--gold);text-shadow:3px 3px 0 var(--plum)}
@@ -183,6 +194,7 @@ a.loot:hover{text-decoration:none;box-shadow:inset 0 0 0 2px var(--glow)}
   .loot{grid-template-columns:1fr;justify-items:center;text-align:center;padding:26px 18px}
   .loot .meta{justify-content:center}
   .page h1{font-size:30px}
+  body .signup label,body .signup button{font-size:15px}
   .facts th{width:100px}
 }
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
