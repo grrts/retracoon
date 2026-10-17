@@ -119,7 +119,6 @@ export class RunScene extends Phaser.Scene {
   private hazard = '';
   private bestBefore = 0;
   private tiersSeen = new Set<number>();
-  private record = 0; // the stage to beat this run; 0 = no record yet
   private flag: BestFlag | null = null;
   private flagPassed = false;
   // PROTOTYPE combat VFX
@@ -155,7 +154,6 @@ export class RunScene extends Phaser.Scene {
     this.busy = false;
     this.walking = false;
     this.tiersSeen = new Set();
-    this.record = this.recordStage();
     this.flag = null;
     this.flagPassed = false;
 
@@ -366,22 +364,15 @@ export class RunScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- best-stage flag
 
-  // The stage to beat: your all-time best, or on a daily run your best on today's road.
-  private recordStage() {
-    const r = this.run;
-    if (r.mode === 'daily') return store.dailyDay === r.day ? (store.dailyBest?.stage ?? 0) : 0;
-    return store.bestStage;
-  }
-
   // Once you have matched your best, a flag drops onto the road just past the next stop:
   // win there and you walk past it into a new record. A road stop instead of a fight
   // moves it on to the next one.
   private plantFlag(walk: number) {
-    if (this.flagPassed || this.record <= 0 || this.run.stage !== this.record) return;
+    if (this.flagPassed || this.bestBefore <= 0 || this.run.stage !== this.bestBefore) return;
     const at = this.run.distance + (walk * WALK_SPEED + FLAG_AHEAD) / PX_PER_M;
     if (!this.flag) {
       const img = this.add.image(0, 0, 'bestflag0').setOrigin(2 / 13, 1);
-      const label = text(this, 6, -29, `BEST ${this.record}`, { color: COL.yellow });
+      const label = text(this, 6, -29, `BEST ${this.bestBefore}`, { color: COL.yellow });
       const c = this.add.container(0, 0, [img, label]).setDepth(3);
       const flutter = this.time.addEvent({ delay: 260, loop: true, callback: () => img.setTexture(img.texture.key === 'bestflag0' ? 'bestflag1' : 'bestflag0') });
       this.flag = { c, img, label, flutter, at };
@@ -399,7 +390,7 @@ export class RunScene extends Phaser.Scene {
     const f = this.flag;
     if (!f) return;
     f.c.x = Math.round(COON_X + (f.at - this.run.distance) * PX_PER_M);
-    if (!this.flagPassed && f.c.x <= COON_X && this.run.stage > this.record) this.passFlag();
+    if (!this.flagPassed && f.c.x <= COON_X && this.run.stage > this.bestBefore) this.passFlag();
     if (f.c.x < -40) {
       f.flutter.remove();
       f.c.destroy();
@@ -410,7 +401,10 @@ export class RunScene extends Phaser.Scene {
   private passFlag() {
     const f = this.flag!;
     this.flagPassed = true;
+    // The one celebration for a new best: fanfare, buzz and a gold flash.
     sfx.record();
+    buzz('record');
+    this.cameras.main.flash(220, 255, 205, 117);
     // The label rises clear of the raccoon's head as it walks past.
     f.label.setText('NEW BEST!').setTint(COL.lime);
     this.tweens.add({ targets: f.label, y: -48, duration: 260, ease: 'Back.out' });
@@ -1256,7 +1250,6 @@ export class RunScene extends Phaser.Scene {
     if (after.heal) this.floats.add(COON_X - 20, GROUND_Y - 52, `+${after.heal} HP`, COL.lime);
     if (after.hurt) this.floats.add(COON_X - 20, GROUND_Y - 52, `-${after.hurt} HP`, COL.red);
     if (after.tax) this.floats.add(COON_X + 30, GROUND_Y - 52, `-${after.tax}`, COL.orange);
-    if (this.bestBefore > 0 && r.stage === this.bestBefore + 1) this.passedBest();
     this.refreshHud();
     this.views.forEach((v) => (v.c.destroy(), v.shadow.destroy()));
     this.views.clear();
@@ -1277,14 +1270,6 @@ export class RunScene extends Phaser.Scene {
       if (boss) this.changeArea();
       else this.walk();
     });
-  }
-
-  // The moment this run goes past the best stage before it: once per run.
-  private passedBest() {
-    sfx.record();
-    buzz('record');
-    this.cameras.main.flash(220, 255, 205, 117);
-    this.floats.add(W / 2, 70, 'NEW RECORD!', COL.yellow, true);
   }
 
   // Name for whatever just hurt the raccoon: the foe, the area's hazard, or else the
