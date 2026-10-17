@@ -173,6 +173,11 @@ class Synth {
   thud() {
     if (this.gate('thud', 80)) this.noise(0.25, 0.4, 600);
   }
+  // Passing your best stage mid-run: a quick rising fanfare.
+  record() {
+    [523, 784, 1047, 1319].forEach((f, i) => this.tone(f, 0.12, 'square', 0.17, undefined, i * 0.07));
+    this.tone(1568, 0.3, 'square', 0.15, undefined, 0.3);
+  }
   bossDie() {
     for (let i = 0; i < 6; i++) this.noise(0.3, 0.4, 2500 - i * 300, i * 0.12);
     [784, 659, 523, 1047].forEach((f, i) => this.tone(f, 0.2, 'square', 0.18, undefined, 0.8 + i * 0.1));

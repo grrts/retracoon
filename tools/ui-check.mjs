@@ -233,7 +233,7 @@ for (const [w, h] of SIZES) {
       const g = window.__game;
       for (const s of g.scene.getScenes(true)) if (s.scene.key !== 'Run') s.scene.stop();
       const run = why === 'daily' ? { ...g.scene.getScene('Run').run, mode: 'daily', day: '2026-11-14' } : g.scene.getScene('Run').run;
-      g.scene.getScene('Run').scene.launch('GameOver', { run, reason: why === 'daily' ? 'death' : why, newBest: true, caps: 123 });
+      g.scene.getScene('Run').scene.launch('GameOver', { run, reason: why === 'daily' ? 'death' : why, newBest: true, caps: 123, killer: 'THE GRAND RAT KING', bestBefore: run.stage + 12 });
     }, reason);
     await shot(`gameover-${reason}`);
   }

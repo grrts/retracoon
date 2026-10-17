@@ -4,6 +4,7 @@ import { items, skills, sets, RARITY, themesByTier, themes } from '../content/re
 import { store } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
+import { MUTATORS, mutatorOf, rules, weeklyMutator, type MutatorId } from './mutators';
 
 export interface OwnedItem {
   id: string;
@@ -27,6 +28,7 @@ export interface RunState {
   mode: RunMode;
   day: string | null; // daily runs: the UTC date (YYYY-MM-DD) of the daily seed
   seed: number | null; // daily runs: the shared seed; null = plain Math.random
+  mutator: MutatorId | null; // daily runs: the week's extra rule (see mutators.ts)
   rollStage: number; // stage the per-stage random rolls below belong to
   rollCounts: Record<string, number>;
   level: number;
@@ -70,9 +72,11 @@ export function bossWindow(areaNo: number): [number, number] {
 }
 
 // `area` is the number of areas already cleared, as in RunState.area.
-export function rollBossAt(area: number) {
+// BOSS RUSH (`rush`): always the earliest fight of the window.
+export function rollBossAt(area: number, rush = false) {
   const [lo, hi] = bossWindow(area + 1);
-  return lo + Math.floor(rand() * (hi - lo + 1));
+  const at = lo + Math.floor(rand() * (hi - lo + 1));
+  return rush ? lo : at;
 }
 
 // Today's daily run, the same for everyone: the UTC date picks the seed.
@@ -96,8 +100,10 @@ export function roll(r: RunState, what: string) {
 // run from the street, so it can push further next time. Skills and items are lost.
 // Dying wipes the bank and you start over at level 1.
 // A daily run is always a fresh level 1 raccoon and never touches the banked one.
-export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
+// `mutator` overrides the week's rule (null: none); the balance sim uses it.
+export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId | null): RunState {
   const daily = mode === 'daily';
+  const rule = daily ? (mutator === undefined ? weeklyMutator(day) : mutator) : null;
   const kept = daily ? null : store.kept;
   const seed = daily ? hash('retracoon-daily', day) : null;
   reseed(seed, 'start');
@@ -105,6 +111,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
     mode,
     day: daily ? day : null,
     seed,
+    mutator: rule,
     rollStage: 0,
     rollCounts: {},
     level: kept?.level ?? 1,
@@ -122,7 +129,7 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay()): RunState {
     distance: 0,
     stage: 0,
     areaStage: 0,
-    bossAt: rollBossAt(0),
+    bossAt: rollBossAt(0, !!(rule && MUTATORS[rule]?.rules?.bossRush)),
     area: 0,
     theme: 'street',
     themesVisited: ['street'],
@@ -153,6 +160,11 @@ export const DIST_STEP = 24;
 // that doesn't retreat around the fifth fight dies soon after.
 export function danger(r: RunState) {
   return 1 + (r.stage + r.distance / DIST_STEP) / 2 + r.heat;
+}
+
+// The area boss, or the boss and its twin under TWIN BOSSES.
+export function bossFoes(r: RunState, boss: string) {
+  return rules(r).twinBoss ? [boss, boss] : [boss];
 }
 
 // Theme for the next area: Town, then one area per tier, then anything goes.
@@ -197,7 +209,7 @@ let cacheKey = '';
 let cacheVal: { bonus: Bonus; fx: Fx } = { bonus: emptyBonus(), fx: {} };
 
 export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
-  const key = JSON.stringify(r.gear) + JSON.stringify(r.passives ?? {});
+  const key = JSON.stringify(r.gear) + JSON.stringify(r.passives ?? {}) + (r.mutator ?? '');
   if (key === cacheKey) return cacheVal;
   const b = emptyBonus();
   const fx: Fx = {};
@@ -214,6 +226,10 @@ export function computeBonus(r: RunState): { bonus: Bonus; fx: Fx } {
     p.bonus?.(b, n);
     if (p.fx) add(p.fx(n));
   }
+  // The daily run's weekly rule counts like one more piece of gear.
+  const mut = mutatorOf(r);
+  if (mut?.bonus) for (const [k, v] of Object.entries(mut.bonus)) b[k as keyof Bonus] += v ?? 0;
+  if (mut?.fx) add(mut.fx);
   const t = tagCounts(r);
   if (t.speed >= 2) b.agi += 3;
   if (t.speed >= 4) add({ dodgeStrike: 6 });
@@ -359,6 +375,14 @@ export function itemPool(r: RunState, rarity: number): ItemDef[] {
 }
 
 export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []): ItemDef | null {
+  // RISKY LOOT: only items with a catch, which are all rare or better.
+  if (rules(r).riskyLoot) {
+    for (let tries = 0; tries < 12; tries++) {
+      const rar = rollRarity(r, Math.max(2, min), Math.max(2, max));
+      const pool = itemPool(r, rar).filter((i) => i.risky && !exclude.includes(i.id));
+      if (pool.length) return pool[Math.floor(rand() * pool.length)];
+    }
+  }
   // Sets pull: wearing a piece makes the rest of its set turn up far more often.
   const worn = Object.keys(setCounts(r));
   if (worn.length && rand() < SET_PULL) {

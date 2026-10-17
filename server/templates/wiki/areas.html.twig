@@ -1,0 +1,18 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Areas{% endblock %}
+{% block content %}
+<h1>Areas</h1>
+<p class="lead">Every run starts on the street. Beating an area's hidden boss moves you on to a new place, each tier harder than the last.</p>
+{% for tier, list in tiers %}
+<h2>Tier {{ tier }}</h2>
+<div class="grid">
+{% for a in list %}
+<a class="card col" href="{{ path('wiki_area', {id: a.id}) }}" style="padding:0">
+    <span class="sky" style="display:block;width:100%;border:0;background:linear-gradient({{ a.sky|join(',') }})"></span>
+    <span class="t" style="padding:6px"><h3>{{ a.name }}</h3><small>{{ a.families|join(' · ') }}{% if a.hazard %} · {{ a.hazard.name }}{% endif %}</small></span>
+</a>
+{% endfor %}
+</div>
+{% endfor %}
+{% endblock %}
