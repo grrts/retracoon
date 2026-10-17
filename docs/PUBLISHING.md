@@ -31,7 +31,7 @@ npm run icons       # regenerates icons, splash screens and store graphics from 
 2. **Ads:** replace Google's test ids with yours (see [MONETIZATION.md](MONETIZATION.md)), and set `ADMOB.testing = false` in `src/platform/config.ts`.
 3. **Purchases:** create the products and paste the RevenueCat keys (see [MONETIZATION.md](MONETIZATION.md)). Without keys the shop runs in test mode and says so on screen.
 4. **Scoreboard:** deploy the API in `server/` and set the `API_URL` repository variable (see [ONLINE.md](ONLINE.md)). Without it the scoreboard says it is not connected yet.
-5. **Privacy policy:** host [privacy-policy.md](privacy-policy.md) somewhere public (GitHub Pages works) after filling in your contact email.
+5. **Privacy policy:** the website serves it at `/privacy` ([server/templates/site/privacy.html.twig](../server/templates/site/privacy.html.twig)); set `SUPPORT_EMAIL` on the server so it shows your contact address.
 
 ## Google Play
 
@@ -74,7 +74,7 @@ Then run the **Android** workflow from the Actions tab. It always produces a deb
 ### Play Console steps
 
 1. Create the app: name **Retracoon**, game, free, with in-app purchases and ads.
-2. **App content:** privacy policy URL, ads = yes, target audience 13+ (keeps you out of the Families policy), content rating questionnaire (cartoon violence only), data safety form (see the table in [privacy-policy.md](privacy-policy.md)).
+2. **App content:** privacy policy URL, ads = yes, target audience 13+ (keeps you out of the Families policy), content rating questionnaire (cartoon violence only), data safety form (see the table on `/privacy`).
 3. **Monetize > Products > In-app products:** create the six products from [MONETIZATION.md](MONETIZATION.md).
 4. **Store listing:** copy from [store-listing.md](store-listing.md). Graphics are in `docs/store/` (512 icon, 1024x500 feature graphic). Take phone screenshots from the game in landscape.
 5. Upload the `.aab` to **Internal testing**, add yourself as a tester, test the ad and a purchase with a license tester account, then promote to production.
@@ -105,7 +105,7 @@ The **iOS** workflow always checks that the project compiles. On a `v*` tag with
 
 1. My Apps > + > New App: bundle id `com.retracoon.game`, name Retracoon, primary category Games > Role Playing (secondary: Arcade).
 2. **In-App Purchases:** create the six products from [MONETIZATION.md](MONETIZATION.md) (No Ads and Starter Pack are *Non-Consumable*, gem packs are *Consumable*).
-3. **App Privacy:** answer with the table in [privacy-policy.md](privacy-policy.md). The app asks for tracking permission (App Tracking Transparency) because AdMob can use the advertising id.
+3. **App Privacy:** answer with the table on `/privacy`. The app asks for tracking permission (App Tracking Transparency) because AdMob can use the advertising id.
 4. **Age rating:** infrequent cartoon violence, no gambling (skins are bought directly, there are no loot boxes).
 5. Listing text from [store-listing.md](store-listing.md); screenshots at 6.9" and 13" iPad sizes in landscape.
 6. Pick the TestFlight build, submit for review. Mention in the review notes that the only ad shows at launch and that purchases can be restored from the Skin Shop > Gems tab.

@@ -1,5 +1,5 @@
 # Controllers declare their routes with #[Route]. Everything answers in JSON,
-# errors included (as application/problem+json), except the web pages (wiki,
+# errors included (as application/problem+json), except the web pages (site, wiki,
 # mailing list, store links), which are imported on their own below.
 controllers:
     resource:
@@ -7,6 +7,7 @@ controllers:
         namespace: App\Controller
     type: attribute
     exclude:
+        - ../src/Controller/SiteController.php
         - ../src/Controller/WikiController.php
         - ../src/Controller/MailingListController.php
         - ../src/Controller/StoreLinkController.php
@@ -15,6 +16,10 @@ controllers:
 
 wiki:
     resource: App\Controller\WikiController
+    type: attribute
+
+site:
+    resource: App\Controller\SiteController
     type: attribute
 
 mailing_list:

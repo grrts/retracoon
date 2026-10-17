@@ -1,0 +1,8 @@
+{# The store buttons. Each one is hidden until its STORE_*_URL env var is set, and links
+   through /go/{store} so the click is counted with the visit's origin. #}
+<div class="btns">
+    {% for store in stores %}
+        <a class="btn store" href="{{ store_link(store) }}" rel="noopener">{{ {'google-play': 'Get it on Google Play', 'app-store': 'Download on the App Store', 'steam': 'Wishlist on Steam'}[store] }}</a>
+    {% endfor %}
+    <a class="btn{% if stores %} ghost{% endif %}" href="{{ path('wiki') }}">Browse the wiki</a>
+</div>

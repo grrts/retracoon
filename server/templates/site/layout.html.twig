@@ -1,0 +1,31 @@
+{% extends 'base.html.twig' %}
+
+{% block stylesheets %}
+<link rel="preload" href="/site/retracoon-px.woff2" as="font" type="font/woff2" crossorigin>
+<style>
+{% include 'site/_site.css.twig' %}
+</style>
+{% endblock %}
+
+{% block body %}
+{% set here = app.request.attributes.get('_route') %}
+<header class="top{% if here != 'home' %} solid{% endif %}"><div class="wrap">
+    <a class="brand" href="{{ path('home') }}">Retracoon</a>
+    <nav aria-label="Site">
+        <a href="{{ path('wiki') }}">Wiki</a>
+        <a href="{{ path('press') }}"{% if here == 'press' %} class="on"{% endif %}>Press</a>
+        {% if here == 'home' %}<a href="#daily">Daily</a>{% endif %}
+    </nav>
+</div></header>
+<main>
+{% block content %}{% endblock %}
+</main>
+<footer class="foot-site"><div class="wrap">
+    <a class="brand" href="{{ path('home') }}">Retracoon</a>
+    <a href="{{ path('wiki') }}">Wiki</a>
+    <a href="{{ path('press') }}">Press kit</a>
+    <a href="{{ path('privacy') }}">Privacy</a>
+    <a href="/account/delete">Delete account</a>
+    {% if support_email %}<a href="mailto:{{ support_email }}">{{ support_email }}</a>{% endif %}
+</div></footer>
+{% endblock %}

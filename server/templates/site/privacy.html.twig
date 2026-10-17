@@ -1,0 +1,56 @@
+{% extends 'site/layout.html.twig' %}
+
+{% block title %}Privacy policy · Retracoon{% endblock %}
+{% block description %}What Retracoon stores about you, why, and how to delete it.{% endblock %}
+
+{% block content %}
+<div class="page"><div class="wrap prose">
+<h1>Privacy policy</h1>
+<p style="color:var(--mist)">Last updated 16 October 2026.{% if support_email %} Questions: <a href="mailto:{{ support_email }}">{{ support_email }}</a>.{% endif %}</p>
+
+<p>Retracoon is a game. You sign in with Google, Apple or Steam so your name, scores and purchases belong to you. It has no chat, and it does not ask for your real name, email or location. The only email we keep is the one you give to our mailing list, if you sign up for it.</p>
+
+<h2>What stays on your device</h2>
+<p>Your progress (best runs, Bottle Caps, Gems, owned skins, settings) is saved on your device. Deleting the app deletes it. Your best scores are also sent to the scoreboard, see below.</p>
+
+<h2>Your account</h2>
+<p>When you sign in, Google, Apple or Steam tells our server a stable account id for you (not your password, and we don't ask for your email). Our server stores that account id, a random player id, your nickname with its 4-digit tag (for example SNEAKY BANDIT#1234), your best stage, level and distance, your best daily run of each day and your best run of each season (shown on the daily and season boards), any prizes you won, the skin you wear, your friend list (players whose friend code you entered, or who entered yours), your gem balance, skins bought with gems, a record of your purchases (product and store transaction id) and when you last played. If you sign in with Apple we also keep a token from Apple so we can cancel it when you delete your account.</p>
+<p>Other players can see your nickname with its tag, skin and scores; only you see your friend code and gems. When you tap <b>SHARE</b> at the end of a run while signed in, that run gets a public web page anyone with the link can open: the card image the game drew, your nickname with its tag, the stage, area, level, gear and what ended the run. Those pages are deleted with your account. The server sees your IP address to limit abuse but does not store it with your account.</p>
+<p><b>Deleting your account:</b> in the game open Scores &gt; Account &gt; Delete account. This deletes everything listed above right away. You can also follow the steps at <a href="/account/delete">{{ absolute_url('/account/delete') }}</a>.</p>
+
+<h2>Play statistics</h2>
+<p>To learn how the game plays (how far runs get, whether players come back), the game sends a few anonymous events to our own server: when the game is opened, when a run starts and ends (with the stage, area, level and time), when the tutorial is finished, when the shop or scoreboard is opened, and when a purchase is made (only which product). They are stored with a random id made on your device, the platform and the game version. They are not linked to your account or name, and are not shared with anyone. Turn it off any time with <b>STATS ON/OFF</b> on the title screen; anything not yet sent is dropped.</p>
+
+<h2>Mailing list</h2>
+<p>If you sign up for Retracoon news on our website, we store your email address, when you signed up and when you confirmed it. We first send one email with a confirm link; if you don't confirm within a week, the address is deleted. We use it only to send news about the game, and every email has an unsubscribe link that deletes your address right away. We send these emails through an email delivery provider, which handles the address only to deliver them.</p>
+
+<h2>Website visits</h2>
+<p>Our website counts how many people visit the home page and click a store button, per day, together with the website that linked to it and the campaign tags in the link (like <code>utm_source=reddit</code>). We don't use cookies or any tracking scripts on the website, and we don't store your IP address, browser or anything else about you with these counts. Your IP address is only held briefly in memory to stop one address from inflating the counts or flooding the sign-up form.</p>
+
+<h2>Ads</h2>
+<p>The free version shows one full-screen ad when the game starts, served by Google AdMob. AdMob may collect your device's advertising identifier, IP address and basic device information to show and measure ads. In the EU and UK you are asked for consent first. On iOS you are asked whether apps may track you; if you say no, ads are not personalised. Buying <b>No Ads</b> removes the ad.</p>
+<p>Google's policy: <a href="https://policies.google.com/technologies/ads" rel="noopener">policies.google.com/technologies/ads</a></p>
+
+<h2>Purchases</h2>
+<p>Purchases are handled by Apple or Google. We never see your payment details. We use RevenueCat to check that a purchase is valid; RevenueCat receives your random player id and your purchase receipts, and tells our server what you bought so it can be added to your account. The Steam version has no in-game purchases.</p>
+<p>RevenueCat's policy: <a href="https://www.revenuecat.com/privacy" rel="noopener">revenuecat.com/privacy</a></p>
+
+<h2>Children</h2>
+<p>Retracoon is not directed at children under 13.</p>
+
+<h2>Data safety and App Privacy answers</h2>
+<div class="scroll"><table class="facts">
+    <tr><th>Data</th><th>Collected</th><th>Shared</th><th>Purpose</th><th>Why</th></tr>
+    <tr><td>Advertising id / device id</td><td>Yes (AdMob)</td><td>Yes, with Google</td><td>Advertising</td><td>Launch ad</td></tr>
+    <tr><td>Approximate location (from IP)</td><td>Yes (AdMob)</td><td>Yes, with Google</td><td>Advertising, fraud prevention</td><td>Launch ad</td></tr>
+    <tr><td>Purchase history</td><td>Yes (RevenueCat, our server)</td><td>No</td><td>App functionality</td><td>Gems and No Ads on every device</td></tr>
+    <tr><td>Nickname, game scores, friend list</td><td>Yes (our server)</td><td>No (shown to other players in the game)</td><td>App functionality</td><td>Scoreboard</td></tr>
+    <tr><td>User ids (Google, Apple or Steam account id; random player id)</td><td>Yes (our server)</td><td>No</td><td>App functionality, account management</td><td>Sign-in</td></tr>
+    <tr><td>App interactions (play statistics: runs, stages, screens opened)</td><td>Yes (our server)</td><td>No</td><td>Analytics</td><td>Improving the game; not linked to the account</td></tr>
+    <tr><td>Crash or diagnostic data</td><td>No</td><td></td><td></td><td></td></tr>
+    <tr><td>Email address</td><td>Only if you join the mailing list on our website (not in the app)</td><td>No</td><td>Marketing (game news)</td><td>Mailing list</td></tr>
+    <tr><td>Personal info (real name, contacts)</td><td>No</td><td></td><td></td><td></td></tr>
+</table></div>
+<p>Data is encrypted in transit. Users can delete their account and its data in the app or through the web page above.</p>
+</div></div>
+{% endblock %}

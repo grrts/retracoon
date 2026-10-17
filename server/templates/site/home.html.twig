@@ -1,0 +1,139 @@
+{% extends 'site/layout.html.twig' %}
+
+{% block title %}Retracoon: the raccoon roguelike where the loot is the look{% endblock %}
+
+{% block content %}
+<section class="hero" style="padding:0">
+    <picture>
+        <source media="(max-width:640px)" srcset="/site/hero-square.webp">
+        <img class="art pix" src="/site/hero.webp" width="1920" height="620" alt="The raccoon in a crown, laser eyes and a trash mech, walking a neon city street at night" fetchpriority="high">
+    </picture>
+    <div class="wrap"><div class="copy">
+        {% if not stores %}<span class="chip">Coming to Android, iPhone and Steam</span>{% endif %}
+        <h1 class="wordmark">Retracoon</h1>
+        <p class="hook">A turn-based 8-bit roguelike where your raccoon wears every item it finds.</p>
+        <p class="lede">Walk an endless road through {{ counts.areas }} areas. Every fight is harder than the last, so the only question is how far you get this time.</p>
+        {% include 'site/_stores.html.twig' %}
+    </div></div>
+</section>
+
+<section class="band">
+    <div class="wrap split">
+        <div>
+            <span class="kicker">Loot is the look</span>
+            <h2>Every item you find, <em>your raccoon wears</em></h2>
+            <p class="body">A paper hat. Laser eyes. Comet wings. A trash mech. All {{ counts.items|number_format }} items are drawn on the raccoon, so one look tells you how far you came. Tap any loot to try it on before you take it.</p>
+            <p class="stat-line"><b>{{ counts.items|number_format }}</b> items · <b>{{ counts.sets }}</b> sets · <b>{{ counts.skins }}</b> skins</p>
+        </div>
+        <div class="media glow">
+            <div class="screen notch"><video src="/site/glow-up.mp4" poster="/site/glow-up.webp" width="540" height="720" autoplay muted loop playsinline aria-label="A bare raccoon gains a crown, laser eyes, a mech, wings and an aura"></video></div>
+        </div>
+    </div>
+    <div class="wrap road">
+        <div class="stages">
+            {% for name, label in {fresh: 'Run start', early: 'A few fights in', mid: 'Deep in', legend: 'Legend run'} %}
+            {% set w = {fresh: 93, early: 96, mid: 132, legend: 129}[name] %}
+            <figure><img class="pix" src="/downloads/raccoons/{{ name }}.png" alt="The raccoon: {{ label|lower }}" width="{{ w }}" style="--w:{{ w }}">{{ label }}</figure>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+
+<section id="daily">
+    <div class="wrap split">
+        <div>
+            <span class="kicker">Daily run</span>
+            <h2>Same road for everyone. <em>How far can you get?</em></h2>
+            <p class="body">Every day the whole world walks the same seed. The furthest stage takes the top spot and the fastest time breaks ties. The winner gets gems when the day closes.</p>
+            {% if stores %}{% include 'site/_stores.html.twig' %}{% endif %}
+        </div>
+        <div class="scores notch">
+            {% if board is null %}
+                <div class="scores-head"><span>Today's top 5</span></div>
+                <p class="empty">The scoreboard is taking a nap. Check back soon.</p>
+            {% else %}
+                <div class="scores-head"><span>Today's top 5</span>{% if board.total %}<b>{{ board.total|number_format }} {{ board.total == 1 ? 'runner' : 'runners' }}</b>{% endif %}</div>
+                {% if board.players %}
+                <ol class="board">
+                    {% for p in board.players %}
+                    <li>
+                        <span class="rank">{{ p.rank }}</span>
+                        <span class="skin">{{ sprite('skins', p.skin, 1) }}</span>
+                        <span class="name">{{ p.name }}<small>#{{ '%04d'|format(p.tag) }}</small></span>
+                        <span class="num"><span>Stage</span>{{ p.stage }}</span>
+                        <span class="num time"><span>Time</span>{{ p.timeMs // 60000 }}:{{ '%02d'|format((p.timeMs // 1000) % 60) }}</span>
+                    </li>
+                    {% endfor %}
+                </ol>
+                {% else %}
+                    <p class="empty">Nobody has walked today's road yet. The first run takes the top spot.</p>
+                {% endif %}
+                {% if board.lastWinner %}<p class="foot">Yesterday's winner: <b>{{ board.lastWinner.name }}</b>, stage {{ board.lastWinner.stage }}.</p>{% endif %}
+            {% endif %}
+        </div>
+    </div>
+</section>
+
+<section class="band">
+    <div class="wrap split rev">
+        <div>
+            <span class="kicker">Hidden bosses</span>
+            <h2>A boss hides in <em>every area</em></h2>
+            <p class="body">Somewhere among the fights of each area, the boss is waiting, and you never know which fight it is. Every foe shows its next move above its head, so block the big hit or strike first. Beat the boss to reach a new area.</p>
+        </div>
+        <div class="media frame"><span class="tag">Real fight</span><video src="/site/boss-fight.mp4" poster="/site/boss-fight.webp" width="1280" height="720" controls muted playsinline preload="none" aria-label="A real boss fight with phase 2"></video></div>
+    </div>
+</section>
+
+<section>
+    <div class="wrap split">
+        <div>
+            <span class="kicker">Push or retreat</span>
+            <h2>Keep your level, <em>or risk it all</em></h2>
+            <p class="body">Retreat before a fight and your raccoon keeps its level and stats for the next run. Push your luck and lose, and you start over from level 1.</p>
+        </div>
+        <div class="media frame"><img class="pix" src="/site/push-or-retreat.webp" width="1280" height="722"  alt="Critters ahead: fight or retreat"></div>
+    </div>
+</section>
+
+<section class="band" style="padding:72px 0">
+    <div class="wrap">
+        <div class="numbers">
+            <div><b>{{ counts.items|number_format }}</b><span>Items</span></div>
+            <div><b>{{ counts.sets }}</b><span>Sets</span></div>
+            <div><b>{{ counts.skills }}</b><span>Skills</span></div>
+            <div><b>{{ counts.areas }}</b><span>Areas</span></div>
+            <div><b>{{ counts.skins }}</b><span>Skins</span></div>
+        </div>
+    </div>
+</section>
+
+{% if item %}
+{% set rarity = wiki().rarities[item.rarity] %}
+<section>
+    <div class="wrap">
+        <span class="kicker">From the wiki</span>
+        <h2>Found on the road today</h2>
+        <a class="loot notch teaser" href="{{ path('wiki_item', {id: item.id}) }}" style="--glow:{{ rarity.color }}">
+            {{ sprite('items', item.id, 5, item.name ~ ' on the raccoon') }}
+            <span>
+                <span class="name">{{ item.name }}</span>
+                <span class="meta"><span style="color:{{ rarity.color }}">{{ rarity.name }}</span><span style="color:var(--mist)">{{ wiki().slots[item.slot] }}</span></span>
+                <span class="desc">{{ item.desc }}</span>
+                <span class="more">See all {{ counts.items|number_format }} items in the wiki →</span>
+            </span>
+        </a>
+    </div>
+</section>
+{% endif %}
+
+<section class="final">
+    <div class="wrap">
+        <img class="pix" src="/downloads/raccoons/legend.png" width="172" alt="">
+        <h2>Fair to play</h2>
+        <p class="body">Free on phones, with one ad when the game starts and never during a run. No energy timers, no paying to win, and skins are cosmetic. On Steam, buy it once.</p>
+        {% include 'site/_stores.html.twig' %}
+        <div class="news">{% include 'list/_signup.html.twig' %}</div>
+    </div>
+</section>
+{% endblock %}

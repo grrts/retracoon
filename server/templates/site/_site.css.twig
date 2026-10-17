@@ -1,0 +1,200 @@
+/* The website's look: the game's Sweetie 16 palette, the game's own pixel font for display
+   text (sized in multiples of 10px so each game pixel is a whole number of screen pixels),
+   the system sans for reading, square corners, notched panels and hard shadows. */
+@font-face{font-family:"Retracoon Pixel";src:url(/site/retracoon-px.woff2) format("woff2");font-display:swap}
+:root{
+  --night:#0e0f1a;--ink:#1a1c2c;--navy:#29366f;--slate:#333c57;--steel:#566c86;--mist:#94b0c2;--white:#f4f4f4;
+  --gold:#ffcd75;--orange:#ef7d57;--ice:#73eff7;--sky:#41a6f6;--lime:#a7f070;--plum:#5d275d;--magenta:#c0398e;--violet:#b05ccf;
+  --px:"Retracoon Pixel",ui-monospace,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  --wrap:1120px;--notch:8px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--night);color:var(--white);font:17px/1.6 var(--sans);-webkit-font-smoothing:antialiased}
+img,video{max-width:100%}
+.pix{image-rendering:pixelated;image-rendering:crisp-edges}
+a{color:var(--ice);text-decoration:none}
+a:hover{text-decoration:underline;text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--gold);outline-offset:3px}
+.wrap{max-width:var(--wrap);margin:0 auto;padding:0 24px}
+.px{font-family:var(--px);font-weight:400;text-transform:uppercase;letter-spacing:0;line-height:1.3}
+
+/* Notched corners: one game pixel cut from each corner, like the game's panels. */
+.notch{clip-path:polygon(0 var(--notch),var(--notch) var(--notch),var(--notch) 0,calc(100% - var(--notch)) 0,calc(100% - var(--notch)) var(--notch),100% var(--notch),100% calc(100% - var(--notch)),calc(100% - var(--notch)) calc(100% - var(--notch)),calc(100% - var(--notch)) 100%,var(--notch) 100%,var(--notch) calc(100% - var(--notch)),0 calc(100% - var(--notch)))}
+
+/* Header */
+.top{position:absolute;inset:0 0 auto;z-index:5}
+.top.solid{position:sticky;background:rgba(14,15,26,.92);backdrop-filter:blur(8px);border-bottom:2px solid var(--slate)}
+.top .wrap{display:flex;align-items:center;gap:28px;height:64px}
+.brand{font:20px/1 var(--px);color:var(--gold);text-shadow:2px 2px 0 var(--ink)}
+.brand:hover{text-decoration:none}
+.top nav{display:flex;gap:26px;margin-left:auto;font:20px/1 var(--px)}
+.top nav a{color:var(--white);text-shadow:1px 1px 0 var(--ink);padding:6px 0}
+.top nav a:hover,.top nav a.on{color:var(--gold);text-decoration:none}
+
+/* Buttons: a hard pixel shadow that the button drops into when pressed. */
+.btns{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.btn{display:inline-flex;align-items:center;gap:10px;padding:15px 20px;font:20px/1 var(--px);color:var(--ink);background:var(--gold);box-shadow:4px 4px 0 var(--orange);transition:transform 80ms steps(2),box-shadow 80ms steps(2)}
+.btn:hover{text-decoration:none;transform:translate(-2px,-2px);box-shadow:6px 6px 0 var(--orange)}
+.btn:active{transform:translate(4px,4px);box-shadow:0 0 0 var(--orange)}
+.btn.ghost{background:transparent;color:var(--white);box-shadow:inset 0 0 0 2px var(--steel)}
+.btn.ghost:hover{box-shadow:inset 0 0 0 2px var(--gold);color:var(--gold);transform:none}
+.chip{display:inline-flex;align-items:center;gap:8px;font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--lime);padding:8px 10px;background:rgba(167,240,112,.08);box-shadow:inset 0 0 0 2px rgba(167,240,112,.35)}
+.chip::before{content:"";width:6px;height:6px;background:var(--lime);animation:blink 1.2s steps(2) infinite}
+@keyframes blink{50%{opacity:0}}
+
+/* Hero: the key art full-bleed, words on the dark side. */
+.hero{position:relative;min-height:min(92vh,760px);display:flex;align-items:center;overflow:hidden;background:var(--ink)}
+.hero picture,.hero .art{position:absolute;inset:0;width:100%;height:100%}
+.hero .art{object-fit:cover;object-position:38% 100%}
+.hero::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(14,15,26,.75) 0,rgba(14,15,26,0) 110px),linear-gradient(90deg,rgba(14,15,26,0) 30%,rgba(14,15,26,.82) 58%,rgba(14,15,26,.95) 100%),linear-gradient(0deg,var(--night) 0,rgba(14,15,26,0) 22%)}
+.hero .wrap{position:relative;z-index:2;width:100%;display:flex;justify-content:flex-end}
+.hero .copy{max-width:520px;padding:96px 0 72px}
+.wordmark{margin:18px 0 10px;font:60px/1 var(--px);color:var(--gold);text-shadow:4px 4px 0 var(--ink),6px 6px 0 var(--plum)}
+.hook{margin:0 0 14px;font-size:26px;line-height:1.3;font-weight:700;letter-spacing:-.01em}
+.lede{margin:0 0 30px;color:var(--mist);font-size:18px}
+
+/* Sections */
+section{padding:96px 0}
+.band{background:var(--ink)}
+.kicker{display:block;margin-bottom:16px;font:20px/1 var(--px);color:var(--lime)}
+h2{margin:0 0 18px;font:30px/1.25 var(--px);color:var(--white)}
+h2 em{font-style:normal;color:var(--gold)}
+.body{color:var(--mist);margin:0 0 18px;max-width:520px}
+.split{display:grid;grid-template-columns:1.05fr 1fr;gap:64px;align-items:center}
+.split.rev .media{order:-1}
+
+/* Glow-up: the clip beside the raccoon's four stages on a road. */
+.road{margin-top:72px}
+.screen{background:var(--night);padding:8px;box-shadow:0 0 0 2px var(--slate),0 0 60px rgba(192,57,142,.25)}
+.screen video,.screen img{display:block;width:100%;height:auto}
+.glow .screen{max-width:320px;margin-left:auto}
+.stages{display:flex;align-items:flex-end;justify-content:space-around;gap:12px;padding:0 4px 22px;position:relative}
+.stages::after{content:"";position:absolute;left:0;right:0;bottom:0;height:12px;background:repeating-linear-gradient(90deg,var(--gold) 0 16px,transparent 16px 32px) 0 50%/100% 2px no-repeat,var(--slate)}
+.stages figure{margin:0;text-align:center;font:600 12px/1.3 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mist)}
+.stages img{display:block;margin:0 auto 10px;height:auto}
+.stat-line{margin-top:26px;font:20px/1.6 var(--px);color:var(--mist)}
+.stat-line b{color:var(--gold);font-weight:400}
+
+/* Daily run: an arcade high-score panel. */
+.scores{background:linear-gradient(180deg,#1d2140,#141629);padding:30px;box-shadow:inset 0 0 0 2px var(--navy)}
+.scores-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin-bottom:18px;font:20px/1.4 var(--px);color:var(--gold)}
+.scores-head b{font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase}
+.scores-head b{color:var(--ice);font-weight:400}
+.scores ol{list-style:none;margin:0;padding:0}
+.scores li{display:grid;grid-template-columns:44px 52px 1fr auto auto;gap:14px;align-items:center;padding:12px 0;border-top:2px dashed rgba(86,108,134,.35)}
+.scores li:first-child{border-top:0}
+.scores .rank{font:20px/1 var(--px);color:var(--steel)}
+.scores li:nth-child(1) .rank{color:var(--gold)}
+.scores li:nth-child(2) .rank{color:var(--mist)}
+.scores li:nth-child(3) .rank{color:var(--orange)}
+.scores .name{font-weight:700;font-size:16px;line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}
+.scores .name small{display:block;font-weight:400;font-size:13px;color:var(--steel)}
+.scores .num{font:20px/1 var(--px);color:var(--white);text-align:right;min-width:64px}
+.scores .num span{display:block;font:600 11px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--steel);margin-bottom:6px}
+.scores .empty{padding:26px 0;color:var(--mist)}
+.scores .foot{margin:18px 0 0;padding-top:16px;border-top:2px solid var(--navy);color:var(--mist);font-size:15px}
+.skin{display:flex;align-items:flex-end;justify-content:center;width:52px}
+
+/* Media frames */
+.frame{position:relative;background:var(--night);padding:8px;box-shadow:0 0 0 2px var(--slate),12px 12px 0 rgba(41,54,111,.45)}
+.frame video,.frame img{display:block;width:100%;height:auto}
+.tag{position:absolute;top:-14px;left:20px;z-index:2;font:20px/1 var(--px);color:var(--ink);background:var(--lime);padding:6px 8px}
+
+/* Numbers */
+.numbers{display:grid;grid-template-columns:repeat(5,1fr);gap:2px;background:var(--slate);box-shadow:0 0 0 2px var(--slate)}
+.numbers div{background:var(--ink);padding:26px 18px;text-align:center}
+.numbers b{display:block;font:40px/1 var(--px);color:var(--gold);margin-bottom:12px;font-weight:400}
+.numbers span{font:600 12px/1.4 var(--sans);letter-spacing:.1em;text-transform:uppercase;color:var(--mist)}
+
+/* Loot card */
+.loot{display:grid;grid-template-columns:auto 1fr;gap:34px;align-items:center;padding:34px;background:radial-gradient(circle at 18% 50%,color-mix(in srgb,var(--glow) 30%,transparent),transparent 45%),var(--ink);box-shadow:inset 0 0 0 2px var(--slate);color:var(--white)}
+a.loot:hover{text-decoration:none;box-shadow:inset 0 0 0 2px var(--glow)}
+.loot .name{display:block;margin:0 0 14px;font:30px/1.2 var(--px);color:var(--glow)}
+.loot .meta{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.loot .meta span{font:600 12px/1 var(--sans);letter-spacing:.08em;text-transform:uppercase;padding:6px 8px;box-shadow:inset 0 0 0 2px currentColor}
+.loot .desc{display:block;font:20px/1.5 var(--px);color:var(--white);margin-bottom:16px}
+.loot .more{color:var(--ice)}
+
+/* Closing call to action */
+.final{text-align:center;background:radial-gradient(ellipse at 50% 100%,rgba(192,57,142,.28),transparent 60%),var(--night)}
+.final img{display:block;margin:0 auto 26px;height:auto}
+.final .body{margin:0 auto 30px}
+.final .btns{justify-content:center}
+
+/* The mailing list form (list/_signup.html.twig brings its own base styles; these win). */
+.news{margin:44px auto 0;max-width:520px;text-align:left}
+body .signup{background:var(--ink);border:0;padding:22px;max-width:none;font:16px/1.5 var(--sans);box-shadow:inset 0 0 0 2px var(--slate)}
+body .signup label{font:20px/1 var(--px);letter-spacing:0;color:var(--gold);margin-bottom:14px}
+body .signup .row{gap:10px}
+body .signup input[type=email]{font:16px/1.4 var(--sans);background:var(--night);border:2px solid var(--steel);padding:12px 14px;color:var(--white)}
+body .signup input[type=email]:focus{border-color:var(--gold);outline:0}
+body .signup button{font:20px/1 var(--px);text-transform:uppercase;background:var(--gold);color:var(--ink);border:0;padding:12px 18px;box-shadow:4px 4px 0 var(--orange)}
+body .signup button:active{transform:translate(4px,4px);box-shadow:none}
+body .signup small{font-size:13px;margin-top:12px}
+
+/* Reading pages: press kit and privacy */
+.page{padding:56px 0 80px}
+.page h1{margin:0 0 20px;font:40px/1.2 var(--px);color:var(--gold);text-shadow:3px 3px 0 var(--plum)}
+.page h2{margin:56px 0 16px;font-size:20px}
+.page h3{margin:32px 0 14px;font:600 13px/1.4 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mist)}
+.prose{max-width:760px}
+.prose p,.prose li{color:#d6dde6}
+.quote{margin:0 0 14px;padding:22px 26px;font-size:22px;font-weight:700;line-height:1.35;background:var(--ink);box-shadow:inset 4px 0 0 var(--gold)}
+.facts{width:100%;border-collapse:collapse;font-size:16px}
+.facts th,.facts td{text-align:left;vertical-align:top;padding:12px 14px 12px 0;border-bottom:2px solid var(--slate)}
+.facts th{font:600 12px/1.6 var(--sans);letter-spacing:.08em;text-transform:uppercase;color:var(--mist);width:150px}
+.scroll{overflow-x:auto}
+.downloads{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:14px}
+.downloads a{display:flex;flex-direction:column;justify-content:space-between;gap:10px;padding:12px;background:var(--ink);box-shadow:inset 0 0 0 2px var(--slate);color:var(--white);font-size:13px;word-break:break-all}
+.downloads a:hover{text-decoration:none;box-shadow:inset 0 0 0 2px var(--gold)}
+.downloads .thumb{display:flex;align-items:center;justify-content:center;height:120px;background:var(--night)}
+.downloads img{max-height:110px;width:auto}
+.downloads small{color:var(--steel)}
+
+/* Footer */
+.foot-site{padding:40px 0 56px;border-top:2px solid var(--slate);background:var(--night);color:var(--steel);font-size:14px}
+.foot-site .wrap{display:flex;flex-wrap:wrap;gap:16px 28px;align-items:center}
+.foot-site .brand{margin-right:auto}
+.foot-site a{color:var(--mist)}
+
+@media (max-width:900px){
+  .split{grid-template-columns:1fr;gap:36px}
+  .split.rev .media{order:0}
+  .glow .screen{max-width:260px;margin:0 auto}
+  .numbers{grid-template-columns:repeat(3,1fr)}
+}
+@media (max-width:640px){
+  body{font-size:16px}
+  .wrap{padding:0 16px}
+  section{padding:64px 0}
+  .top nav{gap:16px;font-size:15px}
+  .brand{font-size:20px}
+  .btn{font-size:15px;padding:14px 16px}
+  .kicker{font-size:15px}
+  .stat-line,.scores-head,.tag{font-size:15px}
+  .stages img{width:calc(var(--w) * .6667px)}
+  .loot .desc{font-size:15px}
+  .loot .name{font-size:20px}
+  .numbers b{font-size:30px}
+  .hero{display:block;min-height:0}
+  .hero picture,.hero .art{position:relative;display:block;height:auto;aspect-ratio:1}
+  .hero .art{object-position:50% 100%}
+  .hero::after{background:linear-gradient(180deg,rgba(14,15,26,.7) 0,rgba(14,15,26,0) 80px),linear-gradient(0deg,var(--night) 0,rgba(14,15,26,0) 45%);inset:0 0 auto;height:100vw}
+  .hero .copy{padding:0 0 56px;margin-top:-56px}
+  .wordmark{font-size:40px;text-shadow:3px 3px 0 var(--ink),4px 4px 0 var(--plum)}
+  .hook{font-size:22px}
+  h2{font-size:20px}
+  .scores{padding:20px 16px}
+  .scores li{grid-template-columns:30px 52px 1fr auto;gap:8px}
+  .scores li .time{display:none}
+  .numbers{grid-template-columns:repeat(2,1fr)}
+  .numbers div:last-child{grid-column:span 2}
+  .loot{grid-template-columns:1fr;justify-items:center;text-align:center;padding:26px 18px}
+  .loot .meta{justify-content:center}
+  .page h1{font-size:30px}
+  body .signup label,body .signup button{font-size:15px}
+  .facts th{width:100px}
+}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;scroll-behavior:auto!important}}
