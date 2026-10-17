@@ -1,0 +1,22 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Items{% endblock %}
+{% block content %}
+<h1>Items</h1>
+<p class="lead">Every item is drawn on the raccoon. One per slot; picking up a copy levels it up (stats x1/x2/x3, most effects x1/x1.5/x2). {{ items|length }} shown.</p>
+{% set f = filter %}
+<div class="filters">
+    {{ w.filter('wiki_items', f, 'slot', '', 'All slots', f.slot) }}
+    {% for k, name in wiki().slots %}{{ w.filter('wiki_items', f, 'slot', k, name, f.slot) }}{% endfor %}
+</div>
+<div class="filters">
+    {{ w.filter('wiki_items', f, 'rarity', '', 'Any rarity', f.rarity) }}
+    {% for r in wiki().rarities %}{{ w.filter('wiki_items', f, 'rarity', loop.index0 ~ '', r.name, f.rarity) }}{% endfor %}
+</div>
+<div class="filters">
+    {{ w.filter('wiki_items', f, 'tag', '', 'Any tag', f.tag) }}
+    {% for k, t in wiki().tags %}{{ w.filter('wiki_items', f, 'tag', k, t.name, f.tag) }}{% endfor %}
+    <a href="{{ path('wiki_items', f|merge({risky: f.risky ? '' : 1})|filter(v => v is not same as('') and v is not same as(false))) }}"{% if f.risky %} class="on"{% endif %}>Risky only</a>
+</div>
+<div class="grid">{% for i in items %}{{ w.item(i) }}{% endfor %}</div>
+{% endblock %}

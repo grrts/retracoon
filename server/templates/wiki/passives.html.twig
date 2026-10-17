@@ -1,0 +1,17 @@
+{% extends 'wiki/layout.html.twig' %}
+{% import 'wiki/macros.html.twig' as w %}
+{% block heading %}Passives{% endblock %}
+{% block content %}
+<h1>Passives</h1>
+<p class="lead">Always-on buffs offered at level-up once your skill bar has nothing left to learn or upgrade. They stack (some have a cap) and last for the run.</p>
+<div class="grid">
+{% for p in passives %}
+<div class="card" id="{{ p.id }}">
+    {{ sprite('icons', 'passive:' ~ p.id, 4, p.name) }}
+    <span class="t"><h3 style="color:{{ p.color }}">{{ p.name }}</h3>
+    <small>Each stack: {{ p.each }}{% if p.max %} · max {{ p.max }}{% endif %}</small>
+    <span class="desc">{% for s in p.stacks %}x{{ s.n }}: {{ s.desc }}{% if not loop.last %}<br>{% endif %}{% endfor %}</span></span>
+</div>
+{% endfor %}
+</div>
+{% endblock %}

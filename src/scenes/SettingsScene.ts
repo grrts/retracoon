@@ -5,6 +5,7 @@ import { sfx } from '../audio';
 import { store, save } from '../save';
 import { COL } from '../gfx/palette';
 import { isNative } from '../platform/native';
+import { buzz, hasHaptics } from '../haptics';
 import { hasDisplaySettings, hasWindowSize, isFullscreen, setFullscreen, setWindowSize, WINDOW_SIZES } from '../platform/display';
 import { ACTIONS, ACTION_NAMES, Action, onAction, captureNext, keyBinds, padBinds, keyName, padName, rebind, resetBinds, padConnected } from '../input';
 
@@ -12,7 +13,7 @@ type Tab = 'sound' | 'display' | 'keys' | 'pad';
 const TAB_NAMES: Record<Tab, string> = { sound: 'SOUND', display: 'DISPLAY', keys: 'KEYBOARD', pad: 'CONTROLLER' };
 const TOP = 46;
 
-// Settings: volume, full screen or window, screen shake, and key and controller
+// Settings: volume, full screen or window, screen shake, vibration, and key and controller
 // bindings. Opened from the title screen and the pause screen.
 export class SettingsScene extends Phaser.Scene {
   private from = 'Title';
@@ -167,6 +168,17 @@ export class SettingsScene extends Phaser.Scene {
       if (store.shake) this.cameras.main.shake(120, 0.008);
     }, { depth: 5 });
     this.add_(shake.c);
+    if (hasHaptics()) {
+      y += 26;
+      const r = this.rowBox(y, 'VIBRATION');
+      const vib = button(this, r.x0 + r.bw - 40, y, 74, 16, store.haptics ? 'ON' : 'OFF', () => {
+        store.haptics = !store.haptics;
+        save();
+        vib.setLabel(store.haptics ? 'ON' : 'OFF');
+        buzz('crit');
+      }, { depth: 5 });
+      this.add_(vib.c);
+    }
     y += 22;
     if (hasWindowSize()) this.add_(text(this, W / 2, y, 'F11 OR ALT+ENTER ALSO SWITCHES FULL SCREEN', { color: COL.grey, maxWidth: W - 16, maxLines: 1 }));
   }

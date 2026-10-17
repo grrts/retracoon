@@ -4,10 +4,12 @@ import { Overlay, OverlayData, TITLE_BAND } from './Overlay';
 import { text, button, panel, BTN, LINE_H, wrapPx, measure, fmt, Button, shake } from '../ui';
 import { onAction } from '../input';
 import { sfx } from '../audio';
+import { buzz } from '../haptics';
 import { COL } from '../gfx/palette';
 import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
 import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
 import { note } from '../game/ledger';
+import { rules } from '../game/mutators';
 import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
 import { itemCard, RaccoonView } from '../game/views';
 import { store } from '../save';
@@ -88,6 +90,8 @@ export class RewardScene extends Overlay<RewardData> {
     });
     onAction(this, 'confirm', () => this.confirm());
     if (n === 1) this.pick(0);
+    // Epic and legendary loot gets a buzz as the cards land.
+    if (choices.some((it) => it.rarity >= 3)) this.time.delayedCall(200 + n * 80, () => buzz('loot'));
   }
 
   private pick(i: number) {
@@ -342,8 +346,11 @@ export class CampScene extends Overlay<OverlayData> {
     const nap = Math.round(maxHp(r) * 0.25);
     const forage = 8 + Math.round(danger(r) * 1.5);
     const bw = Math.min(W - 40, 240);
+    // NO NAPS week: the box is too cold to sleep in.
+    const noNaps = rules(r).noNaps;
     const opts: [string, string, () => void, object][] = [
-      [`NAP`, `HEAL ${nap} HP`, () => {
+      [`NAP`, noNaps ? 'NO NAPS THIS WEEK' : `HEAL ${nap} HP`, () => {
+        if (noNaps) return;
         r.hp = Math.min(maxHp(r), r.hp + nap);
         sfx.heal();
         this.close();
@@ -363,6 +370,10 @@ export class CampScene extends Overlay<OverlayData> {
     ];
     opts.forEach(([label, detail, fn, col], i) => {
       const b = button(this, W / 2, 104 + i * 32, bw, 26, '', fn, { ...(col as object), depth: 5 });
+      if (noNaps && i === 0) {
+        b.setEnabled(false);
+        b.c.setAlpha(0.7);
+      }
       b.c.add(text(this, -bw / 2 + 10, 0, label, { origin: 0, color: COL.white }));
       b.c.add(text(this, bw / 2 - 10, 0, detail, { origin: 1, color: COL.yellow }));
     });
