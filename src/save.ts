@@ -1,4 +1,5 @@
 import type { Ledger } from './game/ledger';
+import type { Replay } from './game/replay';
 
 // Small persistent store. Storage can be unavailable (private mode), so never assume it works.
 export interface Kept {
@@ -61,6 +62,8 @@ export interface PendingRun {
   timeMs: number;
   skin: string;
   log?: Ledger; // how the score added up, for the server's checks
+  ticket?: string; // the server's run ticket the run was played on
+  replay?: Replay; // every choice, so the server can replay the run
 }
 
 const KEY = 'retracoon.v3';

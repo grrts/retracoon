@@ -98,7 +98,7 @@ interface Res<T> {
   data: T | null;
 }
 
-async function call<T>(method: string, path: string, body?: unknown, auth = true): Promise<Res<T>> {
+async function call<T>(method: string, path: string, body?: unknown, auth = true, timeoutMs = 8000): Promise<Res<T>> {
   if (!API_URL) return { status: 0, data: null };
   const headers: Record<string, string> = { Accept: 'application/json' };
   if (body !== undefined) headers['Content-Type'] = 'application/json';
@@ -106,7 +106,7 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
   if (token) headers.Authorization = `Bearer ${token}`;
   // Give up after 8 s (AbortSignal.timeout is missing on older Android WebViews).
   const abort = new AbortController();
-  const timer = setTimeout(() => abort.abort(), 8000);
+  const timer = setTimeout(() => abort.abort(), timeoutMs);
   try {
     const res = await fetch(`${API_URL}/api${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: abort.signal });
     const text = await res.text();
@@ -121,9 +121,9 @@ async function call<T>(method: string, path: string, body?: unknown, auth = true
 
 // An authenticated call. A 401 means this device was signed out (account deleted):
 // forget the token so the sign-in screen shows next launch.
-async function authed<T>(method: string, path: string, body?: unknown): Promise<Res<T>> {
+async function authed<T>(method: string, path: string, body?: unknown, timeoutMs?: number): Promise<Res<T>> {
   if (!getToken()) return { status: 0, data: null };
-  const r = await call<T>(method, path, body);
+  const r = await call<T>(method, path, body, true, timeoutMs);
   if (r.status === 401) signOut();
   return r;
 }
@@ -194,6 +194,24 @@ export async function rename(name: string): Promise<boolean> {
   if (!r.data) return false;
   remember(r.data.player);
   return true;
+}
+
+// A run ticket: the server hands out the run's seed and the raccoon it starts from
+// (its own record of the banked raccoon), and only ranks results played on a ticket.
+// See docs/ONLINE.md#fair-scores.
+export interface RunTicket {
+  id: string;
+  seed: number;
+  day: string | null;
+  kept: { l: number; st: number[]; p: number } | null;
+}
+
+// `kept` is this device's banked raccoon; the server takes it once, the first time it
+// has none of its own for the account. Null when offline, signed out or slow to answer.
+export async function runTicket(mode: 'normal' | 'daily', day: string, kept: RunTicket['kept']): Promise<RunTicket | null> {
+  if (!onlineConfigured() || !signedIn()) return null;
+  const r = await authed<{ ticket: RunTicket }>('POST', '/me/runs/start', { mode, day: mode === 'daily' ? day : null, kept }, 3000);
+  return r.data?.ticket ?? null;
 }
 
 // Called after every run. Signed in, every run is queued and sent: normal runs count

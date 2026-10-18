@@ -7,7 +7,7 @@ import { COL } from '../gfx/palette';
 import { items, skills, themes, RARITY, STAT_INFO, TAGS } from '../content/registry';
 import type { Slot } from '../content/types';
 import { MUTATORS, weeklyMutator } from '../game/mutators';
-import { RunState, newRun, dailyDay, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
+import { RunState, dailyDay, STAT_KEYS, totalStat, maxHp, apPerTurn, critChance, dodgeChance, attackPower, tagCounts } from '../game/run';
 import { RaccoonView } from '../game/views';
 import { buildTextures } from '../gfx/textures';
 import { loadContent } from '../content';
@@ -26,6 +26,7 @@ import { continueBoot } from './AccountScenes';
 import { onAction, padConnected } from '../input';
 import { checkAchievements, syncAchievements, steamPresence } from '../platform/achievements';
 import { areasFound } from './MapScene';
+import { prepareRun } from '../platform/runStart';
 
 // ---------------------------------------------------------------- shared bits
 
@@ -251,7 +252,14 @@ export class GameOverScene extends Phaser.Scene {
       this.scene.stop();
       this.scene.start(key, d);
     };
-    const again = () => (daily ? leave('Run', { run: newRun('daily') }) : leave('Run'));
+    const again = () => {
+      if (!armed) return;
+      armed = false;
+      void prepareRun(daily).then((d) => {
+        armed = true;
+        leave('Run', d);
+      });
+    };
     const bw = Math.min(110, (W - 24) / 3);
     button(this, W / 2 - bw - 4, H - 16, bw, 22, daily ? 'TRY AGAIN' : dead ? 'NEW RUN' : 'GO AGAIN', again, BTN.red);
     if (daily) button(this, W / 2, H - 16, bw, 22, 'DAILY BOARD', () => leave('Scores', { back: 'Title', tab: 'daily' }), BTN.violet);
@@ -362,8 +370,10 @@ export class TitleScene extends Phaser.Scene {
       this.started = true;
       sfx.unlock();
       sfx.select();
+      // The run ticket is fetched while the screen fades out.
+      const start = prepareRun(daily);
       this.cameras.main.fadeOut(220, 26, 28, 44);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Run', daily ? { run: newRun('daily') } : {}));
+      this.cameras.main.once('camerafadeoutcomplete', () => void start.then((d) => this.scene.start('Run', d)));
     };
     const play = button(this, mx, 84, 140, 28, store.kept ? `CONTINUE AT LV ${store.kept.level}` : 'PLAY', () => go(), BTN.red);
     this.tweens.add({ targets: play.c, scale: 1.04, yoyo: true, repeat: -1, duration: 600, ease: 'Sine.inOut' });

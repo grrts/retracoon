@@ -1,7 +1,7 @@
 // Everything about the current run. Pure data and rules, no rendering.
 import type { BlessingId, Bonus, Fx, FxKey, ItemDef, SkillCtx, SkillDef, Slot, StatKey, Tag } from '../content/types';
 import { items, skills, sets, RARITY, themesByTier, themes } from '../content/registry';
-import { store } from '../save';
+import { store, type Kept } from '../save';
 import { passives, type PassiveDef } from '../content/passives';
 import { rand, reseed, hash } from './rng';
 import { note } from './ledger';
@@ -28,7 +28,8 @@ export type RunMode = 'normal' | 'daily';
 export interface RunState {
   mode: RunMode;
   day: string | null; // daily runs: the UTC date (YYYY-MM-DD) of the daily seed
-  seed: number | null; // daily runs: the shared seed; null = plain Math.random
+  seed: number | null; // every logic roll comes from this (daily: the day's shared seed); null = Math.random
+  legendary: boolean; // legendary loot unlocked (a boss was beaten before this run)
   mutator: MutatorId | null; // daily runs: the week's extra rule (see mutators.ts)
   rollStage: number; // stage the per-stage random rolls below belong to
   rollCounts: Record<string, number>;
@@ -51,7 +52,6 @@ export interface RunState {
   sinceStop: number; // fights since the last road stop
   heat: number; // permanent extra danger (retreat penalty, shortcuts, curses)
   eliteNext: boolean;
-  pendingLevelUps: number;
   blessings: Blessing[];
   // stats for the end screen
   kills: number;
@@ -86,7 +86,8 @@ export function dailyDay(now = new Date()) {
 }
 
 // Reseed game-logic randomness for one decision of the current stage. A daily run gets
-// the same rolls on the same stage for every player; normal runs stay on Math.random.
+// the same rolls on the same stage for every player. A normal run has its own seed, so
+// the whole run follows from it and the choices made (that is what the server replays).
 export function roll(r: RunState, what: string) {
   if (r.seed === null) return reseed(null);
   if (r.rollStage !== r.stage) {
@@ -102,23 +103,41 @@ export function roll(r: RunState, what: string) {
 // Dying wipes the bank and you start over at level 1.
 // A daily run is always a fresh level 1 raccoon and never touches the banked one.
 // `mutator` overrides the week's rule (null: none); the balance sim uses it.
-export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId | null): RunState {
+// `opts` comes from the server's run ticket (seed and starting raccoon) or a replay;
+// without it a normal run starts from the banked raccoon with a seed of its own.
+export interface RunStart {
+  seed?: number;
+  kept?: Kept | null;
+  legendary?: boolean;
+}
+
+export const FRESH_STATS: Record<StatKey, number> = { str: 3, def: 2, agi: 2, lck: 2, vit: 3 };
+
+export function newSeed() {
+  const a = new Uint32Array(1);
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(a);
+  else a[0] = Math.floor(Math.random() * 2 ** 32);
+  return a[0];
+}
+
+export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: MutatorId | null, opts: RunStart = {}): RunState {
   const daily = mode === 'daily';
   const rule = daily ? (mutator === undefined ? weeklyMutator(day) : mutator) : null;
-  const kept = daily ? null : store.kept;
-  const seed = daily ? hash('retracoon-daily', day) : null;
+  const kept = daily ? null : opts.kept !== undefined ? opts.kept : store.kept;
+  const seed = daily ? hash('retracoon-daily', day) : (opts.seed ?? newSeed());
   reseed(seed, 'start');
   const r: RunState = {
     mode,
     day: daily ? day : null,
     seed,
+    legendary: opts.legendary ?? store.bossKills > 0,
     mutator: rule,
     rollStage: 0,
     rollCounts: {},
     level: kept?.level ?? 1,
     xp: 0,
     statPoints: kept?.statPoints ?? 0,
-    stats: kept ? { ...kept.stats } : { str: 3, def: 2, agi: 2, lck: 2, vit: 3 },
+    stats: kept ? { ...kept.stats } : { ...FRESH_STATS },
     hp: 0,
     skills: [
       { id: 'claw', lvl: 1 },
@@ -137,7 +156,6 @@ export function newRun(mode: RunMode = 'normal', day = dailyDay(), mutator?: Mut
     sinceStop: 0,
     heat: 0,
     eliteNext: false,
-    pendingLevelUps: 0,
     blessings: [],
     kills: 0,
     fights: 0,
@@ -351,11 +369,14 @@ export function capsForRun(r: RunState) {
 
 // ---------------------------------------------------------------- loot
 
+// Legendary loot (and boss-only items) unlock with the first boss ever beaten.
+export const bossBeaten = (r: RunState) => r.legendary || r.bosses > 0;
+
 export function rollRarity(r: RunState, min = 0, max = 4): number {
   const d = danger(r);
   const weights = RARITY.map((x, i) => {
     if (i < min || i > max) return 0;
-    if (i === 4 && store.bossKills === 0) return 0;
+    if (i === 4 && !bossBeaten(r)) return 0;
     // Rarer items get more common the further you go.
     return x.weight * (1 + d * 0.15 * i);
   });
@@ -372,7 +393,7 @@ export function rollRarity(r: RunState, min = 0, max = 4): number {
 export const SET_PULL = 0.3;
 
 export function itemPool(r: RunState, rarity: number): ItemDef[] {
-  return [...items.values()].filter((it) => it.rarity === rarity && (!it.needsBoss || store.bossKills > 0) && !(r.gear[it.slot]?.id === it.id && r.gear[it.slot]!.lvl >= 3));
+  return [...items.values()].filter((it) => it.rarity === rarity && (!it.needsBoss || bossBeaten(r)) && !(r.gear[it.slot]?.id === it.id && r.gear[it.slot]!.lvl >= 3));
 }
 
 export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []): ItemDef | null {
@@ -390,7 +411,7 @@ export function randomItem(r: RunState, min = 0, max = 4, exclude: string[] = []
     const missing = worn
       .flatMap((id) => sets.get(id)?.pieces ?? [])
       .map((id) => items.get(id)!)
-      .filter((it) => it && it.rarity >= min && it.rarity <= max && r.gear[it.slot]?.id !== it.id && !exclude.includes(it.id) && (!it.needsBoss || store.bossKills > 0));
+      .filter((it) => it && it.rarity >= min && it.rarity <= max && r.gear[it.slot]?.id !== it.id && !exclude.includes(it.id) && (!it.needsBoss || bossBeaten(r)));
     if (missing.length) return missing[Math.floor(rand() * missing.length)];
   }
   for (let tries = 0; tries < 12; tries++) {

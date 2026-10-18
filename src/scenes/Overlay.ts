@@ -1,10 +1,12 @@
 import Phaser from 'phaser';
 import { W, H } from '../config';
 import { text, panel, measure } from '../ui';
-import { roll, type RunState } from '../game/run';
+import type { RunState } from '../game/run';
+import type { RunFlow, Step } from '../game/flow';
 
 export interface OverlayData {
   run: RunState;
+  flow: RunFlow;
   done: () => void;
 }
 
@@ -17,8 +19,13 @@ export class Overlay<D extends OverlayData = OverlayData> extends Phaser.Scene {
 
   init(data: D) {
     this.d = data;
-    // Daily runs: every player gets the same cards, roads and shop on the same stage.
-    if (data?.run) roll(data.run, this.scene.key);
+  }
+
+  // The flow's open step, which this overlay shows. Its content was rolled when it opened.
+  protected step<K extends Step['key']>(key: K): Extract<Step, { key: K }> {
+    const s = this.d.flow.step;
+    if (s?.key !== key) throw new Error(`${this.scene.key}: no ${key} step open`);
+    return s as Extract<Step, { key: K }>;
   }
 
   protected backdrop(alpha = 0.8) {
@@ -44,18 +51,9 @@ export class Overlay<D extends OverlayData = OverlayData> extends Phaser.Scene {
     return g;
   }
 
-  // Close this overlay and hand control back to the run (or to the next step).
-  protected close(next?: { key: string; data: object }) {
-    // Level-ups earned outside of fights (events) are handled before returning.
-    if (!next && this.d.run.pendingLevelUps > 0 && this.scene.key !== 'LevelUp') {
-      this.d.run.pendingLevelUps--;
-      next = { key: 'LevelUp', data: {} };
-    }
+  // Close this overlay and hand control back to the run, which opens the next step.
+  protected close() {
     this.scene.stop();
-    if (next) {
-      this.scene.launch(next.key, { ...next.data, run: this.d.run, done: this.d.done });
-      return;
-    }
     this.scene.resume('Run');
     this.d.done();
   }
