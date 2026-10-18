@@ -27,6 +27,11 @@ final class RunResult
         public readonly int $timeMs = 0,
         // how the score was earned (src/game/ledger.ts); checked by RunAudit
         public readonly ?array $log = null,
+        // the run ticket it was played on (POST /api/me/runs/start)
+        #[Assert\Regex('/^[0-9a-f]{20}$/')]
+        public readonly ?string $ticket = null,
+        // every choice of the run (src/game/replay.ts), for the replay job
+        public readonly ?array $replay = null,
     ) {
     }
 }

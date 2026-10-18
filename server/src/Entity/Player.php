@@ -74,6 +74,21 @@ class Player implements UserInterface
     #[ORM\Column(options: ['default' => false])]
     private bool $hidden = false;
 
+    // The banked raccoon (level, stats, points) the next normal run starts from: set by
+    // a retreat, wiped by a death or a run that never ended. Null with keptSet = a fresh
+    // raccoon. Before the first run ticket the server has none of its own (keptSet
+    // false) and takes the phone's once, see adoptKept.
+    /** @var array{l: int, st: list<int>, p: int}|null */
+    #[ORM\Column(type: Types::JSON, nullable: true)]
+    private ?array $kept = null;
+
+    #[ORM\Column(options: ['default' => false])]
+    private bool $keptSet = false;
+
+    // The run log whose result banked it, while that result may still be replayed.
+    #[ORM\Column(type: Types::BIGINT, nullable: true)]
+    private ?string $keptFrom = null;
+
     #[ORM\Column]
     private \DateTimeImmutable $createdAt;
 
@@ -226,6 +241,49 @@ class Player implements UserInterface
     public function getCreatedAt(): \DateTimeImmutable
     {
         return $this->createdAt;
+    }
+
+    /** @return array{l: int, st: list<int>, p: int}|null */
+    public function getKept(): ?array
+    {
+        return $this->kept;
+    }
+
+    public function getKeptFrom(): ?string
+    {
+        return $this->keptFrom;
+    }
+
+    public function isKeptSet(): bool
+    {
+        return $this->keptSet;
+    }
+
+    /** @param array{l: int, st: list<int>, p: int}|null $kept */
+    public function setKept(?array $kept, ?string $from = null): void
+    {
+        $this->kept = $kept;
+        $this->keptFrom = null === $kept ? null : $from;
+        $this->keptSet = true;
+    }
+
+    /**
+     * The first run ticket of an account that played before tickets existed: take the
+     * phone's banked raccoon once, if it is one this player could have (no higher than
+     * their best level, and no more stat points than those levels give, with a little
+     * room for camps and events).
+     */
+    public function adoptKept(mixed $kept): void
+    {
+        $ok = \is_array($kept) && \is_int($kept['l'] ?? null) && \is_int($kept['p'] ?? null) && \is_array($kept['st'] ?? null) && array_is_list($kept['st']) && 5 === \count($kept['st'])
+            && $kept['l'] >= 1 && $kept['l'] <= max(1, $this->bestLevel) && $kept['p'] >= 0;
+        if ($ok) {
+            foreach ($kept['st'] as $v) {
+                $ok = $ok && \is_int($v) && $v >= 0;
+            }
+            $ok = $ok && array_sum($kept['st']) + $kept['p'] <= 12 + 3 * ($kept['l'] - 1) + $kept['l'];
+        }
+        $this->setKept($ok && $kept['l'] > 1 ? ['l' => $kept['l'], 'st' => $kept['st'], 'p' => $kept['p']] : null);
     }
 
     /**

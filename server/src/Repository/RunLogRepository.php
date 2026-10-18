@@ -36,6 +36,32 @@ class RunLogRepository extends ServiceEntityRepository
             ->getResult();
     }
 
+    /** @return RunLog[] oldest first */
+    public function pendingReplays(int $limit): array
+    {
+        return $this->findBy(['replayStatus' => RunLog::PENDING], ['createdAt' => 'ASC', 'id' => 'ASC'], $limit);
+    }
+
+    /** Whether a run of this daily day (YYYY-MM-DD) or season (YYYY-MM) still waits on its replay. */
+    public function pendingFor(string $mode, string $period, \DateTimeImmutable $since): bool
+    {
+        $q = $this->createQueryBuilder('r')
+            ->select('COUNT(r.id)')
+            ->where('r.replayStatus = :p')
+            ->andWhere('r.createdAt > :since')
+            ->setParameter('p', RunLog::PENDING)
+            ->setParameter('since', $since);
+        if ('daily' === $mode) {
+            $q->andWhere("r.mode = 'daily'")->andWhere('r.day = :d')->setParameter('d', $period);
+        } else {
+            $from = new \DateTimeImmutable($period.'-01 00:00:00', new \DateTimeZone('UTC'));
+            $q->andWhere("r.mode = 'normal'")->andWhere('r.createdAt >= :from')->andWhere('r.createdAt < :to')
+                ->setParameter('from', $from)->setParameter('to', $from->modify('+1 month'));
+        }
+
+        return (int) $q->getQuery()->getSingleScalarResult() > 0;
+    }
+
     /** @return RunLog[] newest first */
     public function forPlayer(Player $p, int $limit): array
     {
