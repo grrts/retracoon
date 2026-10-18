@@ -18,10 +18,9 @@ const STYLE: Record<Provider, { fill: number; light: number }> = {
   steam: { fill: 0x29366f, light: 0x41a6f6 },
 };
 
-// After sign-in (or when it isn't needed): tutorial on the very first launch, then the
-// launch ad (with its note first), then the title screen.
+// After sign-in (or when it isn't needed): the launch ad (with its note first), then the
+// title screen. New players learn by playing: see the one-time hints in RunScene.
 export function continueBoot(scene: Phaser.Scene, adsOn: boolean) {
-  if (!store.tutorialDone) return scene.scene.start('Tutorial', { next: 'Title', forced: true });
   scene.scene.start(adsOn ? 'Ad' : 'Title');
 }
 
