@@ -21,10 +21,6 @@ import { rand } from './rng';
 import { rules } from './mutators';
 
 const TWIN = 0.6;
-// A fight still going at this turn goes into OVERTIME: foes stop healing and hit harder
-// every turn, so no fight can stall forever.
-export const OVERTIME = 25;
-const OVERTIME_DMG = 1.15;
 const TWIN_UPS = 2; // times a twin can get back up
 const MIRROR_CAP = 0.4; // a copied hit is at most this share of the raccoon's max health
 
@@ -559,13 +555,6 @@ export class Combat {
     this.twinsGetUp();
 
     this.ev.push({ t: 'turn', side: 'foes' });
-    if (this.turn >= OVERTIME) {
-      if (this.turn === OVERTIME) this.ev.push({ t: 'hazard', name: 'OVERTIME', desc: 'FOES STOP HEALING AND HIT HARDER EVERY TURN' });
-      for (const f of this.alive()) {
-        f.dmgMul *= OVERTIME_DMG;
-        f.regen = 0;
-      }
-    }
     this.runHazard();
     for (const f of [...this.foes]) {
       if (f.dead || this.hp <= 0) continue;
