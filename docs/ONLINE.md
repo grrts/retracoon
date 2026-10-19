@@ -72,25 +72,35 @@ Run the migrate command again after each update of the API.
 
 ### Deploying with GitHub Actions
 
-`.github/workflows/deploy-server.yml` does the steps above over SSH: it runs the server tests, installs the production dependencies on GitHub, uploads the result as a new release and runs `server/deploy/release.sh` on the server, which migrates the database, warms the cache and switches to the new release in one step. A failed step leaves the running release as it was. Start it under Actions > Deploy server > Run workflow; to deploy every merge to `main` that touches `server/`, also set the variable `AUTO_DEPLOY` to `true`.
+The easy way: `.github/workflows/deploy-server.yml` puts the whole server on any Linux machine you can SSH into, with Docker. The image from `server/Dockerfile` serves the API and website over HTTPS by itself (FrankenPHP, with a free Let's Encrypt certificate for your domain), and `server/deploy/compose.yaml` runs it next to PostgreSQL and the `app:prizes` job. Each deploy uploads `server/`, rebuilds the image there, migrates the database and restarts; a failed build leaves the running version up. Docker is installed the first time if it's missing. Pull requests touching `server/` build the image and check it answers `/api/health`.
 
-On the server, once: PHP 8.2+ with `pdo_pgsql` and `intl` (Composer isn't needed), PostgreSQL, a user that can write the deploy folder, and the web server's document root at `<DEPLOY_PATH>/current/public`. Releases go to `<DEPLOY_PATH>/releases/`, the newest 5 are kept, and `<DEPLOY_PATH>/shared/` holds `.env.local` and `var/log`, `var/share`. Point the `app:prizes` cron job at `<DEPLOY_PATH>/current`.
+Start it under Actions > Deploy server > Run workflow; to deploy every merge to `main` that touches `server/`, also set the variable `AUTO_DEPLOY` to `true`.
+
+What the machine needs: SSH access as root (or a user with sudo), ports 80 and 443 open, and your domain's DNS (an `A` record, e.g. `api.retracoon.com`) pointing at it.
 
 Set these under Settings > Secrets and variables > Actions, in the `production` environment or the repository:
 
 | Name | Kind | |
 |---|---|---|
 | `DEPLOY_HOST` | secret | The server's address. Without it the workflow does nothing |
-| `DEPLOY_USER` | secret | The SSH user |
+| `DEPLOY_USER` | secret | The SSH user, `root` by default |
 | `DEPLOY_SSH_KEY` | secret | A private key made for deploys only (`ssh-keygen -t ed25519 -f deploy -N ""`); its `.pub` goes in that user's `~/.ssh/authorized_keys` |
 | `DEPLOY_KNOWN_HOSTS` | secret | The output of `ssh-keyscan <host>`, so the workflow only talks to your server. Optional, but without it the key is trusted as offered |
-| `SERVER_ENV` | secret | Optional: the whole `.env.local` above. Each deploy writes it to `shared/.env.local`; leave it unset to keep the file on the server instead |
-| `DEPLOY_PATH` | variable | The deploy folder, e.g. `/var/www/retracoon` |
+| `SERVER_ENV` | secret | The server's settings, written to `<DEPLOY_PATH>/.env` on each deploy: the `.env.local` above without `DATABASE_URL`, plus `DOMAIN` and `POSTGRES_PASSWORD` (below) |
+| `DEPLOY_PATH` | variable | Optional deploy folder, `/opt/retracoon` by default |
 | `DEPLOY_PORT` | variable | Optional SSH port, 22 by default |
-| `DEPLOY_RELOAD` | variable | Optional command run after the switch, e.g. `sudo systemctl reload php8.3-fpm` so OPcache picks up the new release |
 | `API_URL` | variable | Already used by the app builds; the deploy checks `<API_URL>/api/health` afterwards |
 
-To roll back, point `current` at an older release on the server: `ln -sfn releases/<name> current`.
+```dotenv
+# SERVER_ENV: the settings from the .env.local above, and
+DOMAIN=api.retracoon.com          # the certificate is made for this name
+POSTGRES_PASSWORD=<long random string>
+APP_ENV=prod
+APP_SECRET=...
+# ...
+```
+
+The database lives in the Docker volume `retracoon_database_data` and survives deploys; back it up with `docker compose -f /opt/retracoon/compose.yaml exec database pg_dump -U app app > backup.sql`. Logs: `docker compose -f /opt/retracoon/compose.yaml logs app`.
 
 Add one cron job so daily and season prizes are paid even on a quiet day (the API also pays them by itself whenever a board or profile is read):
 

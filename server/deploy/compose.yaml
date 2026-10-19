@@ -1,0 +1,59 @@
+# The live server: the app (API, website, HTTPS), the prize job and PostgreSQL.
+# .github/workflows/deploy-server.yml puts this in <DEPLOY_PATH> next to the app's code,
+# writes <DEPLOY_PATH>/.env from the SERVER_ENV secret and runs deploy/up.sh.
+# Setup: docs/ONLINE.md "Deploying with GitHub Actions".
+name: retracoon
+
+x-app: &app
+  build: ./app
+  image: retracoon-server
+  restart: unless-stopped
+  env_file: .env
+  depends_on:
+    database:
+      condition: service_healthy
+
+services:
+  app:
+    <<: *app
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in SERVER_ENV}@database:5432/app?serverVersion=16&charset=utf8
+      SERVER_NAME: ${DOMAIN:?set DOMAIN in SERVER_ENV}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+      - app_share:/app/var/share
+
+  # Pays daily and season prizes even on a quiet day (docs/ONLINE.md).
+  prizes:
+    <<: *app
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD}@database:5432/app?serverVersion=16&charset=utf8
+    entrypoint: ["sh", "-c", "while :; do php bin/console app:prizes || true; sleep 900; done"]
+    volumes:
+      - app_share:/app/var/share
+
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: app
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    healthcheck:
+      test: ["CMD", "pg_isready", "-d", "app", "-U", "app"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    volumes:
+      - database_data:/var/lib/postgresql/data
+
+volumes:
+  caddy_data:
+  caddy_config:
+  app_share:
+  database_data:
