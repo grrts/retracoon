@@ -33,6 +33,8 @@ final class SiteController extends AbstractController
         private readonly Wiki $wiki,
         private readonly StoreLinks $stores,
         #[Autowire('%kernel.project_dir%/public')] private readonly string $public,
+        /** @var list<array{quote: string, source: string, url?: string}> */
+        #[Autowire('%site.press_quotes%')] private readonly array $quotes = [],
     ) {
     }
 
@@ -61,6 +63,9 @@ final class SiteController extends AbstractController
             'board' => $board,
             'item' => $rare ? $rare[array_rand($rare)] : null,
             'counts' => $this->counts(),
+            // The trailer shows once tools/site-media.sh has put it in public/site/.
+            'trailer' => is_file("$this->public/site/trailer.mp4"),
+            'quotes' => $this->quotes,
         ]);
 
         return $res->setPublic()->setMaxAge(60);

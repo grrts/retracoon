@@ -27,6 +27,12 @@ ff -i "$src/video/boss-clip-landscape.mp4" -an -vf "scale=1280:720:flags=lanczos
 ff -i "$src/steam/screenshots/01-boss-candy.png" -vf "scale=1280:720:flags=lanczos" -c:v libwebp -quality 85 "$site/boss-fight.webp"
 # The push-or-retreat store shot, without its caption.
 ff -i "$src/store/google-play/05-push-or-retreat.png" -vf "crop=1544:872:188:182,scale=1280:-2:flags=lanczos" -c:v libwebp -quality 85 "$site/push-or-retreat.webp"
+# The trailer, once the marketing kit has one: the landing page shows it (and a "Watch the
+# trailer" button) only while public/site/trailer.mp4 exists. 720p keeps each view cheap.
+if [ -f "$src/video/trailer.mp4" ]; then
+  ff -i "$src/video/trailer.mp4" -vf "scale=1280:-2:flags=lanczos" -c:v libx264 -crf 24 -preset slow -pix_fmt yuv420p -c:a aac -b:a 128k -movflags +faststart "$site/trailer.mp4"
+  ff -ss 3 -i "$src/video/trailer.mp4" -vf "scale=1280:-2:flags=lanczos" -frames:v 1 -c:v libwebp -quality 85 "$site/trailer.webp"
+fi
 
 # Press kit: the full-size files, as downloads. PNGs are small already.
 cp "$src"/raccoons/*.png "$press/raccoons/"
@@ -36,5 +42,6 @@ cp "$src/video/glow-up.gif" "$press/video/glow-up.gif"
 ff -i "$src/video/boss-clip-landscape.mp4" -an -c:v libx264 -crf 24 -preset slow -pix_fmt yuv420p -movflags +faststart "$press/video/boss-clip-landscape.mp4"
 ff -i "$src/video/boss-clip-vertical.mp4" -an -c:v libx264 -crf 24 -preset slow -pix_fmt yuv420p -movflags +faststart "$press/video/boss-clip-vertical.mp4"
 ff -i "$src/video/glow-up-vertical.mp4" -an -c:v libx264 -crf 24 -preset slow -pix_fmt yuv420p -movflags +faststart "$press/video/glow-up-vertical.mp4"
+if [ -f "$src/video/trailer.mp4" ]; then cp "$src/video/trailer.mp4" "$press/video/trailer.mp4"; fi
 
 du -sh "$site" "$press"

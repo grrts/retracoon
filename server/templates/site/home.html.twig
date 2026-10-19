@@ -3,31 +3,39 @@
 {% block title %}Retracoon: the raccoon roguelike where the loot is the look{% endblock %}
 
 {% block content %}
-<section class="hero" style="padding:0">
+<section class="hero">
     <picture>
         <source media="(max-width:640px)" srcset="/site/hero-square.webp">
-        <img class="art pix" src="/site/hero.webp" width="1920" height="620" alt="The raccoon in a crown, laser eyes and a trash mech, walking a neon city street at night" fetchpriority="high">
+        <img class="art pix" src="/site/hero.webp" width="1920" height="620" alt="" fetchpriority="high">
     </picture>
-    <div class="wrap"><div class="copy">
-        {% if not stores %}<span class="chip">Coming to Android, iPhone and Steam</span>{% endif %}
-        <h1 class="wordmark">Retracoon</h1>
-        <p class="hook">A turn-based 8-bit roguelike where your raccoon wears every item it finds.</p>
-        <p class="lede">Walk an endless road through {{ counts.areas }} areas. Every fight is harder than the last, so the only question is how far you get this time.</p>
-        {% include 'site/_stores.html.twig' %}
-    </div></div>
-</section>
-
-<section class="band">
-    <div class="wrap split">
-        <div>
-            <span class="kicker">Loot is the look</span>
-            <h2>Every item you find, <em>your raccoon wears</em></h2>
-            <p class="body">A paper hat. Laser eyes. Comet wings. A trash mech. All {{ counts.items|number_format }} items are drawn on the raccoon, so one look tells you how far you came. Tap any loot to try it on before you take it.</p>
-            <p class="stat-line"><b>{{ counts.items|number_format }}</b> items · <b>{{ counts.sets }}</b> sets · <b>{{ counts.skins }}</b> skins</p>
-        </div>
-        <div class="media glow">
+    <div class="wrap">
+        <div class="clip">
             <div class="screen notch"><video src="/site/glow-up.mp4" poster="/site/glow-up.webp" width="540" height="720" autoplay muted loop playsinline aria-label="A bare raccoon gains a crown, laser eyes, a mech, wings and an aura"></video></div>
         </div>
+        <div class="copy">
+            {% if not stores %}<span class="chip">Coming to Android, iPhone and Steam</span>{% endif %}
+            <h1 class="wordmark">Retracoon</h1>
+            <p class="hook">A turn-based 8-bit roguelike where your raccoon wears every item it finds.</p>
+            <p class="lede">Walk an endless road through {{ counts.areas }} areas. Every fight is harder than the last, so the only question is how far you get this time.</p>
+            {% include 'site/_stores.html.twig' with {with_trailer: true} %}
+        </div>
+    </div>
+</section>
+
+{% if trailer %}
+<section id="trailer" class="trailer">
+    <div class="wrap">
+        <div class="frame"><span class="tag">Trailer</span><video src="/site/trailer.mp4" poster="/site/trailer.webp" width="1280" height="720" controls playsinline preload="none" aria-label="The Retracoon trailer"></video></div>
+    </div>
+</section>
+{% endif %}
+
+<section class="band">
+    <div class="wrap">
+        <span class="kicker">Loot is the look</span>
+        <h2>Every item you find, <em>your raccoon wears</em></h2>
+        <p class="body">A paper hat. Laser eyes. Comet wings. A trash mech. All {{ counts.items|number_format }} items are drawn on the raccoon, so one look tells you how far you came. Tap any loot to try it on before you take it.</p>
+        <p class="stat-line"><b>{{ counts.items|number_format }}</b> items · <b>{{ counts.sets }}</b> sets · <b>{{ counts.skins }}</b> skins</p>
     </div>
     <div class="wrap road">
         <div class="stages">
@@ -39,38 +47,44 @@
     </div>
 </section>
 
-<section id="daily">
+<section class="newsband">
     <div class="wrap split">
+        <div>
+            <span class="kicker">Launch news</span>
+            <h2>Hear the moment <em>it's out</em></h2>
+            <p class="body">One mail when Retracoon launches on your phone or Steam, and the odd update after. No spam.</p>
+        </div>
+        <div class="news">{% include 'list/_signup.html.twig' %}</div>
+    </div>
+</section>
+
+<section id="daily">
+    {# The high-score panel shows once somebody has run today; until then the section only explains it. #}
+    {% set live = board and board.players %}
+    <div class="wrap{% if live %} split{% endif %}">
         <div>
             <span class="kicker">Daily run</span>
             <h2>Same road for everyone. <em>How far can you get?</em></h2>
             <p class="body">Every day the whole world walks the same seed. The furthest stage takes the top spot and the fastest time breaks ties. The winner gets gems when the day closes.</p>
             {% if stores %}{% include 'site/_stores.html.twig' %}{% endif %}
         </div>
+        {% if live %}
         <div class="scores notch">
-            {% if board is null %}
-                <div class="scores-head"><span>Today's top 5</span></div>
-                <p class="empty">The scoreboard is taking a nap. Check back soon.</p>
-            {% else %}
-                <div class="scores-head"><span>Today's top 5</span>{% if board.total %}<b>{{ board.total|number_format }} {{ board.total == 1 ? 'runner' : 'runners' }}</b>{% endif %}</div>
-                {% if board.players %}
-                <ol class="board">
-                    {% for p in board.players %}
-                    <li>
-                        <span class="rank">{{ p.rank }}</span>
-                        <span class="skin">{{ sprite('skins', p.skin, 1) }}</span>
-                        <span class="name">{{ p.name }}<small>#{{ '%04d'|format(p.tag) }}</small></span>
-                        <span class="num"><span>Stage</span>{{ p.stage }}</span>
-                        <span class="num time"><span>Time</span>{{ p.timeMs // 60000 }}:{{ '%02d'|format((p.timeMs // 1000) % 60) }}</span>
-                    </li>
-                    {% endfor %}
-                </ol>
-                {% else %}
-                    <p class="empty">Nobody has walked today's road yet. The first run takes the top spot.</p>
-                {% endif %}
-                {% if board.lastWinner %}<p class="foot">Yesterday's winner: <b>{{ board.lastWinner.name }}</b>, stage {{ board.lastWinner.stage }}.</p>{% endif %}
-            {% endif %}
+            <div class="scores-head"><span>Today's top 5</span>{% if board.total %}<b>{{ board.total|number_format }} {{ board.total == 1 ? 'runner' : 'runners' }}</b>{% endif %}</div>
+            <ol class="board">
+                {% for p in board.players %}
+                <li>
+                    <span class="rank">{{ p.rank }}</span>
+                    <span class="skin">{{ sprite('skins', p.skin, 1) }}</span>
+                    <span class="name">{{ p.name }}<small>#{{ '%04d'|format(p.tag) }}</small></span>
+                    <span class="num"><span>Stage</span>{{ p.stage }}</span>
+                    <span class="num time"><span>Time</span>{{ p.timeMs // 60000 }}:{{ '%02d'|format((p.timeMs // 1000) % 60) }}</span>
+                </li>
+                {% endfor %}
+            </ol>
+            {% if board.lastWinner %}<p class="foot">Yesterday's winner: <b>{{ board.lastWinner.name }}</b>, stage {{ board.lastWinner.stage }}.</p>{% endif %}
         </div>
+        {% endif %}
     </div>
 </section>
 
@@ -127,13 +141,28 @@
 </section>
 {% endif %}
 
+{% if quotes %}
+<section class="quotes">
+    <div class="wrap">
+        <span class="kicker">What people say</span>
+        <div class="said">
+            {% for q in quotes %}
+            <figure class="notch">
+                <blockquote>{{ q.quote }}</blockquote>
+                <figcaption>{% if q.url ?? null %}<a href="{{ q.url }}" rel="noopener">{{ q.source }}</a>{% else %}{{ q.source }}{% endif %}</figcaption>
+            </figure>
+            {% endfor %}
+        </div>
+    </div>
+</section>
+{% endif %}
+
 <section class="final">
     <div class="wrap">
         <img class="pix" src="/downloads/raccoons/legend.png" width="172" alt="">
         <h2>Fair to play</h2>
         <p class="body">Free on phones, with one ad when the game starts and never during a run. No energy timers, no paying to win, and skins are cosmetic. On Steam, buy it once.</p>
         {% include 'site/_stores.html.twig' %}
-        <div class="news">{% include 'list/_signup.html.twig' %}</div>
     </div>
 </section>
 {% endblock %}

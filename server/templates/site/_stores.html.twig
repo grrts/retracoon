@@ -4,5 +4,6 @@
     {% for store in stores %}
         <a class="btn store" href="{{ store_link(store) }}" rel="noopener">{{ {'google-play': 'Get it on Google Play', 'app-store': 'Download on the App Store', 'steam': 'Wishlist on Steam'}[store] }}</a>
     {% endfor %}
+    {% if (with_trailer ?? false) and (trailer ?? false) %}<a class="btn ghost play" href="#trailer">Watch the trailer</a>{% endif %}
     <a class="btn{% if stores %} ghost{% endif %}" href="{{ path('wiki') }}">Browse the wiki</a>
 </div>
