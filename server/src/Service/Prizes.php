@@ -25,6 +25,7 @@ final class Prizes
         private readonly SeasonScoreRepository $seasons,
         private readonly Periods $periods,
         private readonly LockFactory $locks,
+        private readonly Replays $replays,
     ) {
     }
 
@@ -39,6 +40,10 @@ final class Prizes
             $now = $this->periods->now();
             $paid = 0;
             foreach ($this->daily->unpaidDays($this->periods->firstOpenDay()) as $day) {
+                // Runs of that day still being replayed could still win it.
+                if ($this->replays->holdsPrize('daily', $day)) {
+                    continue;
+                }
                 if ($w = $this->daily->winner($day)) {
                     $w->getPlayer()->addGems(self::DAILY_GEMS);
                     $this->em->persist(new Prize(Prize::DAILY, $day, 1, $w->getPlayer(), self::DAILY_GEMS, $now));
@@ -46,6 +51,9 @@ final class Prizes
                 }
             }
             foreach ($this->seasons->unpaidSeasons($this->periods->firstOpenSeason()) as $season) {
+                if ($this->replays->holdsPrize('normal', $season)) {
+                    continue;
+                }
                 if ($w = $this->seasons->winner($season)) {
                     $w->getPlayer()->addGems(self::SEASON_GEMS);
                     $this->em->persist(new Prize(Prize::SEASON, $season, 1, $w->getPlayer(), self::SEASON_GEMS, $now));

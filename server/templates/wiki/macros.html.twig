@@ -48,6 +48,10 @@
             {% if m.summon %}{% set parts = parts|merge(['calls ' ~ m.summon|replace({'_': ' '})|upper]) %}{% endif %}
             {% if m.steal %}{% set parts = parts|merge(['steals ' ~ m.steal ~ ' shinies']) %}{% endif %}
             {% if m.apDrain %}{% set parts = parts|merge(['-' ~ m.apDrain ~ ' AP next turn']) %}{% endif %}
+            {% if m.mirror %}{% set parts = parts|merge(['hits back for ' ~ (m.mirror * 100)|round ~ '% of your biggest hit this turn']) %}{% endif %}
+            {% if m.drain %}{% set parts = parts|merge(['heals ' ~ (m.drain * 100)|round ~ '% of the damage it deals']) %}{% endif %}
+            {% if m.blast %}{% set parts = parts|merge(['when its fuse runs out, then it is gone']) %}{% endif %}
+            {% if m.flee %}{% set parts = parts|merge(['leaves the fight with what it stole']) %}{% endif %}
             {{ parts ? parts|join(', ') : '-' }}
         {% endapply %}</td>
     </tr>

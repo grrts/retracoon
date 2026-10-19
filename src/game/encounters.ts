@@ -37,6 +37,11 @@ export function pickFoes(r: RunState, theme: ThemeDef): FoePick {
     if (e.role === 'support') supports++;
     if (e.role === 'guard') guards++;
     ids.push(e.id);
+    // Twins come as a pair, when there is room.
+    if (e.pair && i + 1 < Math.max(count, 2) && enemies.get(e.pair)) {
+      ids.push(e.pair);
+      i++;
+    }
   }
   return { ids, tiers: ids.map(() => rollTier(s)) };
 }

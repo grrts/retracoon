@@ -197,7 +197,11 @@ const move = (m: (typeof enemyList)[number]['moves'][number]) => ({
   summon: m.summon ?? null,
   steal: m.steal ?? null,
   apDrain: m.apDrain ?? null,
-  windup: m.weight === 0,
+  drain: m.drain ?? null,
+  mirror: m.mirror ?? null,
+  flee: !!m.flee,
+  blast: !!m.blast,
+  windup: m.weight === 0 && !m.blast,
   once: !!m.once,
 });
 const enemyOut = enemyList.map((e) => ({
@@ -214,6 +218,10 @@ const enemyOut = enemyList.map((e) => ({
   flyer: !!e.flyer,
   onDeath: e.onDeath ?? null,
   split: e.split ?? null,
+  fuse: e.fuse ?? null,
+  shell: e.shell ?? null,
+  twin: !!e.twin,
+  pair: e.pair ?? null,
   xp: e.xp,
   shinies: e.shinies,
   moves: e.moves.map(move),

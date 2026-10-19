@@ -127,7 +127,7 @@ final class WikiController extends AbstractController
         $foe = $this->find('enemies', $id);
         $areas = $this->wiki->where('areas', fn ($a) => $a['boss'] === $id || \in_array($foe['family'], $a['families'], true));
         $summons = array_unique(array_filter(array_column(array_merge($foe['moves'], $foe['phase2']['moves'] ?? []), 'summon')));
-        $foes = array_filter(array_map(fn ($s) => $this->wiki->get('enemies', $s), [...$summons, ...array_filter([$foe['split']])]));
+        $foes = array_filter(array_map(fn ($s) => $this->wiki->get('enemies', $s), [...$summons, ...array_filter([$foe['split'], $foe['pair'] ?? null])]));
 
         return $this->page('wiki/foe.html.twig', ['foe' => $foe, 'areas' => $areas, 'related' => array_values($foes)]);
     }

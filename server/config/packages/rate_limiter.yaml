@@ -12,6 +12,12 @@ framework:
             limit: 30
             rate: { interval: '1 minute', amount: 10 }
             cache_pool: cache.rate_limiter
+        # run tickets per player (one per run started)
+        ticket:
+            policy: token_bucket
+            limit: 30
+            rate: { interval: '1 minute', amount: 10 }
+            cache_pool: cache.rate_limiter
         # tracking batches per IP address (a phone sends one every minute or so while playing)
         events:
             policy: token_bucket

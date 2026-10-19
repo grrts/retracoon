@@ -1,0 +1,37 @@
+name: Replay runs
+
+# Plays back finished runs on the build they were played on and tells the server
+# whether they hold up (tools/replay-worker.ts, docs/ONLINE.md "Fair scores").
+# Needs the REPLAY_KEY secret and the API_URL variable; without them it does nothing.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: replay
+  cancel-in-progress: false
+
+jobs:
+  replay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      API_URL: ${{ vars.API_URL }}
+      REPLAY_KEY: ${{ secrets.REPLAY_KEY }}
+    steps:
+      - if: env.API_URL == '' || env.REPLAY_KEY == ''
+        run: echo "API_URL or REPLAY_KEY isn't set, nothing to do."
+      - if: env.API_URL != '' && env.REPLAY_KEY != ''
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # every build a run was played on must be checkable
+      - if: env.API_URL != '' && env.REPLAY_KEY != ''
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - if: env.API_URL != '' && env.REPLAY_KEY != ''
+        run: npm ci
+      - if: env.API_URL != '' && env.REPLAY_KEY != ''
+        run: npx tsx tools/replay-worker.ts

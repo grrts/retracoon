@@ -6,14 +6,13 @@ import { onAction } from '../input';
 import { sfx } from '../audio';
 import { buzz } from '../haptics';
 import { COL } from '../gfx/palette';
-import { events, items, skills, RARITY, SLOT_NAMES } from '../content/registry';
-import type { EventDef, ItemDef, RunAPI, StatKey } from '../content/types';
-import { note } from '../game/ledger';
+import { items, SLOT_NAMES } from '../content/registry';
+import type { EventDef, ItemDef } from '../content/types';
 import { rules } from '../game/mutators';
-import { addBlessing, danger, equip, itemPrice, maxHp, randomItem, gainXp, learnSkill, skillChoices, SKILL_SLOTS, RunState } from '../game/run';
+import { itemPrice, maxHp, RunState } from '../game/run';
+import { forageShinies, napHeal, restockPrice, shopHealPrice, type StopKind } from '../game/flow';
 import { itemCard, RaccoonView } from '../game/views';
 import { store } from '../save';
-import { rand } from '../game/rng';
 import { mapTexture, ensureEnemy, enemyKey } from '../gfx/textures';
 
 const CARD_H = 112;
@@ -24,13 +23,7 @@ function cardWidth(n: number, max = 130) {
 
 // ---------------------------------------------------------------- item reward
 
-interface RewardData extends OverlayData {
-  title: string;
-  min?: number;
-  fixed?: string[];
-}
-
-export class RewardScene extends Overlay<RewardData> {
+export class RewardScene extends Overlay {
   private picked = -1;
   private choices: ItemDef[] = [];
   private cards: Phaser.GameObjects.Container[] = [];
@@ -50,15 +43,9 @@ export class RewardScene extends Overlay<RewardData> {
     const r = this.d.run;
     this.picked = -1;
     this.cards = [];
-    this.title(this.d.title, COL.yellow, 'TAP AN ITEM TO TRY IT ON. IT SHOWS UP ON YOUR RACCOON.');
-    let choices: ItemDef[] = [];
-    if (this.d.fixed) choices = this.d.fixed.map((id) => items.get(id)!).filter(Boolean);
-    else {
-      for (let i = 0; i < 3; i++) {
-        const it = randomItem(r, this.d.min ?? 0, 4, choices.map((c) => c.id));
-        if (it) choices.push(it);
-      }
-    }
+    const step = this.step('Reward');
+    this.title(step.title, COL.yellow, 'TAP AN ITEM TO TRY IT ON. IT SHOWS UP ON YOUR RACCOON.');
+    const choices = step.choices;
     this.choices = choices;
     const n = choices.length;
     const cw = cardWidth(n);
@@ -83,7 +70,7 @@ export class RewardScene extends Overlay<RewardData> {
     this.note = text(this, W / 2 + 10, by - 22, 'PICK ONE', { color: COL.light, maxWidth: W - 170, maxLines: 1 });
     this.take = button(this, W / 2 + 10, by, Math.min(170, W - 190), 22, 'TAKE', () => this.confirm(), { ...BTN.green, depth: 5 });
     this.take.setEnabled(false);
-    button(this, W - 34, by, 56, 20, 'SKIP', () => this.close(), { depth: 5 });
+    button(this, W - 34, by, 56, 20, 'SKIP', () => this.picked !== -2 && this.d.flow.skip() && this.close(), { depth: 5 });
     onAction(this, ['slot1', 'slot2', 'slot3'], (a) => {
       const i = Number(a.slice(4)) - 1;
       if (i < n) this.pick(i);
@@ -121,10 +108,11 @@ export class RewardScene extends Overlay<RewardData> {
     if (this.picked < 0 || !this.take.c.active) return;
     const r = this.d.run;
     const it = this.choices[this.picked];
+    const lvlUp = r.gear[it.slot]?.id === it.id;
+    if (!this.d.flow.take(this.picked)) return;
     this.picked = -2;
-    const res = equip(r, it);
     sfx.upgrade();
-    this.flashText(res === 'level' ? `${it.name} LEVELED UP!` : `EQUIPPED ${it.name}`);
+    this.flashText(lvlUp ? `${it.name} LEVELED UP!` : `EQUIPPED ${it.name}`);
     this.time.delayedCall(450, () => this.close());
   }
 
@@ -136,13 +124,12 @@ export class RewardScene extends Overlay<RewardData> {
 
 // ---------------------------------------------------------------- fork in the road
 
-const STOPS = {
-  shop: { label: 'SHOP', desc: 'SPEND SHINIES', weight: 3, icon: 'coin' },
-  event: { label: '???', desc: 'SOMETHING HAPPENS', weight: 4, icon: 'in_debuff' },
-  camp: { label: 'CAMP', desc: 'REST OR TRAIN', weight: 2, icon: 'pizza' },
-  chest: { label: 'TREASURE', desc: 'A FREE ITEM', weight: 1, icon: 'chest' },
-} as const;
-type StopKind = keyof typeof STOPS;
+const STOPS: Record<StopKind, { label: string; desc: string; icon: string }> = {
+  shop: { label: 'SHOP', desc: 'SPEND SHINIES', icon: 'coin' },
+  event: { label: '???', desc: 'SOMETHING HAPPENS', icon: 'in_debuff' },
+  camp: { label: 'CAMP', desc: 'REST OR TRAIN', icon: 'pizza' },
+  chest: { label: 'TREASURE', desc: 'A FREE ITEM', icon: 'chest' },
+};
 
 export class ForkScene extends Overlay<OverlayData> {
   constructor() {
@@ -151,33 +138,19 @@ export class ForkScene extends Overlay<OverlayData> {
 
   // Same flow as item rewards: tap a card to pick a way, then GO (or tap it again).
   create() {
-    this.going = false;
     this.backdrop(0.7);
     this.title('A FORK IN THE ROAD', COL.white, 'TAP A ROAD, THEN GO.');
-    const kinds = Object.keys(STOPS) as StopKind[];
-    const picks: StopKind[] = [];
-    while (picks.length < 2) {
-      const total = kinds.filter((k) => !picks.includes(k)).reduce((a, k) => a + STOPS[k].weight, 0);
-      let x = rand() * total;
-      for (const k of kinds) {
-        if (picks.includes(k)) continue;
-        x -= STOPS[k].weight;
-        if (x <= 0) {
-          picks.push(k);
-          break;
-        }
-      }
-    }
+    const picks = this.step('Fork').picks;
     let picked = -1;
     const cw = Math.min(150, Math.floor((W - 22) / 2));
     const ch = 112;
     const cy = TITLE_BAND + 12 + ch / 2;
     const ring = this.add.graphics().setDepth(1);
     const cards: Phaser.GameObjects.Container[] = [];
-    const goBtn = button(this, W / 2, H - 16, Math.min(200, W - 40), 22, 'GO', () => picked >= 0 && this.go(picks[picked]), { ...BTN.green, depth: 5 });
+    const goBtn = button(this, W / 2, H - 16, Math.min(200, W - 40), 22, 'GO', () => picked >= 0 && this.go(picked), { ...BTN.green, depth: 5 });
     goBtn.setEnabled(false);
     const pick = (i: number) => {
-      if (picked === i) return this.go(picks[i]);
+      if (picked === i) return this.go(i);
       picked = i;
       sfx.select();
       const c = cards[i];
@@ -202,28 +175,19 @@ export class ForkScene extends Overlay<OverlayData> {
       cards.push(c);
     });
     onAction(this, ['slot1', 'slot2'], (a) => pick(a === 'slot1' ? 0 : 1));
-    onAction(this, 'confirm', () => picked >= 0 && this.go(picks[picked]));
+    onAction(this, 'confirm', () => picked >= 0 && this.go(picked));
   }
 
-  private going = false;
-
-  private go(k: StopKind) {
-    if (this.going) return;
-    this.going = true;
+  private go(i: number) {
+    if (!this.d.flow.road(i)) return;
     sfx.select();
-    if (k === 'shop') this.close({ key: 'Shop', data: {} });
-    else if (k === 'event') this.close({ key: 'Event', data: {} });
-    else if (k === 'camp') this.close({ key: 'Camp', data: {} });
-    else this.close({ key: 'Reward', data: { title: 'TREASURE!', min: 1 } });
+    this.close();
   }
 }
 
 // ---------------------------------------------------------------- shop
 
 export class ShopScene extends Overlay<OverlayData> {
-  private stock: (ItemDef | null)[] = [];
-  private rerolls = 0;
-  private healed = 0;
   private sel = -1;
   private layer: Phaser.GameObjects.GameObject[] = [];
   private cash!: Phaser.GameObjects.BitmapText;
@@ -234,18 +198,9 @@ export class ShopScene extends Overlay<OverlayData> {
 
   create() {
     this.backdrop(0.88);
-    this.rerolls = 0;
-    this.healed = 0;
     this.sel = -1;
     this.title('POSSUM PAWN SHOP', COL.yellow);
     this.cash = text(this, W - 8, 11, '', { origin: 1, color: COL.yellow });
-    this.roll();
-  }
-
-  private roll() {
-    const r = this.d.run;
-    this.stock = [];
-    for (let i = 0; i < 3; i++) this.stock.push(randomItem(r, 0, 4, this.stock.filter(Boolean).map((s) => s!.id)));
     this.draw();
   }
 
@@ -253,12 +208,13 @@ export class ShopScene extends Overlay<OverlayData> {
     this.layer.forEach((o) => o.destroy());
     this.layer = [];
     const r = this.d.run;
+    const shop = this.step('Shop');
     this.cash.setText(`${r.shinies} SHINIES`);
-    const n = this.stock.length;
+    const n = shop.stock.length;
     const cw = cardWidth(n, 124);
     const cy = TITLE_BAND + 16 + CARD_H / 2;
     this.layer.push(text(this, 8, 11, `HP ${r.hp}/${maxHp(r)}`, { origin: 0, color: COL.pink }));
-    this.stock.forEach((it, i) => {
+    shop.stock.forEach((it, i) => {
       const x = W / 2 + (i - (n - 1) / 2) * (cw + 6);
       if (!it) {
         this.layer.push(text(this, x, cy, 'SOLD', { scale: 2, color: COL.grey }));
@@ -288,44 +244,34 @@ export class ShopScene extends Overlay<OverlayData> {
       this.layer.push(card);
     });
     // Healing gets pricier each time in the same shop and with depth: HP is the scarce resource.
-    const healPrice = Math.round((8 + r.stage * 0.8) * (1 + this.healed * 0.6));
+    const healPrice = shopHealPrice(r, shop.healed);
     const by = H - 16;
     const bw = Math.min(110, (W - 24) / 3);
     const heal = button(this, W / 2 - bw - 4, by, bw, 20, `HEAL 30% - ${healPrice}`, () => {
-      if (r.shinies < healPrice || r.hp >= maxHp(r)) return;
-      r.shinies -= healPrice;
-      this.healed++;
-      r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.3));
+      if (!this.d.flow.heal()) return;
       sfx.heal();
       this.draw();
     }, { ...BTN.green, depth: 5 });
     heal.setEnabled(r.shinies >= healPrice && r.hp < maxHp(r));
-    const rerollPrice = 5 + this.rerolls * 4;
+    const rerollPrice = restockPrice(shop.rerolls);
     const reroll = button(this, W / 2, by, bw, 20, `RESTOCK - ${rerollPrice}`, () => {
-      if (r.shinies < rerollPrice) return;
-      r.shinies -= rerollPrice;
-      this.rerolls++;
+      if (!this.d.flow.restock()) return;
       this.sel = -1;
       sfx.pickup();
-      this.roll();
+      this.draw();
     }, { depth: 5 });
     reroll.setEnabled(r.shinies >= rerollPrice);
-    const leave = button(this, W / 2 + bw + 4, by, bw, 20, 'LEAVE', () => this.close(), { ...BTN.red, depth: 5 });
+    const leave = button(this, W / 2 + bw + 4, by, bw, 20, 'LEAVE', () => this.d.flow.skip() && this.close(), { ...BTN.red, depth: 5 });
     this.layer.push(heal.c, reroll.c, leave.c);
   }
 
-  private buy(i: number, price: number) {
-    const r = this.d.run;
-    const it = this.stock[i];
-    if (!it || r.shinies < price) {
+  private buy(i: number, _price: number) {
+    if (!this.d.flow.buy(i)) {
       shake(this, 80, 0.004);
       return;
     }
-    r.shinies -= price;
-    equip(r, it);
     sfx.pickup();
     sfx.upgrade();
-    this.stock[i] = null;
     this.sel = -1;
     this.draw();
   }
@@ -343,27 +289,24 @@ export class CampScene extends Overlay<OverlayData> {
     const r = this.d.run;
     this.title('COZY CARDBOARD BOX', COL.yellow, `HP ${r.hp}/${maxHp(r)}`, COL.pink);
     this.add.image(W / 2, 64, 'can').setScale(3);
-    const nap = Math.round(maxHp(r) * 0.25);
-    const forage = 8 + Math.round(danger(r) * 1.5);
+    const nap = napHeal(r);
+    const forage = forageShinies(r);
     const bw = Math.min(W - 40, 240);
     // NO NAPS week: the box is too cold to sleep in.
     const noNaps = rules(r).noNaps;
     const opts: [string, string, () => void, object][] = [
       [`NAP`, noNaps ? 'NO NAPS THIS WEEK' : `HEAL ${nap} HP`, () => {
-        if (noNaps) return;
-        r.hp = Math.min(maxHp(r), r.hp + nap);
+        if (!this.d.flow.camp(0)) return;
         sfx.heal();
         this.close();
       }, BTN.green],
       ['TRAIN', '+1 STAT POINT', () => {
-        r.statPoints += 1;
-        note(r, ['p', 1]);
+        if (!this.d.flow.camp(1)) return;
         sfx.upgrade();
-        this.close({ key: 'LevelUp', data: { statsOnly: true } });
+        this.close();
       }, BTN.blue],
       ['FORAGE', `+${forage} SHINIES`, () => {
-        r.shinies += forage;
-        r.shiniesEarned += forage;
+        if (!this.d.flow.camp(2)) return;
         sfx.pickup();
         this.close();
       }, BTN.gold],
@@ -382,20 +325,6 @@ export class CampScene extends Overlay<OverlayData> {
 
 // ---------------------------------------------------------------- events
 
-function pickEvent(r: RunState): EventDef {
-  const d = danger(r);
-  const pool = events.filter((e) => (!e.minDanger || d >= e.minDanger) && (!e.themes || e.themes.includes(r.theme)));
-  // Theme-specific events are rarer overall, so give them a nudge when they fit.
-  const w = (e: EventDef) => (e.weight ?? 1) * (e.themes ? 2 : 1);
-  const total = pool.reduce((a, e) => a + w(e), 0);
-  let x = rand() * total;
-  for (const e of pool) {
-    x -= w(e);
-    if (x <= 0) return e;
-  }
-  return pool[0];
-}
-
 export class EventScene extends Overlay<OverlayData> {
   constructor() {
     super('Event');
@@ -403,8 +332,7 @@ export class EventScene extends Overlay<OverlayData> {
 
   create() {
     this.backdrop(0.88);
-    const r = this.d.run;
-    const ev = pickEvent(r);
+    const ev = this.step('Event').ev;
     const bw = Math.min(W - 16, 340);
     const x0 = W / 2 - bw / 2;
     this.box(x0, 4, bw, H - 8);
@@ -418,7 +346,7 @@ export class EventScene extends Overlay<OverlayData> {
       img.setScale(s);
       y += img.height * s + 4;
     }
-    const api = this.api(r);
+    const flow = this.d.flow;
     const n = ev.options.length;
     const optH = 24;
     const optTop = H - 10 - n * (optH + 3);
@@ -428,18 +356,16 @@ export class EventScene extends Overlay<OverlayData> {
     const buttons: Button[] = [];
     ev.options.forEach((o, i) => {
       const by = optTop + i * (optH + 3) + optH / 2;
-      const ok = !o.can || o.can(api);
+      const ok = flow.canChoose(i);
       const b = button(this, W / 2, by, bw - 16, optH, '', () => {
         if (!ok) return;
+        const res = flow.choose(i);
+        if (res === false) return;
         buttons.forEach((x) => x.c.destroy());
         body.destroy();
-        const res = o.run(api);
         sfx.upgrade();
         text(this, W / 2, y + 4, res, { originY: 0, color: COL.lime, maxWidth: bw - 16, maxLines: Math.floor((H - 40 - y) / LINE_H) });
-        button(this, W / 2, H - 22, 120, 22, 'CONTINUE', () => {
-          if (r.hp <= 0) r.hp = 1;
-          this.close();
-        }, { ...BTN.green, depth: 5 });
+        button(this, W / 2, H - 22, 120, 22, 'CONTINUE', () => this.close(), { ...BTN.green, depth: 5 });
       }, { depth: 5 });
       b.c.add(text(this, 0, -5, o.label, { color: COL.white, maxWidth: bw - 28, maxLines: 1 }));
       b.c.add(text(this, 0, 5, o.detail, { color: ok ? COL.yellow : COL.grey, maxWidth: bw - 28, maxLines: 1 }));
@@ -460,86 +386,5 @@ export class EventScene extends Overlay<OverlayData> {
     ensureEnemy(this, id);
     const key = enemyKey(id, 0);
     return this.textures.exists(key) ? key : null;
-  }
-
-  private api(r: RunState): RunAPI {
-    return {
-      get hp() {
-        return r.hp;
-      },
-      get maxHp() {
-        return maxHp(r);
-      },
-      get shinies() {
-        return r.shinies;
-      },
-      get danger() {
-        return danger(r);
-      },
-      get stage() {
-        return r.stage;
-      },
-      get theme() {
-        return r.theme;
-      },
-      get itemCount() {
-        return Object.values(r.gear).filter(Boolean).length;
-      },
-      addCaps: (n) => (r.bonusCaps += Math.round(n)),
-      addBlessing: (id, fights) => addBlessing(r, id, fights),
-      learnRandomSkill: () => {
-        const owned = new Set(r.skills.map((s) => s.id));
-        const pick = skillChoices(r, 6).find((s) => !owned.has(s.id) && r.skills.length < SKILL_SLOTS) ?? skillChoices(r, 1)[0];
-        if (!pick) return '';
-        learnSkill(r, pick.id);
-        return pick.name;
-      },
-      upgradeRandomSkill: () => {
-        const up = r.skills.filter((s) => s.lvl < (skills.get(s.id)?.max ?? 1));
-        if (!up.length) return '';
-        const o = up[Math.floor(rand() * up.length)];
-        o.lvl++;
-        return skills.get(o.id)!.name;
-      },
-      giveItem: (id) => {
-        const it = items.get(id);
-        if (!it) return '';
-        equip(r, it);
-        return it.name;
-      },
-      addShinies: (n) => {
-        r.shinies = Math.max(0, r.shinies + Math.round(n));
-        if (n > 0) r.shiniesEarned += Math.round(n);
-      },
-      hurt: (n) => (r.hp = Math.max(1, r.hp - Math.round(n))),
-      heal: (n) => (r.hp = Math.min(maxHp(r), r.hp + Math.round(n))),
-      addStat: (k: StatKey, n: number) => {
-        const was = r.stats[k];
-        r.stats[k] = Math.max(0, r.stats[k] + n);
-        note(r, ['s', r.stats[k] - was]);
-        r.hp = Math.min(r.hp, maxHp(r));
-      },
-      giveRandomItem: (min, max) => {
-        const it = randomItem(r, min, max ?? 4);
-        if (!it) return 'NOTHING';
-        equip(r, it);
-        return `${RARITY[it.rarity].name} ${it.name}`;
-      },
-      removeRandomItem: () => {
-        const slots = Object.keys(r.gear).filter((k) => r.gear[k as keyof typeof r.gear]);
-        if (!slots.length) return null;
-        const k = slots[Math.floor(rand() * slots.length)] as keyof typeof r.gear;
-        const name = items.get(r.gear[k]!.id)?.name ?? '';
-        delete r.gear[k];
-        r.hp = Math.min(r.hp, maxHp(r));
-        return name;
-      },
-      addXp: (n) => {
-        r.pendingLevelUps += gainXp(r, n);
-      },
-      addDistance: (m) => (r.distance += m),
-      addHeat: (n) => (r.heat += n),
-      eliteNext: () => (r.eliteNext = true),
-    };
   }
 }

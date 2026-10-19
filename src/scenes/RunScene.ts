@@ -4,28 +4,11 @@ import { themes } from '../content/registry';
 import type { StatusKey } from '../content/types';
 import type { ThemeDef } from '../world/types';
 import { Combat, Ev, Foe, Who, ELITE_INFO, TIERS } from '../game/combat';
-import {
-  RunState,
-  newRun,
-  danger,
-  maxHp,
-  gainXp,
-  xpToLevel,
-  randomItem,
-  apPerTurn,
-  nextTheme,
-  rollBossAt,
-  tickBlessings,
-  capsForRun,
-  BLESSING_INFO,
-  roll,
-  afterFight,
-  bossFoes,
-} from '../game/run';
-import { MUTATORS, rules } from '../game/mutators';
-import { rand } from '../game/rng';
+import { RunState, newRun, maxHp, xpToLevel, apPerTurn, capsForRun, BLESSING_INFO } from '../game/run';
+import { MUTATORS } from '../game/mutators';
 import { RaccoonView } from '../game/views';
-import { pickFoes, pickElite, eliteChance, fightRewards } from '../game/encounters';
+import { RunFlow } from '../game/flow';
+import { replayOf } from '../game/replay';
 import { text, panel, button, wait, Button, Floaters, BTN, LINE_H, shake } from '../ui';
 import { onAction } from '../input';
 import { sfx, areaTrack, bossTrack } from '../audio';
@@ -39,7 +22,7 @@ import { submitRun } from '../platform/online';
 import { checkAchievements, steamPresence } from '../platform/achievements';
 import { killerOf, type Killer } from '../game/share';
 import { track, VERSION } from '../platform/track';
-import { openLedger, fightStarts, fightEnds, closeLedger } from '../game/ledger';
+import { openLedger, closeLedger } from '../game/ledger';
 import { skills } from '../content/registry';
 import { FxDirector } from '../fx/Fx';
 import { Element, LOOKS, skillElement, skillTier } from '../fx/elements';
@@ -85,6 +68,8 @@ interface SkillBtn {
 
 export class RunScene extends Phaser.Scene {
   run!: RunState;
+  flow!: RunFlow;
+  private ticket: string | null = null;
   theme!: ThemeDef;
   private world!: Parallax;
   coon!: RaccoonView;
@@ -115,8 +100,7 @@ export class RunScene extends Phaser.Scene {
   private busy = false;
   private walking = false;
   private walkLeft = 0;
-  private pendingElite = false;
-  private pendingBoss = false;
+  private walked = 0; // meters into the current walk; the run counts them on arrival
   // For the game-over recap: who landed the last blow, and the best stage before this run.
   private killer = '';
   private hazard = '';
@@ -134,11 +118,13 @@ export class RunScene extends Phaser.Scene {
     super('Run');
   }
 
-  create(data: { run?: RunState }) {
-    // A normal run that never reached its end (the app was closed mid-run) counts as a
-    // death, so closing the app in a losing fight can't keep the banked raccoon.
-    if (!data.run && store.runOpen) store.kept = null;
+  // `ticket`: the server's run ticket (see startRun in platform/online.ts); the run
+  // was made from its seed and raccoon. Without one the run is played but not ranked.
+  create(data: { run?: RunState; ticket?: string | null }) {
+    // Runs start through prepareRun (platform/runStart.ts); a bare start is a plain run.
     this.run = data.run ?? newRun();
+    this.ticket = data.ticket ?? null;
+    this.flow = new RunFlow(this.run);
     if (this.run.mode !== 'daily') store.runOpen = true;
     openLedger(this.run, VERSION);
     store.runs++;
@@ -161,6 +147,7 @@ export class RunScene extends Phaser.Scene {
     this.combat = null;
     this.busy = false;
     this.walking = false;
+    this.walked = 0;
     this.tiersSeen = new Set();
     this.flag = null;
     this.flagPassed = false;
@@ -340,9 +327,9 @@ export class RunScene extends Phaser.Scene {
     let dx = 0;
     if (this.walking) {
       dx = WALK_SPEED * dt;
-      this.run.distance += dx / PX_PER_M;
+      this.walked = Math.min(this.flow.walkMeters, this.walked + dx / PX_PER_M);
       this.walkLeft -= dt;
-      this.distText.setText(`${Math.floor(this.run.distance)}M`);
+      this.distText.setText(`${Math.floor(this.run.distance + this.walked)}M`);
       if (this.walkLeft <= 0) {
         this.walking = false;
         this.coon.play('idle');
@@ -365,10 +352,12 @@ export class RunScene extends Phaser.Scene {
     }
   }
 
-  private walk(duration = 1.8) {
+  private walk() {
+    const duration = this.flow.walkSeconds;
     this.clearCombatUi();
     this.walking = true;
     this.walkLeft = duration;
+    this.walked = 0;
     this.coon.play('walk');
     this.plantFlag(duration);
     this.tip('');
@@ -401,7 +390,7 @@ export class RunScene extends Phaser.Scene {
   private moveFlag() {
     const f = this.flag;
     if (!f) return;
-    f.c.x = Math.round(COON_X + (f.at - this.run.distance) * PX_PER_M);
+    f.c.x = Math.round(COON_X + (f.at - this.run.distance - this.walked) * PX_PER_M);
     if (!this.flagPassed && f.c.x <= COON_X && this.run.stage > this.bestBefore) this.passFlag();
     if (f.c.x < -40) {
       f.flutter.remove();
@@ -427,17 +416,13 @@ export class RunScene extends Phaser.Scene {
     this.fx.emit(x, y, 10, 'px1', [hex('w'), hex('L'), hex('G')], 'burst', { spread: 6 });
   }
 
+  // The walk is over: the flow decides what's next (a fight, or a fork in the road).
   private arrive() {
-    const r = this.run;
-    roll(r, 'arrive');
-    if (r.areaStage + 1 >= r.bossAt) return this.approach('boss');
-    // A road stop every two or three fights.
-    if (r.sinceStop >= 3 || (r.sinceStop >= 2 && rand() < 0.55)) {
-      r.sinceStop = 0;
-      return this.runSteps([{ key: 'Fork', data: { run: this.run } }], () => this.walk(1.2));
-    }
-    const elite = r.eliteNext || rand() < eliteChance(r);
-    this.approach(elite ? 'elite' : 'fight');
+    this.walked = 0;
+    this.flow.arrive();
+    this.refreshHud();
+    if (this.flow.phase === 'step') return this.runSteps();
+    this.approach();
   }
 
   // Called by overlay scenes when they are done.
@@ -447,14 +432,9 @@ export class RunScene extends Phaser.Scene {
     this.walk();
   }
 
+  // The flow already moved the run on to its next area; this shows it.
   private changeArea() {
     const r = this.run;
-    r.area++;
-    r.areaStage = 0;
-    roll(r, 'area');
-    r.bossAt = rollBossAt(r.area, rules(r).bossRush);
-    r.theme = nextTheme(r);
-    r.themesVisited.push(r.theme);
     this.theme = themes.get(r.theme) ?? this.theme;
     track('area_reached', { area: r.area + 1, theme: r.theme, stage: r.stage, mode: r.mode });
     this.cameras.main.fadeOut(400, 26, 28, 44);
@@ -472,30 +452,10 @@ export class RunScene extends Phaser.Scene {
 
   // ---------------------------------------------------------------- encounter
 
-  private approach(kind: 'fight' | 'elite' | 'boss') {
-    const boss = kind === 'boss';
-    const elite = kind === 'elite';
-    let foes: string[];
-    let tiers: number[] = [];
-    if (boss) foes = bossFoes(this.run, this.theme.boss);
-    else {
-      const pick = elite ? pickElite(this.run, this.theme) : pickFoes(this.run, this.theme);
-      foes = pick.ids;
-      tiers = pick.tiers;
-    }
-    this.pendingElite = elite;
-    this.pendingBoss = boss;
-    foes.forEach((id, i) => ensureEnemy(this, id, tiers[i] ?? 0));
-
-    roll(this.run, 'combat');
-    this.combat = new Combat(this.run, foes, danger(this.run), {
-      elite,
-      boss,
-      tiers,
-      hazard: this.theme.hazard,
-      hooks: { shinies: () => this.run.shinies, addShinies: (n) => (this.run.shinies = Math.max(0, this.run.shinies + n)) },
-    });
-    fightStarts(this.run);
+  private approach() {
+    const boss = this.flow.kind === 'boss';
+    this.combat = this.flow.combat!;
+    for (const f of this.combat.foes) ensureEnemy(this, f.def.id, f.tier);
     this.layoutFoes(true);
     for (const f of this.combat.foes) if (!store.foesSeen.includes(f.def.id)) store.foesSeen.push(f.def.id);
     const newTier = Math.max(0, ...this.combat.foes.map((f) => f.tier));
@@ -518,8 +478,8 @@ export class RunScene extends Phaser.Scene {
 
   private showPrompt() {
     const c = this.combat!;
-    const boss = this.pendingBoss;
-    const elite = this.pendingElite;
+    const boss = this.flow.kind === 'boss';
+    const elite = this.flow.kind === 'elite';
     const names = c.foes.map((f) => [f.tier ? TIERS[f.tier].name : '', f.elite ? ELITE_INFO[f.elite].name : '', f.def.name].filter(Boolean).join(' '));
     const title = boss ? 'BOSS FIGHT!' : elite ? 'ELITE FIGHT!' : 'CRITTERS AHEAD!';
     this.foeLabels(false); // the prompt panel covers the space under the foes
@@ -587,6 +547,7 @@ export class RunScene extends Phaser.Scene {
   }
 
   private retreat() {
+    if (!this.flow.retreat()) return;
     this.clearCombatUi();
     // A daily run is its own fresh raccoon: it never banks or wipes the normal one.
     if (this.run.mode !== 'daily') store.kept = { level: this.run.level, stats: { ...this.run.stats }, statPoints: this.run.statPoints };
@@ -620,7 +581,17 @@ export class RunScene extends Phaser.Scene {
     save();
     checkAchievements(r);
     track('run_end', { mode: r.mode, reason, stage: r.stage, area: r.area + 1, level: r.level, bosses: r.bosses, theme: r.theme, time_s: Math.round(timeMs / 1000) });
-    const sent = submitRun({ mode: r.mode, day: r.day, stage: r.stage, level: r.level, distance: d, timeMs, skin: store.skin, log: closeLedger(r) });
+    const sent = submitRun({
+      mode: r.mode,
+      day: r.day,
+      stage: r.stage,
+      level: r.level,
+      distance: d,
+      timeMs,
+      skin: store.skin,
+      log: closeLedger(r),
+      ...(this.ticket ? { ticket: this.ticket, replay: replayOf(this.flow) } : {}),
+    });
     sfx.stopMusic();
     this.scene.pause();
     this.scene.launch('GameOver', { run: r, reason, newBest, caps, sent, killer: this.killer, bestBefore: this.bestBefore, blame: killer });
@@ -729,7 +700,7 @@ export class RunScene extends Phaser.Scene {
     const icon = this.add.image(0, 0, 'in_' + m.intent).setOrigin(0, 0.5);
     parts.push(icon);
     let label = '';
-    if (m.dmg && this.combat) {
+    if ((m.dmg || m.mirror) && this.combat) {
       const d = this.combat.intentDamage(f);
       label = m.hits && m.hits > 1 ? `${d}x${m.hits}` : `${d}`;
     }
@@ -763,7 +734,18 @@ export class RunScene extends Phaser.Scene {
         steal: 'WILL STEAL SHINIES',
         flee: 'WILL RUN',
       };
-      const extra = [f.armor ? `ARMOR ${f.armor}: CRITS IGNORE IT` : '', f.def.dodge ? `DODGES ${Math.round(f.def.dodge * 100)}%` : '', f.regen ? `REGEN ${f.regen}` : ''].filter(Boolean).join('. ');
+      const extra = [
+        f.armor ? `ARMOR ${f.armor}: CRITS IGNORE IT` : '',
+        f.def.dodge ? `DODGES ${Math.round(f.def.dodge * 100)}%` : '',
+        f.regen ? `REGEN ${f.regen}` : '',
+        f.status.shell ? `SHELL ${f.status.shell}: EACH HIT ONLY CRACKS ONE` : '',
+        f.status.fuse ? `BLOWS UP IN ${f.status.fuse}` : '',
+        f.status.taunt ? 'TAUNTING: TAKES YOUR SINGLE HITS' : '',
+        f.def.twin ? 'TWIN: BEAT BOTH IN ONE TURN' : '',
+        m.mirror ? 'COPIES YOUR BIGGEST HIT THIS TURN' : '',
+      ]
+        .filter(Boolean)
+        .join('. ');
       this.tip(`${f.def.name} ${f.hp}/${f.maxHp}: ${m.name}, ${f.status.stun ? 'STUNNED' : what[m.intent]}${extra ? '. ' + extra : ''}`);
     }
   }
@@ -776,15 +758,15 @@ export class RunScene extends Phaser.Scene {
   }
 
   private beginFight() {
+    const evs = this.flow.begin();
+    if (!evs) return;
     this.clearCombatUi();
     this.foeLabels(true);
     this.hint('combat', 'TAP SKILLS TO SPEND YOUR AP.');
-    this.run.fights++;
-    const c = this.combat!;
     this.layoutFoes(false);
     this.refreshHud();
     this.busy = true;
-    void this.playEvents(c.start()).then(() => this.afterEvents());
+    void this.playEvents(evs).then(() => this.afterEvents());
   }
 
   private buildCombatUi() {
@@ -873,18 +855,22 @@ export class RunScene extends Phaser.Scene {
   private useSkill(i: number) {
     const c = this.combat;
     if (!c || this.busy || !c.canUse(i)) return;
+    const evs = this.flow.use(i, this.flow.foeIndex(this.target));
+    if (!evs) return;
     this.busy = true;
     this.refreshCombatUi();
-    void this.playEvents(c.use(i, this.target ?? undefined)).then(() => this.afterEvents());
+    void this.playEvents(evs).then(() => this.afterEvents());
   }
 
   private endTurn() {
     const c = this.combat;
     if (!c || this.busy) return;
+    const evs = this.flow.endTurn();
+    if (!evs) return;
     this.busy = true;
     this.refreshCombatUi();
     this.tip('');
-    void this.playEvents(c.endTurn()).then(() => this.afterEvents());
+    void this.playEvents(evs).then(() => this.afterEvents());
   }
 
   private afterEvents() {
@@ -896,6 +882,11 @@ export class RunScene extends Phaser.Scene {
     if (!this.skillBtns.length) this.buildCombatUi();
     this.refreshCombatUi();
     this.refreshHud();
+    // Copycats show what your hits this turn would cost you.
+    for (const f of c.alive()) {
+      const v = this.views.get(f.uid);
+      if (v && f.intent.mirror) this.drawIntent(v, f);
+    }
     if (c.turn >= 2) this.hint('intent', 'THE ICON OVER A FOE IS ITS NEXT MOVE.');
     // Out of AP (or nothing left it can buy): the turn ends by itself, after a beat.
     if (!c.canSpend()) {
@@ -1076,6 +1067,23 @@ export class RunScene extends Phaser.Scene {
             await wait(this, 220);
           }
           break;
+        case 'gone': {
+          // Fled or blew up: off the field, but not a kill.
+          const v = e.who === 'p' ? undefined : this.views.get(e.who);
+          if (v) {
+            if (e.how === 'blast') {
+              sfx.kill();
+              this.fx.death(v.c.x, GROUND_Y, [0xffcd75, 0xef7d57, 0xb13e53], false, v.h);
+              shake(this, 300, 0.012);
+              this.tweens.add({ targets: [v.c, v.shadow], alpha: 0, duration: 200, onComplete: () => (v.c.destroy(), v.shadow.destroy()) });
+            } else {
+              this.tweens.add({ targets: [v.c, v.shadow], x: W + 60, y: '-=40', alpha: 0, duration: 450, ease: 'Quad.in', onComplete: () => (v.c.destroy(), v.shadow.destroy()) });
+            }
+            this.views.delete(e.who as number);
+          }
+          await wait(this, 300);
+          break;
+        }
         case 'revive': {
           if (e.who === 'p') break;
           const v = this.views.get(e.who);
@@ -1129,8 +1137,6 @@ export class RunScene extends Phaser.Scene {
           break;
         case 'combo':
           this.floats.add(W / 2, 90, `COMBO x${e.n}!`, COL.yellow, true);
-          this.run.shinies += e.n * 2;
-          this.run.shiniesEarned += e.n * 2;
           sfx.upgrade();
           await wait(this, 200);
           break;
@@ -1231,70 +1237,35 @@ export class RunScene extends Phaser.Scene {
   // ---------------------------------------------------------------- outcomes
 
   private async victory() {
-    const c = this.combat!;
     const r = this.run;
+    const v = this.flow.victory!;
     this.clearCombatUi();
-    r.hp = c.hp;
-    const boss = this.pendingBoss;
-    const elite = this.pendingElite;
-    roll(r, 'after');
-    const { xp, shinies: sh } = fightRewards(r, c.killed);
-    fightEnds(r, c, true);
     if (!store.tipsSeen.includes('first_win')) {
       store.tipsSeen.push('first_win');
       track('tutorial_done');
     }
-    r.shinies += sh;
-    r.shiniesEarned += sh;
-    r.bestCombo = Math.max(r.bestCombo, c.bestCombo);
-    r.stage++;
-    r.areaStage++;
-    r.sinceStop++;
-    tickBlessings(r);
-    if (boss) {
-      r.bosses++;
+    if (v.boss) {
       store.bossKills++;
       save();
-      track('boss_beaten', { area: r.area + 1, stage: r.stage, mode: r.mode });
+      track('boss_beaten', { area: r.area + (this.flow.areaChanged ? 0 : 1), stage: r.stage, mode: r.mode });
     }
-    if (elite) {
-      r.elites++;
-      r.eliteNext = false;
-    }
-    const ups = gainXp(r, xp);
-    if (ups > 0) r.hp = Math.min(maxHp(r), r.hp + Math.round(maxHp(r) * 0.1 * ups));
     checkAchievements(r);
     steamPresence(r);
-    const after = afterFight(r);
     this.combat = null;
     sfx.clear();
     this.coon.play('idle');
-    this.floats.add(COON_X, GROUND_Y - 40, `+${xp} XP`, COL.yellow);
-    this.floats.add(COON_X + 30, GROUND_Y - 40, `+${sh}`, COL.yellow);
+    this.floats.add(COON_X, GROUND_Y - 40, `+${v.xp} XP`, COL.yellow);
+    this.floats.add(COON_X + 30, GROUND_Y - 40, `+${v.shinies}`, COL.yellow);
     // Items that act between fights: a heal, the crash, the tax.
-    if (after.heal) this.floats.add(COON_X - 20, GROUND_Y - 52, `+${after.heal} HP`, COL.lime);
-    if (after.hurt) this.floats.add(COON_X - 20, GROUND_Y - 52, `-${after.hurt} HP`, COL.red);
-    if (after.tax) this.floats.add(COON_X + 30, GROUND_Y - 52, `-${after.tax}`, COL.orange);
+    if (v.heal) this.floats.add(COON_X - 20, GROUND_Y - 52, `+${v.heal} HP`, COL.lime);
+    if (v.hurt) this.floats.add(COON_X - 20, GROUND_Y - 52, `-${v.hurt} HP`, COL.red);
+    if (v.tax) this.floats.add(COON_X + 30, GROUND_Y - 52, `-${v.tax}`, COL.orange);
     this.refreshHud();
-    this.views.forEach((v) => (v.c.destroy(), v.shadow.destroy()));
+    this.views.forEach((fv) => (fv.c.destroy(), fv.shadow.destroy()));
     this.views.clear();
-    if (boss) sfx.playMusic(areaTrack(this.theme.id));
+    if (v.boss) sfx.playMusic(areaTrack(this.theme.id));
     await wait(this, 900);
-
-    const steps: { key: string; data: object }[] = [];
-    if (boss) steps.push({ key: 'Reward', data: { run: r, title: 'BOSS LOOT', min: 2 } });
-    else if (elite) steps.push({ key: 'Reward', data: { run: r, title: 'ELITE STASH', min: 2 } });
-    else if ((roll(r, 'drop'), rand() < 0.15 * rules(r).dropMul) && !rules(r).noDrops) {
-      const it = randomItem(r, 0, 2);
-      if (it) steps.push({ key: 'Reward', data: { run: r, title: 'A CRITTER DROPPED THIS', fixed: [it.id] } });
-    }
-    for (let i = 0; i < ups; i++) steps.push({ key: 'LevelUp', data: { run: r } });
-    this.runSteps(steps, () => {
-      this.coon.setGear(r);
-      this.refreshHud();
-      if (boss) this.changeArea();
-      else this.walk();
-    });
+    this.runSteps();
   }
 
   // Name for whatever just hurt the raccoon: the foe, the area's hazard, or else the
@@ -1308,23 +1279,26 @@ export class RunScene extends Phaser.Scene {
     return alive[0]?.def.name ?? this.killer;
   }
 
-  // Launch overlay scenes one after another, then carry on.
-  runSteps(steps: { key: string; data: object }[], then?: () => void) {
-    const next = steps.shift();
-    if (!next) {
-      if (then) then();
-      else this.continueRun();
+  // Show the flow's open step (reward, level-up, road stop) in its overlay, one after
+  // another, then walk on, into the new area if a boss fell.
+  runSteps() {
+    const step = this.flow.step;
+    if (!step) {
+      this.coon.setGear(this.run);
+      this.refreshHud();
+      if (this.flow.areaChanged) {
+        this.flow.areaChanged = false;
+        this.changeArea();
+      } else this.continueRun();
       return;
     }
     this.scene.pause();
-    this.scene.launch(next.key, { ...next.data, run: this.run, done: () => this.runSteps(steps, then) });
+    this.scene.launch(step.key, { run: this.run, flow: this.flow, done: () => this.runSteps() });
   }
 
   private async defeat() {
-    fightEnds(this.run, this.combat!, false);
     const killer = killerOf(this.combat?.killedBy);
     this.clearCombatUi();
-    this.run.hp = 0;
     sfx.die();
     buzz('bigHurt');
     this.coon.play('hurt', 99);

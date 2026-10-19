@@ -40,6 +40,9 @@ const WORDS: [StatusKey, string, number][] = [
   ['focus', 'YOUR NEXT HITS ALWAYS CRIT, ONE FOCUS PER HIT.', COL.yellow],
   ['evade', 'YOU DODGE THAT MANY HITS BEFORE YOUR NEXT TURN.', COL.ice],
   ['regen', 'HEALS THAT MUCH AT THE START OF THE TURN, THEN 1 LESS EACH TURN.', COL.green],
+  ['fuse', 'A FOE WITH A FUSE BLOWS UP WHEN IT RUNS OUT. BEAT IT FIRST.', COL.orange],
+  ['shell', 'EACH HIT ON A SHELL ONLY CRACKS ONE LAYER. MULTI-HITS AND PIERCE BREAK IT.', COL.light],
+  ['taunt', 'YOUR SINGLE-TARGET SKILLS MUST HIT THE TAUNTING FOE.', COL.orange],
 ];
 
 // Words skill and item cards use that aren't statuses.

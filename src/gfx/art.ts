@@ -259,6 +259,9 @@ export const STATUS_ICONS: Record<string, string[]> = {
   focus: ['..kkk..', '.kyyyk.', 'kyk.kyk', 'kykwkyk', 'kyk.kyk', '.kyyyk.', '..kkk..'],
   evade: ['.....kk', '...kkCk', '..kCCk.', '.kCwk..', 'kCCk...', 'kCk....', '.k.....'],
   regen: ['..kkk..', '..kLk..', 'kkkLkkk', 'kLLwLLk', 'kkkLkkk', '..kLk..', '..kkk..'],
+  fuse: ['....y.y', '...kyk.', '..kgk..', '.kggdk.', 'kgwgddk', 'kggdddk', '.kkkkk.'],
+  shell: ['..kkk..', '.kwlwk.', 'kwlwlwk', 'klwlwlk', 'kwlwlwk', '.kkkkk.', '.......'],
+  taunt: ['.kkkkk.', 'koooook', 'kokkkok', 'koooook', '.kokok.', '..kok..', '...k...'],
 };
 
 // 7x7 intent icons shown over enemies

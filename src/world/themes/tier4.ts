@@ -69,7 +69,7 @@ const candy: ThemeDef = {
   front: { speed: 1.35, paint: P.scatter({ items: [[SPR.gumdrop, 2], [SPR.cupcake, 1]], count: 3, baseY: 222 }) },
   weather: { kind: 'petals', density: 20, colors: [K.h, K.C, K.Y, K.L] },
   light: 0xfff0f8,
-  families: ['fungi', 'spooks'],
+  families: ['toys', 'fungi'],
   boss: 'swamp_witch',
   hazard: { name: 'SUGAR CRASH', every: 3, desc: 'WEAKENS EVERYONE', kind: 'spores', power: 5 },
 };
@@ -158,7 +158,7 @@ const toybox: ThemeDef = {
   ],
   ground: P.planks({ colors: [K.T, K.s, K.S, K.n] }),
   front: { speed: 1.35, paint: P.scatter({ items: [[SPR.ball, 1], [SPR.duck, 1]], count: 2, baseY: 224 }) },
-  families: ['machines', 'spooks'],
+  families: ['toys', 'machines'],
   boss: 'clockwork_mech',
   hazard: { name: 'TOY AVALANCHE', every: 3, desc: 'A BLOCK FALLS ON SOMEONE', kind: 'pot', power: 5 },
 };

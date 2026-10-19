@@ -44,6 +44,9 @@ REVENUECAT_WEBHOOK_AUTH=...
 SUPPORT_EMAIL=support@retracoon.com
 # Optional: a long random key that unlocks GET /api/stats (soft-launch numbers)
 STATS_KEY=...
+# Fair scores: a long random key for the replay job, and on to rank only replayed runs
+REPLAY_KEY=...
+RUN_REPLAY=on
 # Website: the mailing list's confirm emails (any SMTP provider), and the store pages
 # behind the store buttons. Leave a store empty to hide its button until it is live.
 MAILER_DSN=smtp://USER:PASSWORD@smtp.example.com:587
@@ -161,7 +164,8 @@ All responses are JSON; errors use `application/problem+json` with a `detail` me
 | `PATCH /api/me` `{name?, skin?}` 🔒 | Changes name (3-16 letters, digits, spaces; gets a new free tag) or shown skin. |
 | `POST /api/me/spend` `{gems, item}` 🔒 | Spends gems on a skin. The same item twice only charges once; 409 when short. |
 | `DELETE /api/me` 🔒 | Deletes your player, scores, run logs, friendships, purchases and sign-ins, and revokes Sign in with Apple. |
-| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?, log?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed, and for a run that fails the [fair-score checks](#fair-scores). `log` is the run's ledger. |
+| `POST /api/me/runs/start` `{mode, day?, kept?}` 🔒 | Starts a run: `{ticket: {id, seed, day, kept}}`, the run's seed and the banked raccoon it starts from (see [run tickets](#run-tickets)). An open normal ticket counts as a death. |
+| `POST /api/me/runs` `{stage, level, distance?, skin?, mode?, day?, timeMs?, log?, ticket?, replay?}` 🔒 | Records a finished run. Bests only go up. `mode`: `normal` (world board and season, the default), `daily` (that `day`'s daily board, ranked by stage then `timeMs`) or `best` (an old best from before signing in: world board only). Returns `counted: false` for a daily run whose day has closed, and for a run that fails the [fair-score checks](#fair-scores). `log` is the run's ledger, `ticket` the run's ticket id and `replay` its choices. With `RUN_REPLAY=on` a ticketed run returns `pending: true` and counts once its replay passes. |
 | `POST /api/me/prizes/seen` 🔒 | The game showed the prizes in `GET /api/me`'s `prizes`; don't list them again. |
 | `GET /api/me/friends` 🔒 | You and your friends, ranked. |
 | `POST /api/me/friends` `{code}` 🔒 | Adds a friend by code; both of you see each other. 30 tries per hour. |
@@ -171,6 +175,7 @@ All responses are JSON; errors use `application/problem+json` with a `detail` me
 | `GET /api/season?season=&limit=50&offset=0` | This season's board (`YYYY-MM`), with last season's winner. Public, 30 s cache. |
 | `POST /api/events` `{device, platform, version, events: [{name, at, props}]}` | Gameplay tracking, guests included; at most 50 events per call. 204. |
 | `GET /api/stats?days=14` | Soft-launch numbers; needs `X-Stats-Key`. |
+| `GET /api/admin/replays?limit=100`, `POST /api/admin/replays` `{results}` | Runs waiting for a replay, and the replay job's results; need `X-Replay-Key` (see [replay](#replay)). |
 | `GET /api/players/{id}` | One player's public profile and rank. |
 | `GET /api/health` | `{"ok":true}` |
 | `POST /api/webhooks/revenuecat` | RevenueCat purchase events; checks the shared secret. Grants and refunds gems and No Ads. |
@@ -211,11 +216,34 @@ A hidden player still sees their own scores and rank, so nothing tells them.
 
 The game also counts a normal run that never ended (the app was closed mid-run) as a death the next time PLAY is pressed, so closing the app in a losing fight no longer keeps the banked raccoon.
 
+### Run tickets
+
+A ledger proves the numbers add up, not that the fights went that way. So a signed-in run starts with a ticket: `POST /api/me/runs/start` (`{mode, day, kept}`) returns `{ticket: {id, seed, day, kept}}`. The seed decides every roll of the run (daily runs keep the day's seed), and `kept` is the banked raccoon from the server's own record, not the phone's. The first time an account asks, the phone's banked raccoon is adopted once if it is plausible; after that, editing local storage gains nothing.
+
+- One result per ticket. Starting a new normal run while one is still open counts the open one as a death, so the banked raccoon is lost, the same as on the phone.
+- The result must name its ticket, its ledger must start from the ticket's raccoon, and its time can't be more than 60 s longer than the server saw pass since the ticket. The daily board ranks on the longer of the claimed time and the server's time minus 60 s.
+- Tickets expire after 2 days. A run played offline, or while signed out, is unranked and doesn't change the account's banked raccoon.
+
+### Replay
+
+A ticketed result also carries every choice of the run (`src/game/replay.ts`): one entry per arrive, skill and target, end turn, retreat, road, reward, shop buy, camp, event option, stat point, card and FORGET, each with the time since the last one. The run's rules live in `src/game/flow.ts` (`RunFlow`), which the scenes only drive, so the same code replays a run without Phaser. `npx tsx tools/replay-check.ts` (in CI) plays bot runs of every kind, replays them, and checks that forged logs fail.
+
+A replay passes when the choices are legal, it ends where the result says (died or retreated, stage, level, distance), its clock fits the claimed time, and no choice comes faster than the game allows. Runs are replayed by `tools/replay-worker.ts`, on a checkout of the exact game build they were played on (`BUILD`, the commit sha baked in by `vite.config.ts`):
+
+- `.github/workflows/replay.yml` runs it every 10 minutes. It needs the `API_URL` repository variable and the `REPLAY_KEY` secret.
+- It reads waiting runs from `GET /api/admin/replays` and posts results to `POST /api/admin/replays`, both with the `X-Replay-Key` header. Without `REPLAY_KEY` on the server the endpoints don't exist.
+- A run whose build isn't a commit in the repository (a dev build, one with local changes, a pull request's merge commit) can't be replayed and is treated as failed. **Release builds must be built from a commit on `main` or a tag**, as the release workflows do.
+
+With `RUN_REPLAY=on` on the server, a ticketed run only counts once its replay passes (the game is told `pending: true`), unticketed runs count nowhere, and prizes wait up to 3 days for a board's pending replays. Without it, runs count right away and replays only mark cheaters: a failed replay still takes the run off the boards. Either way a failed replay also wipes the banked raccoon it left and fails every run started from it.
+
+```sh
+# server .env.local
+RUN_REPLAY=on
+REPLAY_KEY=<long random string, same as the GitHub secret>
+```
+
+`app:runs` shows each run's replay state. A passed replay is kept only for runs that set a best.
+
 ### What this doesn't stop yet
 
-These checks prove a ledger adds up, not that the fights in it went that way. Someone who studies the code can still write a ledger that passes. Planned next, in order:
-
-1. **Run tickets.** `POST /api/me/runs/start` hands out a run id, a seed and the starting raccoon from the server's own record of the banked raccoon, so editing local storage gains nothing. One result per ticket; a ticket that never comes back counts as a death. Only ticketed runs rank; guests still play offline. Cost: one small row per run start, same server.
-2. **Replay.** Seed every normal run from its ticket (the daily run already is), and record every decision: skill and target each turn, stat points, picks, road stops, shop buys, retreat. A verifier reruns those decisions through the game's own engine in `src/game/` (as `npm run sim` already does, headless) and checks it ends at the same score. This needs the run flow that lives in `RunScene`/`StopScenes` moved into `src/game/` first, and every logic roll on `rand()`, not `Math.random()`. Replay is a few milliseconds of CPU a run, but it needs Node, which plain PHP hosting doesn't have. To keep hosting free, only board-relevant runs (top 100, and every prize winner before it's paid) get replayed, by a scheduled GitHub Actions job that reads unverified runs from an admin endpoint and writes back verdicts. On a VPS the same verifier can run next to Symfony instead.
-3. **Platform attestation** (Play Integrity, App Attest) on ticket requests, if bots show up.
-
+A modified game that plays real, legal choices for the player (a bot) still passes, because a replay only proves the run could be played. **Platform attestation** (Play Integrity, App Attest) on ticket requests is the next step if bots show up.

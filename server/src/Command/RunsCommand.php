@@ -80,9 +80,10 @@ final class RunsCommand extends Command
                 gmdate('H:i:s', intdiv($r->getTimeMs(), 1000)),
                 $r->getVerdict().(RunAudit::OK === $r->getVerdict() || !$r->getReasons() ? '' : ': '.implode(', ', $r->getReasons())),
                 null === $r->getLog() ? 'no' : \count(array_filter($r->getLog()['e'] ?? [], fn ($e) => 'f' === ($e[0] ?? null))).' fights',
+                $r->getReplayStatus(),
             ];
         }
-        $io->table(['when', 'player id', 'player', 'mode', 'stage', 'level', 'time', 'verdict', 'ledger'], $rows);
+        $io->table(['when', 'player id', 'player', 'mode', 'stage', 'level', 'time', 'verdict', 'ledger', 'replay'], $rows);
 
         return Command::SUCCESS;
     }
