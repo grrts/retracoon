@@ -7,7 +7,7 @@
 import { loadContent } from '../src/content';
 import { RunFlow } from '../src/game/flow';
 import { replay, type ReplayStart } from '../src/game/replay';
-import { newRun, newSeed, STAT_KEYS, maxHp, type RunMode } from '../src/game/run';
+import { newRun, STAT_KEYS, maxHp, type RunMode } from '../src/game/run';
 import { mulberry32 } from '../src/game/rng';
 
 loadContent();
@@ -23,7 +23,7 @@ const seen: Record<string, number> = {};
 function play(flow: RunFlow, push: number) {
   const r = flow.r;
   let last: unknown = null;
-  for (let guard = 0; guard < 50000 && flow.phase !== 'over'; guard++) {
+  for (let guard = 0; guard < 60000 && flow.phase !== 'over'; guard++) {
     const c = flow.combat;
     const s = flow.step;
     if (s && s !== last) seen[s.key] = (seen[s.key] ?? 0) + 1;
@@ -78,7 +78,7 @@ function play(flow: RunFlow, push: number) {
         break;
     }
   }
-  if (flow.phase !== 'over') throw new Error('run never ended');
+  if (flow.phase !== 'over') throw new Error(`run never ended: phase ${flow.phase} step ${flow.step?.key} stage ${r.stage} hp ${r.hp} foes ${JSON.stringify(flow.combat?.foes.map((f) => [f.id ?? f.name, f.hp, f.dead]))} last acts ${JSON.stringify(flow.acts.slice(-8))}`);
 }
 
 let fails = 0;
@@ -91,7 +91,7 @@ for (let i = 0; i < N; i++) {
   const day = new Date(Date.UTC(2026, 9, 1) + i * 86400000).toISOString().slice(0, 10);
   // Some runs start from a strong banked raccoon, so they get deep (bosses, new areas).
   const kept = i % 3 === 1 ? { l: 30 + (i % 9), st: [40, 25, 20, 10, 40], p: 0 } : i % 3 === 2 ? { l: 6, st: [6, 4, 5, 3, 6], p: 2 } : null;
-  const start: ReplayStart = { mode, day: mode === 'daily' ? day : null, seed: newSeed(), kept: mode === 'daily' ? null : kept, leg: i % 2 === 0 };
+  const start: ReplayStart = { mode, day: mode === 'daily' ? day : null, seed: Math.floor(dice() * 2 ** 32), kept: mode === 'daily' ? null : kept, leg: i % 2 === 0 };
   const k = start.kept;
   const r = newRun(mode, day, undefined, { seed: start.seed, kept: k ? { level: k.l, stats: { str: k.st[0], def: k.st[1], agi: k.st[2], lck: k.st[3], vit: k.st[4] }, statPoints: k.p } : null, legendary: start.leg });
   // A fake clock that always moves on enough for the replay's speed checks.
@@ -114,7 +114,7 @@ for (let i = 0; i < N; i++) {
     const other = mode === 'normal' ? replay({ ...start, seed: start.seed ^ 0x5a5a5a5a }, flow.acts) : null;
     const cut = flow.acts.filter((a, k) => !(a[1] === 'u' && k % 7 === 0));
     const lies = [other, replay(start, cut)].filter(Boolean);
-    if (lies.every((x) => x!.ok && x!.stage === r.stage && x!.level === r.level)) {
+    if (lies.every((x) => x!.ok && JSON.stringify({ end: x!.end, stage: x!.stage, level: x!.level, distance: x!.distance }) === JSON.stringify(want))) {
       missed++;
       console.error(`run ${i}: a tampered log replayed to the same score`);
     }

@@ -23,6 +23,8 @@ jobs:
       - run: npx tsx tools/sim.ts --quick
       - run: npx tsx tools/sim.ts --daily
       - run: npx tsx tools/sim.ts --mutators
+      # Runs must replay to the same result, and forged logs must fail.
+      - run: npx tsx tools/replay-check.ts
 
   server:
     runs-on: ubuntu-latest

@@ -158,6 +158,9 @@ final class Replays
         if ($this->enforced() && $this->scores->record($p, $log->getMode(), $log->getDay(), $log->getCreatedAt()->setTimezone(new \DateTimeZone('UTC'))->format('Y-m'), $log->getStage(), $log->getLevel(), $log->getDistance(), $log->getTimeMs(), $this->periods->now())) {
             $log->markImproved();
         }
+        if (!$log->isImproved()) {
+            $log->forgetReplay();
+        }
         // The replay's raccoon is the one that counts (the ledger's should be the same).
         if ('normal' === $log->getMode() && $p->getKeptFrom() === $log->getId()) {
             $c = $res['close'] ?? null;

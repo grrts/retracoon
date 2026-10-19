@@ -233,4 +233,10 @@ class RunLog
     {
         $this->improved = true;
     }
+
+    /** A passed replay of a run that set no best isn't worth its bytes (the row stays for the banked raccoon). */
+    public function forgetReplay(): void
+    {
+        $this->replay = null;
+    }
 }

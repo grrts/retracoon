@@ -166,9 +166,17 @@ for (const [w, h] of SIZES) {
     page.evaluate(([k, d]) => {
       const g = window.__game;
       for (const s of g.scene.getScenes(true)) if (s.scene.key !== 'Run') s.scene.stop();
-      const run = g.scene.getScene('Run').run;
+      const scene = g.scene.getScene('Run');
+      const run = scene.run;
       run.statPoints = Math.max(run.statPoints, 3);
-      g.scene.getScene('Run').scene.launch(k, { ...d, run, done: () => {} });
+      // Steps open on the run's flow, which rolls what they offer, as after a fight.
+      const flow = scene.flow;
+      if (['Reward', 'Fork', 'Shop', 'Camp', 'LevelUp', 'Event'].includes(k)) {
+        flow.phase = 'step';
+        flow.queue = [{ key: k, ...d }];
+        flow.openNext();
+      }
+      scene.scene.launch(k, { ...d, run, flow, done: () => {} });
     }, [key, data]);
   for (const [key, data] of [['Reward', { title: 'BOSS LOOT', min: 2 }], ['Fork', {}], ['Shop', {}], ['Camp', {}], ['LevelUp', {}], ['Pause', {}]]) {
     await overlay(key, data);
