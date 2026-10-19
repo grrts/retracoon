@@ -50,7 +50,13 @@ final class LandingTest extends WebTestCase
     public function testLandingShowsTodaysDailyTopFive(): void
     {
         $this->client->request('GET', '/');
-        self::assertSelectorTextContains('main', 'Nobody has walked today\'s road yet');
+        // Before anyone has run today there is no empty score panel, and the trailer and
+        // quotes stay hidden until they exist.
+        self::assertSelectorExists('#daily');
+        self::assertSelectorNotExists('.scores');
+        self::assertSelectorNotExists('#trailer');
+        self::assertSelectorNotExists('a[href="#trailer"]');
+        self::assertSelectorNotExists('.quotes');
         // Tests set only the Steam link: its button goes through the click counter, the others stay hidden.
         self::assertSelectorExists('a.store[href="/go/steam"]');
         self::assertSelectorNotExists('a.store[href^="/go/google-play"]');
