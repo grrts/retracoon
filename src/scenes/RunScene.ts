@@ -700,7 +700,7 @@ export class RunScene extends Phaser.Scene {
     const icon = this.add.image(0, 0, 'in_' + m.intent).setOrigin(0, 0.5);
     parts.push(icon);
     let label = '';
-    if (m.dmg && this.combat) {
+    if ((m.dmg || m.mirror) && this.combat) {
       const d = this.combat.intentDamage(f);
       label = m.hits && m.hits > 1 ? `${d}x${m.hits}` : `${d}`;
     }
@@ -734,7 +734,18 @@ export class RunScene extends Phaser.Scene {
         steal: 'WILL STEAL SHINIES',
         flee: 'WILL RUN',
       };
-      const extra = [f.armor ? `ARMOR ${f.armor}: CRITS IGNORE IT` : '', f.def.dodge ? `DODGES ${Math.round(f.def.dodge * 100)}%` : '', f.regen ? `REGEN ${f.regen}` : ''].filter(Boolean).join('. ');
+      const extra = [
+        f.armor ? `ARMOR ${f.armor}: CRITS IGNORE IT` : '',
+        f.def.dodge ? `DODGES ${Math.round(f.def.dodge * 100)}%` : '',
+        f.regen ? `REGEN ${f.regen}` : '',
+        f.status.shell ? `SHELL ${f.status.shell}: EACH HIT ONLY CRACKS ONE` : '',
+        f.status.fuse ? `BLOWS UP IN ${f.status.fuse}` : '',
+        f.status.taunt ? 'TAUNTING: TAKES YOUR SINGLE HITS' : '',
+        f.def.twin ? 'TWIN: BEAT BOTH IN ONE TURN' : '',
+        m.mirror ? 'COPIES YOUR BIGGEST HIT THIS TURN' : '',
+      ]
+        .filter(Boolean)
+        .join('. ');
       this.tip(`${f.def.name} ${f.hp}/${f.maxHp}: ${m.name}, ${f.status.stun ? 'STUNNED' : what[m.intent]}${extra ? '. ' + extra : ''}`);
     }
   }
@@ -871,6 +882,11 @@ export class RunScene extends Phaser.Scene {
     if (!this.skillBtns.length) this.buildCombatUi();
     this.refreshCombatUi();
     this.refreshHud();
+    // Copycats show what your hits this turn would cost you.
+    for (const f of c.alive()) {
+      const v = this.views.get(f.uid);
+      if (v && f.intent.mirror) this.drawIntent(v, f);
+    }
     if (c.turn >= 2) this.hint('intent', 'THE ICON OVER A FOE IS ITS NEXT MOVE.');
     // Out of AP (or nothing left it can buy): the turn ends by itself, after a beat.
     if (!c.canSpend()) {
@@ -1051,6 +1067,23 @@ export class RunScene extends Phaser.Scene {
             await wait(this, 220);
           }
           break;
+        case 'gone': {
+          // Fled or blew up: off the field, but not a kill.
+          const v = e.who === 'p' ? undefined : this.views.get(e.who);
+          if (v) {
+            if (e.how === 'blast') {
+              sfx.kill();
+              this.fx.death(v.c.x, GROUND_Y, [0xffcd75, 0xef7d57, 0xb13e53], false, v.h);
+              shake(this, 300, 0.012);
+              this.tweens.add({ targets: [v.c, v.shadow], alpha: 0, duration: 200, onComplete: () => (v.c.destroy(), v.shadow.destroy()) });
+            } else {
+              this.tweens.add({ targets: [v.c, v.shadow], x: W + 60, y: '-=40', alpha: 0, duration: 450, ease: 'Quad.in', onComplete: () => (v.c.destroy(), v.shadow.destroy()) });
+            }
+            this.views.delete(e.who as number);
+          }
+          await wait(this, 300);
+          break;
+        }
         case 'revive': {
           if (e.who === 'p') break;
           const v = this.views.get(e.who);

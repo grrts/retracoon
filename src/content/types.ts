@@ -9,7 +9,9 @@ export type StatKey = 'str' | 'def' | 'agi' | 'lck' | 'vit';
 // bleed: loses N more every time it is hit, fades 1 a turn   chill: 5 stacks freeze (stun)
 // mark: hits on it always crit, one mark per hit   regen: heals N at turn start, then N-1
 // focus (raccoon): your next N hits crit   evade (raccoon): dodge the next N hits this round
-export type StatusKey = 'poison' | 'weak' | 'vuln' | 'stun' | 'rage' | 'thorns' | 'burn' | 'bleed' | 'mark' | 'chill' | 'focus' | 'evade' | 'regen';
+// fuse (foe): blows up when it runs out   shell (foe): each hit only cracks one layer
+// taunt (foe): your single-target skills must hit it
+export type StatusKey = 'poison' | 'weak' | 'vuln' | 'stun' | 'rage' | 'thorns' | 'burn' | 'bleed' | 'mark' | 'chill' | 'focus' | 'evade' | 'regen' | 'fuse' | 'shell' | 'taunt';
 
 // ---------------------------------------------------------------- player
 
@@ -249,6 +251,10 @@ export interface MoveDef {
   summon?: string;
   steal?: number;
   apDrain?: number; // the player gets fewer AP next turn
+  drain?: number; // heals itself this share of the damage it deals
+  mirror?: number; // hits back for this share of the raccoon's biggest hit this turn (no dmg needed)
+  flee?: boolean; // leaves the fight (no XP), with any shinies it stole
+  blast?: boolean; // the fuse ran out: this hit and then it is gone (no XP)
   weight?: number;
   after?: string; // forced follow-up move (for wind-ups)
   once?: boolean;
@@ -279,6 +285,10 @@ export interface EnemyDef {
   boss?: boolean;
   onDeath?: 'revive' | 'burst' | 'split';
   split?: string; // enemy id spawned twice when it dies with onDeath 'split'
+  fuse?: number; // turns until it uses its blast move and is gone
+  shell?: number; // starts with this many shell layers
+  twin?: boolean; // gets back up if another twin is still standing when the turn ends
+  pair?: string; // enemy id that always comes along (its twin)
 }
 
 export interface EncounterDef {

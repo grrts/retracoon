@@ -145,7 +145,7 @@ const beach: ThemeDef = {
   ],
   ground: P.waterEdge({ bank: { top: [K.Y, K.s, K.s], body: K.s, specks: [[K.S, 20], [K.Y, 16], [K.P, 3]], stones: [K.T, K.Q] }, bankH: 22, water: [K.w, K.t, K.A] }),
   front: { speed: 1.35, paint: P.scatter({ items: [[SPR.shell, 2], [SPR.ball, 1]], count: 3, baseY: 222 }) },
-  families: ['bugs', 'swamp'],
+  families: ['shore', 'swamp'],
   boss: 'sky_kraken',
   hazard: { name: 'BIG WAVES', every: 3, desc: 'WASHES AWAY YOUR BLOCK', kind: 'sprinkler', power: 4 },
 };
@@ -169,7 +169,7 @@ const reef: ThemeDef = {
   front: { speed: 1.35, paint: P.kelp({ colors: [K.E, K.F, K.G], count: 3, h: [26, 40], baseY: 220 }) },
   weather: { kind: 'bubbles', density: 24, colors: [K.i, K.C] },
   light: 0xb8d8ff,
-  families: ['swamp', 'bugs'],
+  families: ['shore', 'swamp'],
   boss: 'sky_kraken',
   hazard: { name: 'JELLYFISH', every: 3, desc: 'POISONS EVERYONE', kind: 'fumes', power: 5 },
 };

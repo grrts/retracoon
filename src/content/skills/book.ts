@@ -143,6 +143,9 @@ export const STATUS_WORD: Record<StatusKey, string> = {
   focus: 'FOCUS',
   evade: 'EVADE',
   regen: 'REGEN',
+  fuse: 'FUSE',
+  shell: 'SHELL',
+  taunt: 'TAUNT',
 };
 const SELF_WORD: Partial<Record<StatusKey, string>> = { weak: 'YOU WEAK', vuln: 'YOU EXPOSED', poison: 'POISON YOU', burn: 'BURN YOU' };
 const STAT_SHORT: Record<StatKey, string> = { str: 'STR', def: 'DEF', agi: 'AGI', lck: 'LCK', vit: 'VIT' };

@@ -281,7 +281,7 @@ const docks: ThemeDef = {
   ],
   ground: P.planks({ colors: [K.T, K.J, K.N, K.k], depth: 22, under: 'water', water: [K.C, K.A, K.B], posts: K.N }),
   front: { speed: 1.35, paint: P.scatter({ items: [[SPR.bollard, 2], [SPR.rope, 1]], count: 2, baseY: 224 }) },
-  families: ['street', 'strays'],
+  families: ['street', 'strays', 'shore'],
   boss: 'goose',
   hazard: { name: 'SEA SPRAY', every: 3, desc: 'WASHES AWAY YOUR BLOCK', kind: 'sprinkler', power: 3 },
 };

@@ -16,6 +16,9 @@
             <div><b>{{ foe.shinies }}</b>shinies</div>
             {% if foe.minStage %}<div><b>{{ foe.minStage }}+</b>from stage</div>{% endif %}
         </div>
+        {% if foe.shell %}<p class="muted">Starts with {{ foe.shell }} shell: each hit only cracks one layer, so multi-hits and pierce break it.</p>{% endif %}
+        {% if foe.fuse %}<p class="muted">Blows up on its {{ foe.fuse == 1 ? 'first' : foe.fuse == 2 ? 'second' : foe.fuse == 3 ? 'third' : foe.fuse ~ 'th' }} turn unless you beat it first.</p>{% endif %}
+        {% if foe.twin %}<p class="muted">Twin: gets back up (twice at most) while its twin still stands. Beat both in one turn.</p>{% endif %}
         {% if foe.onDeath %}<p class="muted">On death: {{ {revive: 'gets back up once', burst: 'bursts, hurting you', split: 'splits in two'}[foe.onDeath] }}.</p>{% endif %}
     </div>
 </div>
@@ -25,7 +28,7 @@
 <h2>Phase 2: {{ foe.phase2.name }} (at {{ (foe.phase2.at * 100)|round }}% health)</h2>
 {{ w.moves(foe.phase2.moves) }}
 {% endif %}
-{% if related %}<h2>Calls in</h2><div class="grid small">{% for e in related %}{{ w.foe(e) }}{% endfor %}</div>{% endif %}
+{% if related %}<h2>{{ foe.pair ? 'Comes with' : 'Calls in' }}</h2><div class="grid small">{% for e in related %}{{ w.foe(e) }}{% endfor %}</div>{% endif %}
 {% if areas %}
 <h2>{{ foe.boss ? 'Boss of' : 'Found in' }}</h2>
 <div class="filters">{% for a in areas %}<a href="{{ path('wiki_area', {id: a.id}) }}">{{ a.name }}</a>{% endfor %}</div>

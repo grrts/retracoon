@@ -9,6 +9,8 @@ import { ENEMIES_SPOOKS } from './spooks';
 import { ENEMIES_MACHINES } from './machines';
 import { ENEMIES_WASTES } from './wastes';
 import { ENEMIES_VOID } from './void';
+import { ENEMIES_SHORE } from './shore';
+import { ENEMIES_TOYS } from './toys';
 import { BOSSES } from './bosses';
 
 const FAMILY_LISTS: Record<string, EnemyDef[]> = {
@@ -21,6 +23,8 @@ const FAMILY_LISTS: Record<string, EnemyDef[]> = {
   spooks: ENEMIES_SPOOKS,
   machines: ENEMIES_MACHINES,
   void: ENEMIES_VOID,
+  shore: ENEMIES_SHORE,
+  toys: ENEMIES_TOYS,
 };
 
 export const ENEMIES: EnemyDef[] = [...Object.values(FAMILY_LISTS).flat(), ...BOSSES];

@@ -21,6 +21,12 @@ import { rand } from './rng';
 import { rules } from './mutators';
 
 const TWIN = 0.6;
+// A fight still going at this turn goes into OVERTIME: foes stop healing and hit harder
+// every turn, so no fight can stall forever.
+export const OVERTIME = 25;
+const OVERTIME_DMG = 1.15;
+const TWIN_UPS = 2; // times a twin can get back up
+const MIRROR_CAP = 0.4; // a copied hit is at most this share of the raccoon's max health
 
 export type Statuses = Partial<Record<StatusKey, number>>;
 export type Who = 'p' | number; // 'p' = raccoon, number = foe uid
@@ -90,6 +96,10 @@ export interface Foe {
   revived?: boolean;
   phase: 1 | 2;
   dead: boolean;
+  gone?: boolean; // fled or blew up: out of the fight, but not a kill
+  loot: number; // shinies it stole, given back if it is killed
+  downTurn?: number; // turn it was knocked out (twins)
+  ups: number; // times a twin got back up
   used: Set<string>;
 }
 
@@ -101,6 +111,7 @@ export type Ev =
   | { t: 'heal'; who: Who; amount: number; hp: number }
   | { t: 'status'; who: Who; key: StatusKey; n: number }
   | { t: 'die'; who: Who }
+  | { t: 'gone'; who: Who; how: 'flee' | 'blast' }
   | { t: 'revive'; who: Who; hp: number }
   | { t: 'summon'; who: Who }
   | { t: 'phase'; who: Who; name: string }
@@ -144,6 +155,7 @@ export class Combat {
   uses: number[]; // times each skill was used this fight (stack)
   cheated = false; // cheatDeath spent
   apBonus = 0; // extra AP for the coming turn
+  bigHit = 0; // the biggest single skill hit this turn (for foes that copy it)
   ctx: SkillCtx;
   hooks: CombatHooks;
   private ev: Ev[] = [];
@@ -189,8 +201,12 @@ export class Combat {
       tier: def.boss ? 0 : tier,
       phase: 1,
       dead: false,
+      loot: 0,
+      ups: 0,
       used: new Set(),
     };
+    if (def.fuse) f.status.fuse = def.fuse;
+    if (def.shell) f.status.shell = def.shell + Math.floor(this.danger / 12);
     // Higher tiers learn a trick.
     if (f.tier >= 2) {
       const trick = Math.floor(rand() * 3);
@@ -256,6 +272,7 @@ export class Combat {
     this.turn++;
     this.killsThisTurn = 0;
     this.usedThisTurn = 0;
+    this.bigHit = 0;
     this.ev.push({ t: 'turn', side: 'player' });
     this.block = this.fx.blockKeep ? Math.floor((this.block * Math.min(100, this.fx.blockKeep)) / 100) : 0;
     this.status.thorns = 0;
@@ -366,12 +383,17 @@ export class Combat {
       const alive = this.alive();
       if (def.target === 'all') return alive;
       if (def.target === 'one') {
-        const t = alive.find((f) => f.uid === targetUid) ?? alive[0];
+        // A taunting foe takes every single-target skill.
+        const pick = alive.find((f) => f.uid === targetUid) ?? alive[0];
+        const t = pick && !pick.status.taunt ? alive.find((f) => (f.status.taunt ?? 0) > 0) ?? pick : pick;
         return t ? [t] : [];
       }
       return [];
     };
     const first = targets()[0];
+    if (first && def.target === 'one' && targetUid !== undefined && first.uid !== targetUid && this.foe(targetUid) && !this.foe(targetUid)!.dead) {
+      this.ev.push({ t: 'msg', who: first.uid, text: 'TAUNTED!', color: 0xef7d57 });
+    }
     if (e.shatter) for (const f of targets()) if (f.block) this.setBlock(f, 0);
     if (e.steal && first) {
       for (const k of ['rage', 'thorns', 'regen'] as StatusKey[]) {
@@ -460,6 +482,7 @@ export class Combat {
     }
     const dealt = this.damageFoe(f, raw, crit, true, !!e.pierce);
     if (dealt <= 0) return;
+    this.bigHit = Math.max(this.bigHit, dealt);
     if (def.target === 'one') this.afterSingleHit(f, dealt);
     this.onHit(f, dealt, crit, e);
     if (!f.dead && e.execute && !f.def.boss && f.hp < f.maxHp * e.execute) {
@@ -533,8 +556,16 @@ export class Combat {
     }
     this.decay('p');
     if (this.outcome()) return this.flush();
+    this.twinsGetUp();
 
     this.ev.push({ t: 'turn', side: 'foes' });
+    if (this.turn >= OVERTIME) {
+      if (this.turn === OVERTIME) this.ev.push({ t: 'hazard', name: 'OVERTIME', desc: 'FOES STOP HEALING AND HIT HARDER EVERY TURN' });
+      for (const f of this.alive()) {
+        f.dmgMul *= OVERTIME_DMG;
+        f.regen = 0;
+      }
+    }
     this.runHazard();
     for (const f of [...this.foes]) {
       if (f.dead || this.hp <= 0) continue;
@@ -546,6 +577,30 @@ export class Combat {
   }
 
   // ---------------------------------------------------------------- foes
+
+  // Twins knocked out this turn get back up while another twin still stands.
+  private twinsGetUp() {
+    const standing = this.alive().filter((f) => f.def.twin);
+    if (!standing.length) return;
+    for (const f of this.foes) {
+      if (!f.dead || f.gone || !f.def.twin || f.downTurn !== this.turn || f.ups >= TWIN_UPS) continue;
+      f.dead = false;
+      f.ups++;
+      f.hp = Math.round(f.maxHp * 0.5);
+      f.block = 0;
+      f.status = {};
+      this.killed = this.killed.filter((k) => k !== f);
+      this.ev.push({ t: 'summon', who: f.uid });
+      this.ev.push({ t: 'msg', who: f.uid, text: 'WOUND BACK UP!', color: 0xffcd75 });
+    }
+  }
+
+  // Out of the fight without being beaten: no XP, no kill.
+  private leave(f: Foe, how: 'flee' | 'blast') {
+    f.dead = true;
+    f.gone = true;
+    this.ev.push({ t: 'gone', who: f.uid, how });
+  }
 
   private foeTurn(f: Foe) {
     f.block = f.elite === 'armored' ? Math.round(6 * (1 + this.danger * 0.05)) : 0;
@@ -577,16 +632,39 @@ export class Combat {
     f.used.add(m.id);
     f.last = m.id;
 
+    let dealt = 0;
     if (m.dmg) {
       const hits = m.hits ?? 1;
-      for (let h = 0; h < hits && this.hp > 0 && !f.dead; h++) this.foeHitsPlayer(f, m.dmg);
+      for (let h = 0; h < hits && this.hp > 0 && !f.dead; h++) dealt += this.foeHitsPlayer(f, this.foeRaw(f, m.dmg));
+    }
+    if (m.mirror && this.hp > 0 && !f.dead) {
+      const d = this.mirrorDamage(f, m.mirror);
+      if (d > 0) dealt += this.foeHitsPlayer(f, d);
+      else this.ev.push({ t: 'msg', who: f.uid, text: 'NOTHING TO COPY', color: 0x94b0c2 });
+    }
+    if (m.drain && dealt > 0 && !f.dead) {
+      const amt = Math.min(f.maxHp - f.hp, Math.round(dealt * m.drain));
+      if (amt > 0) {
+        f.hp += amt;
+        this.ev.push({ t: 'heal', who: f.uid, amount: amt, hp: f.hp });
+      }
+    }
+    if (m.blast) {
+      this.setStatus(f.uid, 'fuse', 0);
+      if (!f.dead) this.leave(f, 'blast');
+      return;
     }
     if (m.steal) {
       const n = Math.min(this.hooks.shinies(), Math.round(m.steal * (1 + this.danger * 0.05)));
       if (n > 0) {
         this.hooks.addShinies(-n);
+        f.loot += n;
         this.ev.push({ t: 'steal', n });
       }
+    }
+    if (m.flee && !f.dead) {
+      this.leave(f, 'flee');
+      return;
     }
     if (m.apDrain) this.apDrain += m.apDrain;
     if (m.apply) for (const [k, n] of Object.entries(m.apply)) this.applyStatus('p', k as StatusKey, k === 'poison' ? Math.round(n! * (1 + this.danger * 0.04)) : n!);
@@ -615,11 +693,15 @@ export class Combat {
       }
     }
     this.decay(f.uid);
+    if (f.status.fuse) this.setStatus(f.uid, 'fuse', f.status.fuse - 1);
     f.intent = this.pickMove(f);
   }
 
   pickMove(f: Foe): MoveDef {
     const moves = f.moves;
+    // The fuse is about to run out: the next move is the blast.
+    const blast = f.status.fuse === 1 && moves.find((m) => m.blast);
+    if (blast) return blast;
     if (f.last) {
       const lastMove = moves.find((m) => m.id === f.last);
       if (lastMove?.after) {
@@ -652,28 +734,37 @@ export class Combat {
   // Predicted damage per hit, for the intent label.
   intentDamage(f: Foe): number {
     const m = f.intent;
+    if (m.mirror) return this.mirrorDamage(f, m.mirror);
     if (!m.dmg) return 0;
     return this.foeRaw(f, m.dmg);
   }
 
-  private foeRaw(f: Foe, base: number) {
-    let d = base * f.dmgMul;
+  // A copy of the raccoon's biggest hit this turn: already as strong as the raccoon, so
+  // the foe's own scaling doesn't apply, only weak, rage and defense.
+  private mirrorDamage(f: Foe, share: number) {
+    if (this.bigHit <= 0) return 0;
+    return this.foeRaw(f, Math.min(this.bigHit * share, this.maxHp * MIRROR_CAP), false);
+  }
+
+  private foeRaw(f: Foe, base: number, scaled = true) {
+    let d = base * (scaled ? f.dmgMul : 1);
     if (f.status.weak) d *= 0.75;
     if (f.status.rage) d *= 1.5;
     if (this.status.vuln) d *= 1.5;
     return Math.max(1, Math.round(d * damageTaken(this.run)));
   }
 
-  private foeHitsPlayer(f: Foe, base: number) {
+  // Takes the hit's damage after the foe's modifiers (foeRaw); returns what got through.
+  private foeHitsPlayer(f: Foe, raw: number): number {
     const evade = (this.status.evade ?? 0) > 0;
     if (evade) this.setStatus('p', 'evade', this.status.evade! - 1);
     if (evade || rand() < dodgeChance(this.run)) {
       this.ev.push({ t: 'dodge', who: 'p' });
       if (this.fx.dodgeStrike) this.damageFoe(f, this.fx.dodgeStrike, false, false);
       if (this.fx.dodgeHeal) this.healP(this.fx.dodgeHeal);
-      return;
+      return 0;
     }
-    let amt = this.foeRaw(f, base);
+    let amt = raw;
     const blocked = Math.min(this.block, amt);
     this.block -= blocked;
     amt -= blocked;
@@ -683,13 +774,14 @@ export class Combat {
     if (this.hp <= 0) {
       this.killedBy = { foe: f };
       this.ev.push({ t: 'die', who: 'p' });
-      return;
+      return amt;
     }
     if (this.fx.spikeBlock && blocked > 0) this.damageFoe(f, (blocked * this.fx.spikeBlock) / 100, false, false);
-    if (f.dead) return;
+    if (f.dead) return amt;
     if (this.fx.hurtBlock && amt > 0) this.gainBlock('p', this.fx.hurtBlock);
     const thorns = (this.fx.thorns ?? 0) + (this.status.thorns ?? 0);
     if (thorns > 0) this.damageFoe(f, thorns, false, false);
+    return amt;
   }
 
   // ---------------------------------------------------------------- damage & statuses
@@ -708,6 +800,12 @@ export class Combat {
     if (f.dead) return 0;
     if (dodgeable && f.def.dodge && rand() < Math.max(0, f.def.dodge - accuracy(this.run) * f.def.dodge)) {
       this.ev.push({ t: 'dodge', who: f.uid });
+      return 0;
+    }
+    // A shell turns every hit into one crack, however hard. Pierce goes through.
+    if ((f.status.shell ?? 0) > 0 && !pierce) {
+      this.setStatus(f.uid, 'shell', f.status.shell! - 1);
+      this.ev.push({ t: 'msg', who: f.uid, text: f.status.shell ? 'CRACK!' : 'SHELL BROKEN!', color: 0x94b0c2 });
       return 0;
     }
     let amt = raw;
@@ -770,9 +868,15 @@ export class Combat {
       return;
     }
     f.dead = true;
+    f.downTurn = this.turn;
     this.killed.push(f);
     this.killsThisTurn++;
     this.ev.push({ t: 'die', who: f.uid });
+    if (f.loot) {
+      this.hooks.addShinies(f.loot);
+      this.ev.push({ t: 'msg', who: f.uid, text: `GOT ${f.loot} BACK!`, color: 0xffcd75 });
+      f.loot = 0;
+    }
     if (this.killsThisTurn >= 2) {
       this.bestCombo = Math.max(this.bestCombo, this.killsThisTurn);
       this.ev.push({ t: 'combo', n: this.killsThisTurn });
@@ -960,7 +1064,7 @@ export class Combat {
   private decay(who: Who) {
     const st = who === 'p' ? this.status : this.foe(who as number)?.status;
     if (!st) return;
-    for (const k of ['weak', 'vuln', 'rage', 'bleed', 'chill'] as StatusKey[]) {
+    for (const k of ['weak', 'vuln', 'rage', 'bleed', 'chill', 'taunt'] as StatusKey[]) {
       if (st[k]) {
         st[k]!--;
         this.ev.push({ t: 'status', who, key: k, n: st[k]! });

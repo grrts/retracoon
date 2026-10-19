@@ -53,6 +53,9 @@ export const STATUS_LOOKS: Record<StatusKey, StatusLook> = {
   regen: { ramp: R('mLG'), shape: 'fx_plus', motion: 'rise', rate: 1 },
   focus: { ramp: R('Yyo'), shape: 'pt_spark', motion: 'rise', rate: 0.6 },
   evade: { ramp: R('wCc'), shape: 'fx_streak', motion: 'burst', rate: 0 },
+  fuse: { ramp: R('Yyo'), shape: 'pt_spark', motion: 'rise', rate: 2.2 },
+  shell: { ramp: R('wlg'), shape: 'fx_shard', motion: 'burst', rate: 0 },
+  taunt: { ramp: R('ooR'), shape: 'fx_ring_2', motion: 'implode', rate: 0 },
 };
 // Order of ambient priority: damage over time first, then control, then the rest.
 const AMBIENT_ORDER: StatusKey[] = ['burn', 'poison', 'bleed', 'stun', 'chill', 'rage', 'regen', 'weak', 'focus'];
