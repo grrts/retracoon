@@ -3,8 +3,9 @@ name: Deploy server
 # Runs server/ (API, website, wiki) on any Linux server with Docker: the image serves
 # HTTPS itself (FrankenPHP/Caddy, certificate from Let's Encrypt) next to PostgreSQL and
 # the prize job, see server/deploy/compose.yaml. The image is built here on GitHub, so
-# the server never compiles anything.
-# - Pull requests touching server/: builds the image and checks it answers /api/health.
+# the server never compiles anything. The game's browser build goes in it too, served at
+# /play/ and talking to the API on the same address (docs/ONLINE.md "Connecting the game").
+# - Pull requests touching server/ or the game: builds the image and checks it answers /api/health.
 # - Run by hand, or on pushes to main touching server/ once AUTO_DEPLOY is "true":
 #   uploads the image over SSH and restarts (server/deploy/up.sh). Docker is installed
 #   the first time. Without DEPLOY_HOST it does nothing.
@@ -14,9 +15,9 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['server/**', '.github/workflows/deploy-server.yml']
+    paths: ['server/**', 'src/**', 'index.html', 'package-lock.json', 'vite.config.ts', '.github/workflows/deploy-server.yml']
   pull_request:
-    paths: ['server/**', '.github/workflows/deploy-server.yml']
+    paths: ['server/**', 'src/**', 'index.html', 'package-lock.json', 'vite.config.ts', '.github/workflows/deploy-server.yml']
 
 jobs:
   image:
@@ -25,6 +26,14 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the game for /play/
+        run: npm ci && npx vite build --outDir server/public/play --emptyOutDir
+        env:
+          VITE_API_URL: same-origin
       - run: docker build -t retracoon-server server
       - name: Start the stack
         run: |
@@ -37,6 +46,7 @@ jobs:
           curl -fsS --retry 20 --retry-delay 3 --retry-all-errors http://localhost/api/health
           curl -fsS -o /dev/null http://localhost/
           curl -fsS -o /dev/null http://localhost/wiki
+          curl -fsS http://localhost/play/ | grep -q '<script'
       - if: failure()
         working-directory: ${{ runner.temp }}/srv
         run: docker compose logs
@@ -56,6 +66,16 @@ jobs:
         run: echo "DEPLOY_HOST isn't set, nothing to do."
       - if: env.HAS_HOST == 'true'
         uses: actions/checkout@v4
+      - if: env.HAS_HOST == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Build the game for /play/
+        if: env.HAS_HOST == 'true'
+        run: npm ci && npx vite build --outDir server/public/play --emptyOutDir
+        env:
+          VITE_API_URL: same-origin
       - name: Build image
         if: env.HAS_HOST == 'true'
         run: |
@@ -95,4 +115,6 @@ jobs:
           ssh deploy "bash '$ROOT/up.sh' '$ROOT'"
       - name: Health check
         if: env.HAS_HOST == 'true' && vars.API_URL != ''
-        run: curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "${{ vars.API_URL }}/api/health"
+        run: |
+          curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "${{ vars.API_URL }}/api/health"
+          curl -fsS -o /dev/null "${{ vars.API_URL }}/play/"

@@ -44,8 +44,10 @@ export const PRODUCTS: Product[] = [
 
 // Online scoreboard and friends: the Retracoon API in server/ (see docs/ONLINE.md).
 // Set VITE_API_URL when building, e.g. https://api.retracoon.com. Empty = the scoreboard
-// says it is not connected yet and the game works offline.
-export const API_URL = ((import.meta.env.VITE_API_URL as string | undefined) ?? '').replace(/\/+$/, '');
+// says it is not connected yet and the game works offline. `same-origin` = the server the
+// page is loaded from (the web build the server hosts at /play/).
+const apiEnv = (import.meta.env.VITE_API_URL as string | undefined) ?? '';
+export const API_URL = (apiEnv === 'same-origin' ? location.origin : apiEnv).replace(/\/+$/, '');
 
 // Sign-in (required to play once the API is set; see docs/ACCOUNTS.md). OAuth client
 // ids from Google Cloud and the Apple Services ID, set at build time.
