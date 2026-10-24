@@ -72,7 +72,7 @@ Run the migrate command again after each update of the API.
 
 ### Deploying with GitHub Actions
 
-The easy way: `.github/workflows/deploy-server.yml` puts the whole server on any Linux machine you can SSH into, with Docker. The image from `server/Dockerfile` serves the API and website over HTTPS by itself (FrankenPHP, with a free Let's Encrypt certificate for your domain), and `server/deploy/compose.yaml` runs it next to PostgreSQL and the `app:prizes` job. Each deploy uploads `server/`, rebuilds the image there, migrates the database and restarts; a failed build leaves the running version up. Docker is installed the first time if it's missing. Pull requests touching `server/` build the image and check it answers `/api/health`.
+The easy way: `.github/workflows/deploy-server.yml` puts the whole server on any Linux machine you can SSH into, with Docker. The image from `server/Dockerfile` serves the API and website over HTTPS by itself (FrankenPHP, with a free Let's Encrypt certificate for your domain), and `server/deploy/compose.yaml` runs it next to PostgreSQL and the `app:prizes` job. Each deploy builds the image on GitHub, uploads it, migrates the database and restarts. Nothing is compiled on the server, so the smallest VPS is enough. Docker is installed the first time if it's missing. Pull requests touching `server/` build the image and check it answers `/api/health`.
 
 Start it under Actions > Deploy server > Run workflow; to deploy every merge to `main` that touches `server/`, also set the variable `AUTO_DEPLOY` to `true`.
 

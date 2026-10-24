@@ -2,11 +2,12 @@ name: Deploy server
 
 # Runs server/ (API, website, wiki) on any Linux server with Docker: the image serves
 # HTTPS itself (FrankenPHP/Caddy, certificate from Let's Encrypt) next to PostgreSQL and
-# the prize job, see server/deploy/compose.yaml.
+# the prize job, see server/deploy/compose.yaml. The image is built here on GitHub, so
+# the server never compiles anything.
 # - Pull requests touching server/: builds the image and checks it answers /api/health.
 # - Run by hand, or on pushes to main touching server/ once AUTO_DEPLOY is "true":
-#   uploads server/ over SSH and rebuilds there (server/deploy/up.sh). Docker is
-#   installed the first time. Without DEPLOY_HOST it does nothing.
+#   uploads the image over SSH and restarts (server/deploy/up.sh). Docker is installed
+#   the first time. Without DEPLOY_HOST it does nothing.
 # Secrets and variables: docs/ONLINE.md "Deploying with GitHub Actions".
 
 on:
@@ -24,10 +25,11 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - run: docker build -t retracoon-server server
       - name: Start the stack
         run: |
           mkdir -p "$RUNNER_TEMP/srv"
-          cp -r server "$RUNNER_TEMP/srv/app.next"
+          cp server/deploy/compose.yaml "$RUNNER_TEMP/srv/"
           printf 'APP_SECRET=%s\nPOSTGRES_PASSWORD=ci\nDOMAIN=:80\nDEFAULT_URI=http://localhost\n' "$(openssl rand -hex 16)" > "$RUNNER_TEMP/srv/.env"
           bash server/deploy/up.sh "$RUNNER_TEMP/srv"
       - name: Health check
@@ -54,6 +56,11 @@ jobs:
         run: echo "DEPLOY_HOST isn't set, nothing to do."
       - if: env.HAS_HOST == 'true'
         uses: actions/checkout@v4
+      - name: Build image
+        if: env.HAS_HOST == 'true'
+        run: |
+          docker build -t retracoon-server server
+          docker save retracoon-server | gzip > "$RUNNER_TEMP/image.tar.gz"
       - name: SSH setup
         if: env.HAS_HOST == 'true'
         env:
@@ -79,12 +86,13 @@ jobs:
           ROOT: ${{ vars.DEPLOY_PATH || '/opt/retracoon' }}
           SERVER_ENV: ${{ secrets.SERVER_ENV }}
         run: |
-          ssh deploy "mkdir -p '$ROOT' && rm -rf '$ROOT/app.next' && mkdir '$ROOT/app.next' && tar -xzf - -C '$ROOT/app.next'" \
-            < <(tar -czf - -C server --exclude=./vendor --exclude=./var .)
+          ssh deploy "mkdir -p '$ROOT' && cat > '$ROOT/image.tar.gz'" < "$RUNNER_TEMP/image.tar.gz"
+          ssh deploy "cat > '$ROOT/compose.yaml'" < server/deploy/compose.yaml
           if [ -n "$SERVER_ENV" ]; then
             printf '%s\n' "$SERVER_ENV" | ssh deploy "umask 077 && cat > '$ROOT/.env'"
           fi
-          ssh deploy "bash '$ROOT/app.next/deploy/up.sh' '$ROOT'"
+          ssh deploy "cat > '$ROOT/up.sh'" < server/deploy/up.sh
+          ssh deploy "bash '$ROOT/up.sh' '$ROOT'"
       - name: Health check
         if: env.HAS_HOST == 'true' && vars.API_URL != ''
         run: curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "${{ vars.API_URL }}/api/health"
