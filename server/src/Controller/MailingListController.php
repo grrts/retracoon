@@ -54,7 +54,11 @@ final class MailingListController extends AbstractController
         LoggerInterface $logger,
         RateLimiterFactoryInterface $signupLimiter,
         #[Autowire('%env(MAILER_FROM)%')] string $from,
+        #[Autowire('%env(bool:MAILING_LIST_OPEN)%')] bool $open,
     ): Response {
+        if (!$open) {
+            return $this->page('form', [], 404);
+        }
         $email = strtolower(trim((string) $request->request->get('email', '')));
         // Bots fill the hidden field; tell them it worked.
         if ('' !== (string) $request->request->get('website', '')) {

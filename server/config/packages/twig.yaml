@@ -2,6 +2,7 @@ twig:
     file_name_pattern: '*.twig'
     globals:
         support_email: '%env(SUPPORT_EMAIL)%'
+        mailing_list_open: '%env(bool:MAILING_LIST_OPEN)%'
 
 when@test:
     twig:
