@@ -1,12 +1,13 @@
 # The live server: the app (API, website, HTTPS), the prize job and PostgreSQL.
-# .github/workflows/deploy-server.yml puts this in <DEPLOY_PATH> next to the app's code,
-# writes <DEPLOY_PATH>/.env from the SERVER_ENV secret and runs deploy/up.sh.
+# .github/workflows/deploy-server.yml builds the image (server/Dockerfile) on GitHub,
+# puts it and this file in <DEPLOY_PATH>, writes <DEPLOY_PATH>/.env from the SERVER_ENV
+# secret and runs deploy/up.sh.
 # Setup: docs/ONLINE.md "Deploying with GitHub Actions".
 name: retracoon
 
 x-app: &app
-  build: ./app
   image: retracoon-server
+  pull_policy: never
   restart: unless-stopped
   env_file: .env
   depends_on:

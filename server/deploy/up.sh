@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
-# Runs on the server, called by .github/workflows/deploy-server.yml once it uploaded the
-# new code to $ROOT/app.next. Installs Docker the first time, then rebuilds and restarts.
-# A failed build leaves the running version as it is.
+# Runs on the server, called by .github/workflows/deploy-server.yml after it uploaded
+# compose.yaml and the image GitHub built (image.tar.gz) to $ROOT. Installs Docker the
+# first time, loads the image and restarts. Nothing is compiled here, so a small server
+# with little memory is fine.
 set -euo pipefail
 ROOT=$1
 cd "$ROOT"
@@ -20,18 +21,13 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-rm -rf app.old
-if [ -d app ]; then mv app app.old; fi
-mv app.next app
-cp app/deploy/compose.yaml compose.yaml
-
-if ! $DOCKER compose build; then
-  echo "Build failed, keeping the running version." >&2
-  if [ -d app.old ]; then
-    rm -rf app && mv app.old app && cp app/deploy/compose.yaml compose.yaml
-  fi
-  exit 1
+if [ -f image.tar.gz ]; then
+  gunzip -c image.tar.gz | $DOCKER load
+  rm -f image.tar.gz
 fi
+# Code from earlier deploys, which built the image here.
+rm -rf app app.old app.next
+
 $DOCKER compose up -d --remove-orphans
 $DOCKER image prune -f >/dev/null
 $DOCKER compose ps
