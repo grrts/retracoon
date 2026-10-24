@@ -47,6 +47,7 @@
     </div>
 </section>
 
+{% if mailing_list_open %}
 <section class="newsband">
     <div class="wrap split">
         <div>
@@ -57,6 +58,7 @@
         <div class="news">{% include 'list/_signup.html.twig' %}</div>
     </div>
 </section>
+{% endif %}
 
 <section id="daily">
     {# The high-score panel shows once somebody has run today; until then the section only explains it. #}
