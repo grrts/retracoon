@@ -171,6 +171,7 @@ The game reads the address at build time from `VITE_API_URL`:
 
 - **Local build:** `VITE_API_URL=https://api.retracoon.com npm run build` (or put it in a `.env.local` file next to `package.json`).
 - **GitHub builds** (Android and iOS workflows): add a repository **variable** `API_URL` under Settings > Secrets and variables > Actions > Variables.
+- **Test build on the server:** the Deploy server workflow builds the game with `VITE_API_URL=same-origin` into `server/public/play`, so the server can serve it at `/play/`, talking to the API on the same address (no CORS or mixed-content issues, also on plain HTTP). It is for testing only, not a public web version: `/play/` is a 404 unless `SERVER_ENV` has `PLAY_PASSWORD=<password>` (and optionally `PLAY_USER`, default `tester`), and then it asks for that username and password. Guests can play; Google sign-in in the browser needs HTTPS on a domain added to the web client's origins ([ACCOUNTS.md](ACCOUNTS.md)).
 
 ## Running it locally
 

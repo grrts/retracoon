@@ -7,4 +7,17 @@ case "$1" in
     php bin/console cache:warmup --no-interaction
     ;;
 esac
+
+# The test build of the game at /play/ (public/play): only behind a password, set with
+# PLAY_PASSWORD (and PLAY_USER, default "tester"). Without one, /play/ is a 404.
+{
+  if [ -n "$PLAY_PASSWORD" ] && [ -d public/play ]; then
+    printf '@play path /play /play/*\nbasic_auth @play {\n\t%s %s\n}\n' \
+      "${PLAY_USER:-tester}" "$(frankenphp hash-password --plaintext "$PLAY_PASSWORD")"
+    printf 'redir /play /play/ 308\nrewrite /play/ /play/index.html\n'
+  else
+    printf 'respond /play* 404\n'
+  fi
+} > /etc/frankenphp/play.caddyfile
+
 exec docker-php-entrypoint "$@"
