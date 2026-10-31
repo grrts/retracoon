@@ -28,7 +28,9 @@ a{color:#73eff7}
 {% block body %}
 <main>
 <h1>{{ titles[state] }}</h1>
-{% if state == 'form' %}
+{% if state == 'form' and not mailing_list_open %}
+    <p>The mailing list isn't open yet. Check back soon.</p>
+{% elseif state == 'form' %}
     <p>One short email when there is news: launch day, new areas, the odd big update. Nothing else.</p>
     {% include 'list/_signup.html.twig' %}
 {% elseif state == 'check' %}

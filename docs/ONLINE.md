@@ -51,6 +51,8 @@ RUN_REPLAY=on
 # behind the store buttons. Leave a store empty to hide its button until it is live.
 MAILER_DSN=smtp://USER:PASSWORD@smtp.example.com:587
 MAILER_FROM="Retracoon <news@retracoon.com>"
+# 0 hides the sign-up forms until MAILER_DSN can really send the confirm emails
+MAILING_LIST_OPEN=1
 STORE_GOOGLE_PLAY_URL=https://play.google.com/store/apps/details?id=com.retracoon.game
 STORE_APP_STORE_URL=
 STORE_STEAM_URL=
