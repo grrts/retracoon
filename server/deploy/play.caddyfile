@@ -1,4 +1,0 @@
-# The browser build of the game at /play/ (public/play, built by deploy-server.yml).
-# Imported into the site block through CADDY_SERVER_EXTRA_DIRECTIVES (Dockerfile).
-redir /play /play/ 308
-rewrite /play/ /play/index.html

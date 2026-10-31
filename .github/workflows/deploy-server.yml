@@ -3,8 +3,8 @@ name: Deploy server
 # Runs server/ (API, website, wiki) on any Linux server with Docker: the image serves
 # HTTPS itself (FrankenPHP/Caddy, certificate from Let's Encrypt) next to PostgreSQL and
 # the prize job, see server/deploy/compose.yaml. The image is built here on GitHub, so
-# the server never compiles anything. The game's browser build goes in it too, served at
-# /play/ and talking to the API on the same address (docs/ONLINE.md "Connecting the game").
+# the server never compiles anything. A test build of the game goes in it too, served at
+# /play/ behind a password (docs/ONLINE.md "Connecting the game").
 # - Pull requests touching server/ or the game: builds the image and checks it answers /api/health.
 # - Run by hand, or on pushes to main touching server/ once AUTO_DEPLOY is "true":
 #   uploads the image over SSH and restarts (server/deploy/up.sh). Docker is installed
@@ -39,14 +39,15 @@ jobs:
         run: |
           mkdir -p "$RUNNER_TEMP/srv"
           cp server/deploy/compose.yaml "$RUNNER_TEMP/srv/"
-          printf 'APP_SECRET=%s\nPOSTGRES_PASSWORD=ci\nDOMAIN=:80\nDEFAULT_URI=http://localhost\n' "$(openssl rand -hex 16)" > "$RUNNER_TEMP/srv/.env"
+          printf 'APP_SECRET=%s\nPOSTGRES_PASSWORD=ci\nDOMAIN=:80\nDEFAULT_URI=http://localhost\nPLAY_PASSWORD=ci\n' "$(openssl rand -hex 16)" > "$RUNNER_TEMP/srv/.env"
           bash server/deploy/up.sh "$RUNNER_TEMP/srv"
       - name: Health check
         run: |
           curl -fsS --retry 20 --retry-delay 3 --retry-all-errors http://localhost/api/health
           curl -fsS -o /dev/null http://localhost/
           curl -fsS -o /dev/null http://localhost/wiki
-          curl -fsS http://localhost/play/ | grep -q '<script'
+          curl -fsS -u tester:ci http://localhost/play/ | grep -q '<script'
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://localhost/play/)" = 401
       - if: failure()
         working-directory: ${{ runner.temp }}/srv
         run: docker compose logs
@@ -115,6 +116,4 @@ jobs:
           ssh deploy "bash '$ROOT/up.sh' '$ROOT'"
       - name: Health check
         if: env.HAS_HOST == 'true' && vars.API_URL != ''
-        run: |
-          curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "${{ vars.API_URL }}/api/health"
-          curl -fsS -o /dev/null "${{ vars.API_URL }}/play/"
+        run: curl -fsS --retry 20 --retry-delay 3 --retry-all-errors "${{ vars.API_URL }}/api/health"

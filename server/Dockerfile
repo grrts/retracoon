@@ -1,7 +1,7 @@
 # The API and website in one image: FrankenPHP serves public/ and gets the HTTPS
 # certificate for SERVER_NAME by itself. Run by deploy/compose.yaml (docs/ONLINE.md).
-# The game itself is served at /play/ when public/play holds a browser build of it
-# (deploy-server.yml puts one there).
+# A test build of the game is served at /play/ behind a password (PLAY_PASSWORD, see
+# deploy/entrypoint.sh) when public/play holds one (deploy-server.yml puts it there).
 FROM dunglas/frankenphp:1-php8.3
 
 RUN install-php-extensions pdo_pgsql intl opcache zip
@@ -19,7 +19,6 @@ RUN composer dump-autoload --no-dev --classmap-authoritative \
  && rm -rf var/cache
 
 COPY deploy/entrypoint.sh /usr/local/bin/retracoon-entrypoint
-COPY deploy/play.caddyfile /etc/frankenphp/play.caddyfile
 ENV CADDY_SERVER_EXTRA_DIRECTIVES="import /etc/frankenphp/play.caddyfile"
 ENTRYPOINT ["retracoon-entrypoint"]
 CMD ["--config", "/etc/frankenphp/Caddyfile", "--adapter", "caddyfile"]
